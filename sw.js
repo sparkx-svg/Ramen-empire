@@ -35,9 +35,13 @@ self.addEventListener('install', event => {
 
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    )
+    (async () => {
+      if (self.registration.navigationPreload) {
+        await self.registration.navigationPreload.enable();
+      }
+      const keys = await caches.keys();
+      await Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)));
+    })()
   );
   self.clients.claim();
 });
@@ -53,7 +57,12 @@ self.addEventListener('fetch', event => {
       // not we have a cached copy to serve right now. Fire-and-forget when
       // there's a cached response to return immediately; awaited when there
       // isn't, since then it's the only way to answer the request at all.
-      const networkFetch = fetch(event.request)
+      // For navigations, prefer the preloaded response over starting a
+      // second fetch — the preload request was already in flight before
+      // this handler even ran, so reusing it avoids a redundant request.
+      const networkFetch = (event.request.mode === 'navigate'
+        ? event.preloadResponse.then(r => r || fetch(event.request))
+        : fetch(event.request))
         .then(response => {
           if(response && response.ok){
             cache.put(event.request, response.clone());
