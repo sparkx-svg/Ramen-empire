@@ -225,8 +225,15 @@
   // ---------- rendering ----------
   const expandedCards = new Set();
   const bizPanel = document.getElementById('bizPanel');
+  // Maps business id -> cached references to its buy/manager/upgrade buttons,
+  // populated whenever renderBusinesses() does a full rebuild. Lets the
+  // once-a-second affordability check (below) flip .disabled on existing
+  // elements instead of tearing down and rebuilding all 8 cards every tick.
+  let bizElCache = {};
+
   function renderBusinesses(){
     bizPanel.innerHTML = '';
+    bizElCache = {};
     BUSINESS_DEFS.forEach((def, idx) => {
       const b = state.businesses[def.id];
       const prevDef = BUSINESS_DEFS[idx-1];
@@ -278,6 +285,42 @@
         ${b.level > 0 ? `<div class="upgrade-panel${isOpen?' open':''}"><div class="upgrade-row">${upgradeChips}</div></div>` : ''}
       `;
       bizPanel.appendChild(card);
+
+      const cache = { buyBtn: card.querySelector('[data-action="buy"]'), managerBtn: card.querySelector('[data-action="manager"]'), upgradeChips: {} };
+      if(b.level > 0){
+        Object.keys(UPGRADE_TYPES).forEach(type => {
+          cache.upgradeChips[type] = card.querySelector(`[data-action="upgrade"][data-type="${type}"]`);
+        });
+      }
+      bizElCache[def.id] = cache;
+    });
+  }
+
+  // Runs every second: updates only the disabled/enabled state of existing
+  // buy/manager/upgrade buttons as cash accrues, without rebuilding any DOM.
+  // Cost, level, income, and locked status only change on an explicit action
+  // (buy, hire, upgrade, toggle) — each of those already calls the full
+  // renderBusinesses() directly, so this never needs to touch text or layout.
+  function refreshBusinessAffordability(){
+    BUSINESS_DEFS.forEach((def, idx) => {
+      const cache = bizElCache[def.id];
+      if(!cache) return;
+      const b = state.businesses[def.id];
+      const prevDef = BUSINESS_DEFS[idx-1];
+      const locked = idx > 0 && b.level === 0 && (!prevDef || state.businesses[prevDef.id].level < def.unlockAt) && def.unlockAt > 0;
+      const cost = businessCost(def, b.level);
+      if(cache.buyBtn) cache.buyBtn.disabled = state.cash < cost || locked;
+      if(cache.managerBtn) cache.managerBtn.disabled = state.cash < managerCost(def);
+      if(b.level > 0){
+        Object.keys(UPGRADE_TYPES).forEach(type => {
+          const chip = cache.upgradeChips[type];
+          if(!chip) return;
+          const t = UPGRADE_TYPES[type];
+          const lvl = b[type];
+          const maxed = lvl >= t.max;
+          chip.disabled = maxed || state.cash < upgradeCost(def, type, lvl);
+        });
+      }
     });
   }
 
@@ -561,6 +604,8 @@
 
   // ---------- game loop ----------
   let lastTick = Date.now();
+  let lastStatsRender = 0;
+  const STATS_RENDER_INTERVAL_MS = 100; // ~10fps — text-only display, doesn't need 60 DOM writes/sec
   function tick(){
     const now = Date.now();
     const dt = (now - lastTick) / 1000;
@@ -574,11 +619,14 @@
     }
     maybeTriggerEvent();
     tickEvent();
-    renderStats();
+    if(now - lastStatsRender >= STATS_RENDER_INTERVAL_MS){
+      renderStats();
+      lastStatsRender = now;
+    }
     requestAnimationFrame(tick);
   }
 
-  setInterval(() => { renderBusinesses(); checkAchievements(); }, 1000);
+  setInterval(() => { refreshBusinessAffordability(); checkAchievements(); }, 1000);
   setInterval(save, 10000);
 
   // ---------- init ----------
