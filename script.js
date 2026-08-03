@@ -1366,21 +1366,19 @@
       alert("You're already signed in with Google.");
       return;
     }
-    authError.style.display = 'none';
-    authStepProvider.style.display = 'none';
-    authStepProfile.style.display = 'none';
-    authCancelBtn.style.display = 'block';
-    openModal(authOverlay);
     auth.signInWithPopup(googleProvider).then(result => {
       const user = result.user;
       pendingProvider = 'google';
+      authError.style.display = 'none';
+      authStepProvider.style.display = 'none';
+      authStepProfile.style.display = 'block';
+      authCancelBtn.style.display = 'block';
       authNameInput.value = (state.profile.name || user.displayName || '').slice(0, 24);
       authAgeInput.value = state.profile.age || '';
-      authStepProfile.style.display = 'block';
+      openModal(authOverlay);
       authAgeInput.focus();
     }).catch(err => {
       console.warn('Google sign-in failed', err);
-      closeModal(authOverlay);
       alert('Google sign-in failed. Please try again.');
     });
   });
