@@ -224,6 +224,11 @@
   .prestige-btn{background:linear-gradient(180deg, var(--gold), #a37811); color:#2a1c04; border:none; border-radius:14px; padding:15px; font-weight:800; font-size:15px; width:100%; box-shadow:0 4px 0 #7a5b0c;}
   .prestige-btn:disabled{background:#4a453e; color:#8a837a; box-shadow:0 4px 0 #35312c;}
   .settings-item{background:var(--panel); border-radius:12px; padding:14px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; font-size:13px;}
+  .lb-row{background:var(--panel); border-radius:12px; padding:12px 14px; margin-bottom:8px; display:flex; align-items:center; gap:10px; font-size:13px;}
+  .lb-row.me{border:1px solid var(--gold);}
+  .lb-rank{width:26px; font-weight:800; color:var(--gold); font-family:'JetBrains Mono',monospace;}
+  .lb-name{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .lb-cash{font-family:'JetBrains Mono',monospace; font-weight:700;}
 
   /* ACHIEVEMENTS */
   .ach-card{

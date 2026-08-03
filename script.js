@@ -203,6 +203,7 @@
     state.lastSeen = Date.now();
     state.__checksum = computeChecksum(state);
     localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+    submitScore();
   }
   function load(){
     const raw = localStorage.getItem(SAVE_KEY);
@@ -805,6 +806,58 @@
     el.textContent = state.profile.name ? `${state.profile.name}, ${state.profile.age} · ${providerLabel}` : '—';
   }
 
+  // ---------- leaderboard ----------
+  // Only signed-in Google players get a leaderboard entry — guests have no
+  // Firebase auth session, so firebaseUser stays null for them and
+  // submitScore()/renderLeaderboard() below simply skip writing for them.
+  let firebaseUser = null;
+  auth.onAuthStateChanged(user => { firebaseUser = user; });
+
+  function escapeHtml(str){
+    return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  let lastLeaderboardSubmit = 0;
+  function submitScore(){
+    if(!firebaseUser) return;
+    const now = Date.now();
+    if(now - lastLeaderboardSubmit < 30000) return; // avoid excessive writes
+    lastLeaderboardSubmit = now;
+    db.collection('leaderboard').doc(firebaseUser.uid).set({
+      name: state.profile.name || firebaseUser.displayName || 'Anonymous',
+      cash: state.cash,
+      totalEarned: state.totalEarned,
+      prestigePoints: state.prestigePoints,
+      prestigeCount: state.prestigeCount,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true }).catch(err => console.warn('Leaderboard submit failed', err));
+  }
+
+  function renderLeaderboard(){
+    const statusEl = document.getElementById('leaderboardStatus');
+    const listEl = document.getElementById('leaderboardList');
+    statusEl.style.display = 'flex';
+    statusEl.querySelector('span').textContent = 'Loading leaderboard…';
+    listEl.innerHTML = '';
+    db.collection('leaderboard').orderBy('totalEarned', 'desc').limit(50).get().then(snap => {
+      statusEl.style.display = 'none';
+      if(snap.empty){
+        listEl.innerHTML = '<div class="settings-item"><span>No scores yet — be the first!</span></div>';
+        return;
+      }
+      let rank = 0;
+      listEl.innerHTML = snap.docs.map(doc => {
+        rank++;
+        const d = doc.data();
+        const isMe = firebaseUser && doc.id === firebaseUser.uid;
+        return `<div class="lb-row${isMe ? ' me' : ''}"><span class="lb-rank">#${rank}</span><span class="lb-name">${escapeHtml(d.name || 'Anonymous')}</span><span class="lb-cash">¥${fmt(d.totalEarned || 0)}</span></div>`;
+      }).join('');
+    }).catch(err => {
+      console.warn('Leaderboard load failed', err);
+      statusEl.querySelector('span').textContent = 'Could not load leaderboard.';
+    });
+  }
+
   // ---------- tap to earn ----------
   const bowlWrap = document.getElementById('bowlWrap');
   const tapZone = document.getElementById('tapZone');
@@ -857,6 +910,7 @@
     document.querySelectorAll('.panel-view').forEach(p => p.classList.toggle('active', p.id === panelId));
     if(panelId === 'achPanel') renderAchievements();
     if(panelId === 'worldPanel') renderWorld();
+    if(panelId === 'leaderboardPanel') renderLeaderboard();
   }
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => activatePanel(btn.dataset.panel));

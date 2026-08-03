@@ -68,6 +68,11 @@
     <div class="settings-item" style="margin-top:16px;"><span>Current multiplier</span><strong id="multiplierDisplay">x1.00</strong></div>
   </div>
 
+  <div class="panel-view" id="leaderboardPanel" role="tabpanel" aria-labelledby="navLeaderboard">
+    <div id="leaderboardStatus" class="settings-item"><span>Loading leaderboard…</span></div>
+    <div id="leaderboardList"></div>
+  </div>
+
   <div class="panel-view" id="settingsPanel" role="tabpanel" aria-labelledby="navSettings">
     <div class="settings-item"><span>Playing as</span><strong id="profileNameDisplay">—</strong></div>
     <div class="settings-item"><span>Edit profile</span><button class="modal-btn secondary" style="width:auto; padding:8px 16px; margin:0;" id="editProfileBtn">Edit</button></div>
@@ -81,6 +86,7 @@
     <button class="nav-btn" id="navWorld" role="tab" aria-selected="false" aria-controls="worldPanel" data-panel="worldPanel"><span class="nav-icon" aria-hidden="true">🌍</span>World</button>
     <button class="nav-btn" id="navAch" role="tab" aria-selected="false" aria-controls="achPanel" data-panel="achPanel"><span class="nav-icon" aria-hidden="true">🏆</span>Goals<span class="nav-dot" id="achDot"><span class="sr-only">New achievement available</span></span></button>
     <button class="nav-btn" id="navPrestige" role="tab" aria-selected="false" aria-controls="prestigePanel" data-panel="prestigePanel"><span class="nav-icon" aria-hidden="true">⭐</span>Prestige</button>
+    <button class="nav-btn" id="navLeaderboard" role="tab" aria-selected="false" aria-controls="leaderboardPanel" data-panel="leaderboardPanel"><span class="nav-icon" aria-hidden="true">🥇</span>Rank</button>
     <button class="nav-btn" id="navSettings" role="tab" aria-selected="false" aria-controls="settingsPanel" data-panel="settingsPanel"><span class="nav-icon" aria-hidden="true">⚙️</span>Settings</button>
   </div>
 
@@ -128,6 +134,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-analytics-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 <script src="firebase-config.js"></script>
 <script src="script.js"></script>
 </body>
