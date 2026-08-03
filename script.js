@@ -1355,6 +1355,36 @@
   });
   renderTapFxBtn();
 
+  // ---- log in (upgrade a Guest profile to Google) ----
+  // Reuses the same signInWithPopup + profile-step flow as first-run
+  // onboarding, but pre-fills the existing name/age so it reads as an
+  // upgrade rather than a fresh signup. Local progress is untouched either
+  // way — this only changes state.profile.provider and starts submitting
+  // scores to the leaderboard under the new Google identity going forward.
+  document.getElementById('loginGoogleBtn').addEventListener('click', () => {
+    if(state.profile.provider === 'google'){
+      alert("You're already signed in with Google.");
+      return;
+    }
+    authError.style.display = 'none';
+    authStepProvider.style.display = 'none';
+    authStepProfile.style.display = 'none';
+    authCancelBtn.style.display = 'block';
+    openModal(authOverlay);
+    auth.signInWithPopup(googleProvider).then(result => {
+      const user = result.user;
+      pendingProvider = 'google';
+      authNameInput.value = (state.profile.name || user.displayName || '').slice(0, 24);
+      authAgeInput.value = state.profile.age || '';
+      authStepProfile.style.display = 'block';
+      authAgeInput.focus();
+    }).catch(err => {
+      console.warn('Google sign-in failed', err);
+      closeModal(authOverlay);
+      alert('Google sign-in failed. Please try again.');
+    });
+  });
+
   // ---- log out ----
   // Signs out of the Google/Firebase session only. Local progress lives in
   // localStorage regardless of auth state, so nothing about the save is
