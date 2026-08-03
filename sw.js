@@ -7,6 +7,8 @@ const CACHE_NAME = 'ramen-empire-v1';
 const CORE_ASSETS = [
   './',
   './index.html',
+  './styles.css',
+  './script.js',
   './manifest.json'
 ];
 

@@ -13,205 +13,7 @@
 <meta name="apple-mobile-web-app-title" content="Ramen Empire">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+JP:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --bg:#1f1b18;
-    --panel:#2a241f;
-    --panel-light:#352d26;
-    --cream:#f5ede0;
-    --red:#c1272d;
-    --red-dark:#8f1c21;
-    --gold:#d4a017;
-    --jade:#4a7856;
-    --jade-light:#6a9e77;
-    --steam:rgba(245,237,224,0.15);
-  }
-  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none;}
-  html,body{margin:0; padding:0; height:100%; overflow:hidden; background:var(--bg); font-family:'Noto Sans JP',sans-serif; color:var(--cream);}
-  #app{display:flex; flex-direction:column; height:100vh; max-width:520px; margin:0 auto; position:relative;}
-
-  /* HEADER */
-  header{
-    background:linear-gradient(180deg, var(--red-dark), var(--red));
-    padding:14px 16px 18px;
-    position:relative;
-    box-shadow:0 4px 12px rgba(0,0,0,0.4);
-    z-index:2;
-  }
-  .noren{
-    display:flex; align-items:center; justify-content:space-between;
-  }
-  .brand{
-    font-family:'Bebas Neue', sans-serif;
-    font-size:28px;
-    letter-spacing:2px;
-    color:var(--cream);
-    display:flex; align-items:baseline; gap:6px;
-  }
-  .brand span{color:var(--gold); font-size:16px; letter-spacing:1px; font-family:'Noto Sans JP',sans-serif; font-weight:600;}
-  .stats-row{display:flex; gap:10px; margin-top:10px;}
-  .stat-pill{
-    background:rgba(0,0,0,0.25);
-    border-radius:10px;
-    padding:8px 12px;
-    flex:1;
-  }
-  .stat-label{font-size:10px; text-transform:uppercase; letter-spacing:1px; opacity:0.75;}
-  .stat-value{font-family:'JetBrains Mono',monospace; font-weight:600; font-size:16px; color:var(--gold);}
-  .stat-value.jade{color:var(--jade-light);}
-
-  /* TAP BOWL */
-  .tap-zone{
-    position:relative;
-    display:flex; align-items:center; justify-content:center;
-    padding:18px 0 10px;
-    background:radial-gradient(ellipse at center, #241e1a 0%, var(--bg) 70%);
-    flex-shrink:0;
-  }
-  .bowl-wrap{position:relative; width:120px; height:120px; cursor:pointer;}
-  .bowl{
-    width:100%; height:100%; border-radius:50%;
-    background:radial-gradient(circle at 35% 30%, #e8dcc4, #c1272d 55%, #8f1c21 100%);
-    display:flex; align-items:center; justify-content:center;
-    font-size:46px;
-    box-shadow:0 8px 24px rgba(0,0,0,0.5), inset 0 -6px 12px rgba(0,0,0,0.3);
-    transition:transform 0.08s ease;
-  }
-  .bowl-wrap:active .bowl{transform:scale(0.92);}
-  .steam{
-    position:absolute; top:-10px; left:50%; width:6px; height:30px;
-    background:var(--steam); border-radius:50%;
-    filter:blur(4px);
-    animation:rise 2.5s ease-in infinite;
-    pointer-events:none;
-  }
-  .steam:nth-child(2){left:40%; animation-delay:0.6s;}
-  .steam:nth-child(3){left:60%; animation-delay:1.2s;}
-  @keyframes rise{
-    0%{transform:translate(-50%,0) scaleY(1); opacity:0;}
-    20%{opacity:0.8;}
-    100%{transform:translate(-50%,-60px) scaleY(1.8); opacity:0;}
-  }
-  .float-gain{
-    position:absolute; top:0; left:50%; transform:translateX(-50%);
-    font-family:'JetBrains Mono',monospace; font-weight:600; color:var(--gold);
-    font-size:15px; pointer-events:none;
-    animation:floatUp 0.9s ease-out forwards;
-  }
-  @keyframes floatUp{
-    0%{opacity:1; transform:translate(-50%,0);}
-    100%{opacity:0; transform:translate(-50%,-50px);}
-  }
-  .tap-hint{font-size:11px; opacity:0.55; margin-top:6px; letter-spacing:0.5px;}
-
-  /* BUSINESS LIST */
-  .biz-scroll{
-    flex:1; overflow-y:auto; padding:10px 12px 90px;
-    -webkit-overflow-scrolling:touch;
-  }
-  .biz-card{
-    background:var(--panel);
-    border-radius:14px;
-    padding:12px 14px;
-    margin-bottom:10px;
-    display:flex; align-items:center; gap:12px;
-    border:1px solid rgba(255,255,255,0.05);
-    position:relative;
-    overflow:hidden;
-    transition:opacity 0.3s;
-  }
-  .biz-card.locked{opacity:0.45;}
-  .biz-icon{
-    width:46px; height:46px; border-radius:10px;
-    background:var(--panel-light);
-    display:flex; align-items:center; justify-content:center;
-    font-size:24px; flex-shrink:0;
-  }
-  .biz-info{flex:1; min-width:0;}
-  .biz-name{font-weight:800; font-size:14.5px; display:flex; align-items:center; gap:6px;}
-  .biz-level{font-size:10px; color:var(--jade-light); font-weight:600;}
-  .biz-income{font-family:'JetBrains Mono',monospace; font-size:11px; opacity:0.7; margin-top:2px;}
-  .manager-badge{
-    font-size:9px; background:var(--jade); color:var(--cream); padding:1px 6px;
-    border-radius:6px; font-weight:600; letter-spacing:0.3px;
-  }
-  .buy-btn{
-    background:var(--gold); color:#2a1c04; border:none; border-radius:10px;
-    padding:10px 12px; font-family:'JetBrains Mono',monospace; font-weight:700;
-    font-size:12px; min-width:78px; flex-shrink:0;
-    display:flex; flex-direction:column; align-items:center; gap:1px;
-    box-shadow:0 3px 0 #a37811;
-    active-state: pressed;
-  }
-  .buy-btn:active{transform:translateY(2px); box-shadow:0 1px 0 #a37811;}
-  .buy-btn:disabled{background:#4a453e; color:#8a837a; box-shadow:0 3px 0 #35312c;}
-  .buy-btn small{font-size:8px; opacity:0.75; font-weight:600;}
-  .manager-btn{
-    background:var(--jade); color:#0e1a12; box-shadow:0 3px 0 #2f5038;
-  }
-  .manager-btn:disabled{background:#4a453e; color:#8a837a; box-shadow:0 3px 0 #35312c;}
-  .progress-fill{
-    position:absolute; bottom:0; left:0; height:2px; background:var(--jade-light);
-  }
-
-  /* BOTTOM NAV */
-  .bottom-bar{
-    position:absolute; bottom:0; left:0; right:0;
-    background:var(--panel);
-    border-top:1px solid rgba(255,255,255,0.08);
-    display:flex; padding:8px 10px calc(8px + env(safe-area-inset-bottom));
-    gap:8px;
-    z-index:3;
-  }
-  .nav-btn{
-    flex:1; background:transparent; border:none; color:var(--cream); opacity:0.6;
-    display:flex; flex-direction:column; align-items:center; gap:2px; padding:6px 0;
-    font-size:10px; font-weight:600; border-radius:10px;
-  }
-  .nav-btn.active{opacity:1; background:rgba(212,160,23,0.12); color:var(--gold);}
-  .nav-icon{font-size:20px;}
-
-  /* MODAL */
-  .modal-overlay{
-    position:absolute; inset:0; background:rgba(0,0,0,0.75);
-    display:none; align-items:center; justify-content:center; z-index:10; padding:20px;
-  }
-  .modal-overlay.show{display:flex;}
-  .modal{
-    background:var(--panel); border-radius:18px; padding:24px 20px;
-    max-width:380px; width:100%; text-align:center;
-    border:1px solid rgba(212,160,23,0.3);
-  }
-  .modal h2{font-family:'Bebas Neue',sans-serif; font-size:26px; letter-spacing:1px; color:var(--gold); margin:0 0 8px;}
-  .modal p{font-size:13px; opacity:0.85; line-height:1.5; margin:0 0 18px;}
-  .modal-btn{
-    background:var(--gold); color:#2a1c04; border:none; border-radius:12px;
-    padding:13px; font-weight:700; font-size:14px; width:100%; margin-bottom:8px;
-  }
-  .modal-btn.secondary{background:transparent; color:var(--cream); opacity:0.7; box-shadow:none;}
-  .modal-btn.ad{background:var(--jade); color:#0e1a12;}
-
-  /* PRESTIGE PANEL */
-  .panel-view{display:none; flex:1; overflow-y:auto; padding:16px;}
-  .panel-view.active{display:block;}
-  .prestige-hero{
-    text-align:center; padding:20px 0;
-    background:radial-gradient(ellipse at center, rgba(212,160,23,0.15), transparent 70%);
-    border-radius:16px; margin-bottom:16px;
-  }
-  .prestige-hero .big{font-family:'Bebas Neue',sans-serif; font-size:44px; color:var(--gold); letter-spacing:1px;}
-  .prestige-hero p{font-size:12px; opacity:0.75; padding:0 20px; line-height:1.5;}
-  .prestige-btn{
-    background:linear-gradient(180deg, var(--gold), #a37811);
-    color:#2a1c04; border:none; border-radius:14px; padding:15px;
-    font-weight:800; font-size:15px; width:100%; box-shadow:0 4px 0 #7a5b0c;
-  }
-  .prestige-btn:disabled{background:#4a453e; color:#8a837a; box-shadow:0 4px 0 #35312c;}
-  .settings-item{
-    background:var(--panel); border-radius:12px; padding:14px; margin-bottom:10px;
-    display:flex; justify-content:space-between; align-items:center; font-size:13px;
-  }
-</style>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div id="app">
@@ -221,32 +23,32 @@
       <div class="brand">らーめん <span>RAMEN EMPIRE</span></div>
     </div>
     <div class="stats-row">
-      <div class="stat-pill">
-        <div class="stat-label">Cash</div>
-        <div class="stat-value" id="cashDisplay">¥0</div>
-      </div>
-      <div class="stat-pill">
-        <div class="stat-label">Per Second</div>
-        <div class="stat-value jade" id="rateDisplay">¥0/s</div>
-      </div>
-      <div class="stat-pill">
-        <div class="stat-label">Miso Points</div>
-        <div class="stat-value" id="prestigeDisplay">0</div>
-      </div>
+      <div class="stat-pill"><div class="stat-label">Cash</div><div class="stat-value" id="cashDisplay">¥0</div></div>
+      <div class="stat-pill"><div class="stat-label">Per Second</div><div class="stat-value jade" id="rateDisplay">¥0/s</div></div>
+      <div class="stat-pill"><div class="stat-label">Miso Points</div><div class="stat-value" id="prestigeDisplay">0</div></div>
     </div>
   </header>
+
+  <div class="event-banner" id="eventBanner">
+    <div class="ev-icon" id="eventIcon">🍜</div>
+    <div class="ev-text" id="eventText">Event</div>
+    <div class="ev-time" id="eventTime">0s</div>
+  </div>
 
   <div class="tap-zone" id="tapZone">
     <div class="bowl-wrap" id="bowlWrap">
       <div class="steam"></div><div class="steam"></div><div class="steam"></div>
-      <div class="bowl">🍜</div>
+      <div class="bowl" id="bowlEl">🍜</div>
     </div>
   </div>
-  <div style="text-align:center; margin-top:-8px; margin-bottom:6px;">
+  <div style="text-align:center; margin-top:-4px; margin-bottom:4px;">
     <div class="tap-hint" id="tapHint">Tap the bowl to serve a customer</div>
+    <div class="insp-progress" id="inspProgress"><div class="insp-progress-fill" id="inspProgressFill"></div></div>
   </div>
 
   <div class="biz-scroll panel-view active" id="bizPanel"></div>
+
+  <div class="panel-view" id="achPanel"></div>
 
   <div class="panel-view" id="prestigePanel">
     <div class="prestige-hero">
@@ -254,26 +56,18 @@
       <p>Retire your empire for Miso Points. Each point permanently boosts all income by 2%. Your businesses reset, but the flavor lives on.</p>
     </div>
     <button class="prestige-btn" id="prestigeBtn">Retire & Reopen (Prestige)</button>
-    <div class="settings-item" style="margin-top:16px;">
-      <span>Current multiplier</span>
-      <strong id="multiplierDisplay">x1.00</strong>
-    </div>
+    <div class="settings-item" style="margin-top:16px;"><span>Current multiplier</span><strong id="multiplierDisplay">x1.00</strong></div>
   </div>
 
   <div class="panel-view" id="settingsPanel">
-    <div class="settings-item">
-      <span>Save game</span>
-      <button class="modal-btn" style="width:auto; padding:8px 16px; margin:0;" id="saveBtn">Save Now</button>
-    </div>
-    <div class="settings-item">
-      <span>Reset all progress</span>
-      <button class="modal-btn secondary" style="width:auto; padding:8px 16px; margin:0; background:var(--red); color:white;" id="resetBtn">Reset</button>
-    </div>
-    <div class="settings-item"><span>Version</span><strong>1.0.0</strong></div>
+    <div class="settings-item"><span>Save game</span><button class="modal-btn" style="width:auto; padding:8px 16px; margin:0;" id="saveBtn">Save Now</button></div>
+    <div class="settings-item"><span>Reset all progress</span><button class="modal-btn secondary" style="width:auto; padding:8px 16px; margin:0; background:var(--red); color:white;" id="resetBtn">Reset</button></div>
+    <div class="settings-item"><span>Version</span><strong>1.1.0</strong></div>
   </div>
 
   <div class="bottom-bar">
     <button class="nav-btn active" data-panel="bizPanel"><span class="nav-icon">🏮</span>Shops</button>
+    <button class="nav-btn" data-panel="achPanel"><span class="nav-icon">🏆</span>Goals<span class="nav-dot" id="achDot"></span></button>
     <button class="nav-btn" data-panel="prestigePanel"><span class="nav-icon">⭐</span>Prestige</button>
     <button class="nav-btn" data-panel="settingsPanel"><span class="nav-icon">⚙️</span>Settings</button>
   </div>
@@ -287,283 +81,16 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="achModal">
+    <div class="modal">
+      <h2 id="achModalTitle">Achievement Unlocked!</h2>
+      <p id="achModalText"></p>
+      <button class="modal-btn" id="achModalClose">Nice</button>
+    </div>
+  </div>
+
 </div>
 
-<script>
-(function(){
-  "use strict";
-
-  const BUSINESS_DEFS = [
-    {id:'cart',   name:'Street Cart',       icon:'🛒', baseCost:10,      baseIncome:0.5,   unlockAt:0},
-    {id:'stall',  name:'Noodle Stall',      icon:'🏮', baseCost:100,     baseIncome:4,     unlockAt:0},
-    {id:'shop',   name:'Corner Shop',       icon:'🏠', baseCost:1100,    baseIncome:30,    unlockAt:0},
-    {id:'diner',  name:'Family Diner',      icon:'🍽️', baseCost:12000,   baseIncome:200,   unlockAt:5},
-    {id:'chain',  name:'City Chain',        icon:'🏢', baseCost:130000,  baseIncome:1400,  unlockAt:5},
-    {id:'factory',name:'Broth Factory',     icon:'🏭', baseCost:1400000, baseIncome:9000,  unlockAt:10},
-    {id:'mall',   name:'Mall Franchise',    icon:'🏬', baseCost:2e7,     baseIncome:55000, unlockAt:10},
-    {id:'global', name:'Global Empire HQ',  icon:'🌆', baseCost:3.3e8,   baseIncome:330000,unlockAt:15},
-  ];
-  const COST_GROWTH = 1.15;
-  const MANAGER_COST_MULT = 80; // manager costs = baseCost * this
-
-  let state = {
-    cash: 0,
-    totalEarned: 0,
-    prestigePoints: 0,
-    businesses: {}, // id -> {level, manager}
-    lastSeen: Date.now(),
-    tapPower: 1
-  };
-
-  BUSINESS_DEFS.forEach(b => state.businesses[b.id] = {level: 0, manager: false});
-
-  // ---------- persistence ----------
-  const SAVE_KEY = 'ramenEmpireSave_v1';
-  function save(){
-    state.lastSeen = Date.now();
-    localStorage.setItem(SAVE_KEY, JSON.stringify(state));
-  }
-  function load(){
-    const raw = localStorage.getItem(SAVE_KEY);
-    if(!raw) return;
-    try{
-      const loaded = JSON.parse(raw);
-      state = Object.assign(state, loaded);
-      BUSINESS_DEFS.forEach(b => {
-        if(!state.businesses[b.id]) state.businesses[b.id] = {level:0, manager:false};
-      });
-    }catch(e){ console.warn('save corrupt, starting fresh'); }
-  }
-
-  // ---------- math ----------
-  function prestigeMultiplier(){
-    return 1 + state.prestigePoints * 0.02;
-  }
-  function businessCost(def, level){
-    return def.baseCost * Math.pow(COST_GROWTH, level);
-  }
-  function businessIncome(def, level){
-    // each level adds baseIncome, with mild scaling
-    return def.baseIncome * level * (1 + level * 0.01);
-  }
-  function managerCost(def){
-    return def.baseCost * MANAGER_COST_MULT;
-  }
-  function totalRatePerSec(){
-    let total = 0;
-    BUSINESS_DEFS.forEach(def => {
-      const b = state.businesses[def.id];
-      if(b.manager && b.level > 0) total += businessIncome(def, b.level);
-    });
-    return total * prestigeMultiplier();
-  }
-  function nextTapGain(){
-    // tapping the highest-tier unlocked business gives a small manual bonus
-    return (1 + state.totalEarned * 0.00001) * prestigeMultiplier();
-  }
-  function fmt(n){
-    if(n < 1000) return '¥' + n.toFixed(n < 10 ? 1 : 0);
-    const units = ['K','M','B','T','Qa','Qi','Sx','Sp'];
-    let u = -1;
-    while(n >= 1000 && u < units.length - 1){ n /= 1000; u++; }
-    return '¥' + n.toFixed(2) + units[u];
-  }
-  function fmtPlain(n){
-    if(n < 1000) return n.toFixed(1);
-    const units = ['K','M','B','T','Qa','Qi','Sx','Sp'];
-    let u = -1;
-    while(n >= 1000 && u < units.length - 1){ n /= 1000; u++; }
-    return n.toFixed(2) + units[u];
-  }
-
-  // ---------- rendering ----------
-  const bizPanel = document.getElementById('bizPanel');
-  function renderBusinesses(){
-    bizPanel.innerHTML = '';
-    let highestUnlockedLevel = 0;
-    BUSINESS_DEFS.forEach(def => {
-      if(state.businesses[def.id].level > highestUnlockedLevel) highestUnlockedLevel = state.businesses[def.id].level;
-    });
-
-    BUSINESS_DEFS.forEach((def, idx) => {
-      const b = state.businesses[def.id];
-      const prevDef = BUSINESS_DEFS[idx-1];
-      const locked = idx > 0 && b.level === 0 && (!prevDef || state.businesses[prevDef.id].level < def.unlockAt) && def.unlockAt > 0;
-      const cost = businessCost(def, b.level);
-      const canAfford = state.cash >= cost;
-      const income = businessIncome(def, b.level);
-      const mCost = managerCost(def);
-
-      const card = document.createElement('div');
-      card.className = 'biz-card' + (locked ? ' locked' : '');
-      card.innerHTML = `
-        <div class="biz-icon">${def.icon}</div>
-        <div class="biz-info">
-          <div class="biz-name">${def.name} ${b.manager ? '<span class="manager-badge">AUTO</span>' : ''}</div>
-          <div class="biz-level">Level ${b.level}</div>
-          <div class="biz-income">${b.level>0 ? fmt(income)+'/s' : 'Not opened yet'}</div>
-        </div>
-        ${!b.manager && b.level >= 5 ? `<button class="buy-btn manager-btn" data-action="manager" data-id="${def.id}" ${state.cash < mCost ? 'disabled' : ''}>HIRE<small>${fmt(mCost)}</small></button>` : ''}
-        <button class="buy-btn" data-action="buy" data-id="${def.id}" ${!canAfford || locked ? 'disabled' : ''}>${b.level===0?'OPEN':'UPGRADE'}<small>${fmt(cost)}</small></button>
-      `;
-      bizPanel.appendChild(card);
-    });
-  }
-
-  function renderStats(){
-    document.getElementById('cashDisplay').textContent = fmt(state.cash);
-    document.getElementById('rateDisplay').textContent = fmt(totalRatePerSec()) + '/s';
-    document.getElementById('prestigeDisplay').textContent = Math.floor(state.prestigePoints);
-    document.getElementById('multiplierDisplay').textContent = 'x' + prestigeMultiplier().toFixed(2);
-    const potential = Math.floor(Math.sqrt(state.totalEarned / 1e6));
-    document.getElementById('prestigePreview').textContent = '+' + potential;
-    document.getElementById('prestigeBtn').disabled = potential <= 0;
-  }
-
-  // ---------- actions ----------
-  function buyBusiness(id){
-    const def = BUSINESS_DEFS.find(d => d.id === id);
-    const b = state.businesses[id];
-    const cost = businessCost(def, b.level);
-    if(state.cash < cost) return;
-    state.cash -= cost;
-    b.level++;
-    renderBusinesses();
-    renderStats();
-  }
-  function hireManager(id){
-    const def = BUSINESS_DEFS.find(d => d.id === id);
-    const b = state.businesses[id];
-    const cost = managerCost(def);
-    if(state.cash < cost) return;
-    state.cash -= cost;
-    b.manager = true;
-    renderBusinesses();
-    renderStats();
-  }
-  function doPrestige(){
-    const potential = Math.floor(Math.sqrt(state.totalEarned / 1e6));
-    if(potential <= 0) return;
-    state.prestigePoints += potential;
-    state.cash = 0;
-    state.totalEarned = 0;
-    BUSINESS_DEFS.forEach(def => state.businesses[def.id] = {level:0, manager:false});
-    save();
-    renderBusinesses();
-    renderStats();
-  }
-
-  bizPanel.addEventListener('click', e => {
-    const btn = e.target.closest('button');
-    if(!btn) return;
-    const id = btn.dataset.id;
-    if(btn.dataset.action === 'buy') buyBusiness(id);
-    if(btn.dataset.action === 'manager') hireManager(id);
-  });
-
-  // ---------- tap to earn ----------
-  const bowlWrap = document.getElementById('bowlWrap');
-  const tapZone = document.getElementById('tapZone');
-  bowlWrap.addEventListener('click', () => {
-    const gain = nextTapGain();
-    state.cash += gain;
-    state.totalEarned += gain;
-    spawnFloatingGain(gain);
-    renderStats();
-  });
-  function spawnFloatingGain(gain){
-    const el = document.createElement('div');
-    el.className = 'float-gain';
-    el.textContent = '+' + fmt(gain);
-    el.style.left = (45 + Math.random()*10) + '%';
-    tapZone.appendChild(el);
-    setTimeout(() => el.remove(), 900);
-  }
-
-  // ---------- nav ----------
-  document.querySelectorAll('.nav-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.panel-view').forEach(p => p.classList.remove('active'));
-      btn.classList.add('active');
-      document.getElementById(btn.dataset.panel).classList.add('active');
-    });
-  });
-
-  document.getElementById('prestigeBtn').addEventListener('click', doPrestige);
-  document.getElementById('saveBtn').addEventListener('click', () => { save(); alert('Saved!'); });
-  document.getElementById('resetBtn').addEventListener('click', () => {
-    if(confirm('Reset ALL progress? This cannot be undone.')){
-      localStorage.removeItem(SAVE_KEY);
-      location.reload();
-    }
-  });
-
-  // ---------- offline earnings ----------
-  let pendingOfflineGain = 0;
-  function checkOfflineEarnings(){
-    const now = Date.now();
-    const elapsedSec = Math.min((now - state.lastSeen) / 1000, 4 * 3600); // cap 4h
-    if(elapsedSec < 30) return; // not worth a popup
-    const rate = totalRatePerSec();
-    if(rate <= 0) return;
-    pendingOfflineGain = rate * elapsedSec * 0.5; // offline = 50% efficiency
-    if(pendingOfflineGain < 1) return;
-    document.getElementById('offlineText').textContent =
-      `While you were away for ${Math.round(elapsedSec/60)} min, your shops earned ${fmt(pendingOfflineGain)}.`;
-    document.getElementById('offlineModal').classList.add('show');
-  }
-  document.getElementById('collectOfflineBtn').addEventListener('click', () => {
-    state.cash += pendingOfflineGain;
-    state.totalEarned += pendingOfflineGain;
-    document.getElementById('offlineModal').classList.remove('show');
-    renderStats();
-  });
-  document.getElementById('doubleOfflineBtn').addEventListener('click', () => {
-    // Stub for rewarded ad integration (AdMob). On real device, show rewarded ad,
-    // then call this callback on successful view.
-    state.cash += pendingOfflineGain * 2;
-    state.totalEarned += pendingOfflineGain * 2;
-    document.getElementById('offlineModal').classList.remove('show');
-    renderStats();
-  });
-
-  // ---------- game loop ----------
-  let lastTick = Date.now();
-  function tick(){
-    const now = Date.now();
-    const dt = (now - lastTick) / 1000;
-    lastTick = now;
-    const gain = totalRatePerSec() * dt;
-    if(gain > 0){
-      state.cash += gain;
-      state.totalEarned += gain;
-    }
-    renderStats();
-    requestAnimationFrame(tick);
-  }
-
-  // periodic UI refresh for buy buttons (cheaper than full re-render every frame)
-  setInterval(renderBusinesses, 800);
-  setInterval(save, 10000);
-
-  // ---------- init ----------
-  load();
-  checkOfflineEarnings();
-  renderBusinesses();
-  renderStats();
-  requestAnimationFrame(tick);
-
-  window.addEventListener('beforeunload', save);
-  document.addEventListener('visibilitychange', () => { if(document.hidden) save(); });
-
-  if('serviceWorker' in navigator){
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch(err => console.warn('SW registration failed', err));
-    });
-  }
-
-})();
-</script>
+<script src="script.js"></script>
 </body>
 </html>
