@@ -1343,8 +1343,6 @@
     if(!el) return;
     const providerLabel = {google:'Google', guest:'Guest'}[state.profile.provider] || 'Guest';
     el.textContent = state.profile.name ? `${state.profile.name}, ${state.profile.age} · ${providerLabel}` : '—';
-    const logoutBtn = document.getElementById('logoutBtn');
-    if(logoutBtn) logoutBtn.style.display = state.profile.provider === 'google' ? '' : 'none';
   }
 
   // ---- tap effects toggle ----
@@ -1362,34 +1360,21 @@
   // localStorage regardless of auth state, so nothing about the save is
   // touched — this just stops leaderboard submissions under this identity
   // and drops the player's profile back to Guest until they sign in again.
+  // Always visible (rather than hidden for non-Google profiles) and always
+  // gives a visible result, so it never looks like a dead button.
   document.getElementById('logoutBtn').addEventListener('click', () => {
-    if(state.profile.provider !== 'google') return;
+    if(state.profile.provider !== 'google' || !firebaseUser){
+      alert("You're playing as a guest — there's no account to log out of.");
+      return;
+    }
     auth.signOut().then(() => {
       state.profile.provider = 'guest';
       save();
       renderProfileSettings();
-    }).catch(err => console.warn('Sign out failed', err));
-  });
-
-  // ---- delete account ----
-  // Destructive: removes this player's leaderboard + friends docs, deletes
-  // the Firebase Auth account itself (Google sign-in only — guests have no
-  // cloud account to delete), then wipes local progress just like Reset.
-  document.getElementById('deleteAccountBtn').addEventListener('click', () => {
-    if(!confirm('Delete your account? This removes you from the leaderboard and erases all local progress. This cannot be undone.')) return;
-    const finish = () => { localStorage.removeItem(SAVE_KEY); location.reload(); };
-    if(!firebaseUser){ finish(); return; }
-    const uid = firebaseUser.uid;
-    Promise.all([
-      db.collection('leaderboard').doc(uid).delete().catch(err => console.warn('Delete leaderboard doc failed', err)),
-      db.collection('friends').doc(uid).delete().catch(err => console.warn('Delete friends doc failed', err))
-    ]).then(() => firebaseUser.delete()).then(finish).catch(err => {
-      console.warn('Account deletion failed', err);
-      // Firebase requires a recent sign-in to delete the auth account itself
-      // (auth/requires-recent-login). The cloud data above is already gone
-      // either way, so still sign out and wipe local progress rather than
-      // leaving the person stuck.
-      auth.signOut().catch(() => {}).then(finish);
+      alert('Logged out. Your local progress is unchanged.');
+    }).catch(err => {
+      console.warn('Sign out failed', err);
+      alert('Log out failed — check your connection and try again.');
     });
   });
 
