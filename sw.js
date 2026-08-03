@@ -1,9 +1,23 @@
 // Ramen Empire service worker
-// Network-first strategy: always try the network first so gameplay updates
-// show up immediately, falling back to cache only when offline.
-// (Cache-first caused stale-content bugs on other projects — avoid that here.)
+//
+// Strategy: stale-while-revalidate. Every GET is served from cache
+// immediately if we have it (fast, works offline), while a network
+// request runs in the background to refresh the cache for next time.
+// This trades "always the absolute latest asset" for snappier loads,
+// which is the right call for a game that's almost entirely static
+// assets — gameplay state itself lives in localStorage, not in these
+// files, so briefly serving a cached script.js is harmless; the user
+// gets the update on their *next* load once the background fetch lands.
+//
+// Cache busting: bump APP_VERSION on every deploy that changes any file
+// in CORE_ASSETS. That changes CACHE_NAME, which makes install() populate
+// a fresh cache and activate() delete the old one — so users can't get
+// stuck on stale assets indefinitely even with SWR serving cache-first.
+// Forgetting to bump this is the main way this strategy goes stale, so
+// treat it like a changelog entry: bump it, don't skip it.
+const APP_VERSION = '1.1.0';
+const CACHE_NAME = 'ramen-empire-v' + APP_VERSION;
 
-const CACHE_NAME = 'ramen-empire-v1';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -32,14 +46,32 @@ self.addEventListener('fetch', event => {
   if(event.request.method !== 'GET') return;
 
   event.respondWith(
-    fetch(event.request)
-      .then(response => {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-        return response;
-      })
-      .catch(() =>
-        caches.match(event.request).then(cached => cached || caches.match('./index.html'))
-      )
+    caches.open(CACHE_NAME).then(async cache => {
+      const cached = await cache.match(event.request);
+
+      // Always kick off a network fetch to refresh the cache, whether or
+      // not we have a cached copy to serve right now. Fire-and-forget when
+      // there's a cached response to return immediately; awaited when there
+      // isn't, since then it's the only way to answer the request at all.
+      const networkFetch = fetch(event.request)
+        .then(response => {
+          if(response && response.ok){
+            cache.put(event.request, response.clone());
+          }
+          return response;
+        })
+        .catch(() => null);
+
+      if(cached){
+        // networkFetch is already running (fetch() started executing the
+        // moment it was assigned above) — we just don't await it here, so
+        // the cached response goes out immediately and the cache gets
+        // refreshed in the background for the next request.
+        return cached;
+      }
+
+      const fresh = await networkFetch;
+      return fresh || cache.match('./index.html');
+    })
   );
 });
