@@ -360,6 +360,60 @@
   function checkAchievements(){
     renderAchievements();
   }
+
+  // ---------- modal focus management ----------
+  // Traps Tab focus inside an open modal so keyboard users can't tab out to
+  // the page behind it, restores focus to whatever triggered the modal when
+  // it closes, and fires a 'modal-dismiss' event on Escape or backdrop click
+  // so each modal can decide what dismissal means (e.g. offline earnings
+  // should still be collected, not silently lost).
+  function getFocusable(container){
+    return Array.from(container.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+      .filter(el => !el.disabled && el.offsetParent !== null);
+  }
+  let modalReturnFocus = null;
+  let modalKeydownHandler = null;
+  function openModal(overlayEl){
+    modalReturnFocus = document.activeElement;
+    overlayEl.classList.add('show');
+    const dialog = overlayEl.querySelector('[role="dialog"]');
+    const focusables = getFocusable(dialog);
+    (focusables[0] || dialog).focus();
+    modalKeydownHandler = e => {
+      if(e.key === 'Escape'){
+        e.preventDefault();
+        overlayEl.dispatchEvent(new CustomEvent('modal-dismiss'));
+        return;
+      }
+      if(e.key === 'Tab'){
+        const items = getFocusable(dialog);
+        if(items.length === 0) return;
+        const first = items[0], last = items[items.length - 1];
+        if(e.shiftKey && document.activeElement === first){
+          e.preventDefault(); last.focus();
+        } else if(!e.shiftKey && document.activeElement === last){
+          e.preventDefault(); first.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', modalKeydownHandler);
+  }
+  function closeModal(overlayEl){
+    overlayEl.classList.remove('show');
+    if(modalKeydownHandler){
+      document.removeEventListener('keydown', modalKeydownHandler);
+      modalKeydownHandler = null;
+    }
+    if(modalReturnFocus && typeof modalReturnFocus.focus === 'function'){
+      modalReturnFocus.focus();
+    }
+    modalReturnFocus = null;
+  }
+  [document.getElementById('offlineModal'), document.getElementById('achModal')].forEach(overlay => {
+    overlay.addEventListener('click', e => {
+      if(e.target === overlay) overlay.dispatchEvent(new CustomEvent('modal-dismiss'));
+    });
+  });
   function claimAchievement(id){
     const ach = ACHIEVEMENTS.find(a => a.id === id);
     if(!ach || state.achievementsClaimed[id]) return;
@@ -369,7 +423,7 @@
     renderAchievements(); renderStats();
     document.getElementById('achModalTitle').textContent = 'Achievement Unlocked!';
     document.getElementById('achModalText').textContent = `${ach.name} — permanent +${Math.round(ach.reward*100)}% income bonus applied.`;
-    document.getElementById('achModal').classList.add('show');
+    openModal(document.getElementById('achModal'));
   }
 
   bizPanel.addEventListener('click', e => {
@@ -400,9 +454,9 @@
     if(!btn) return;
     claimAchievement(btn.dataset.id);
   });
-  document.getElementById('achModalClose').addEventListener('click', () => {
-    document.getElementById('achModal').classList.remove('show');
-  });
+  function closeAchModal(){ closeModal(document.getElementById('achModal')); }
+  document.getElementById('achModalClose').addEventListener('click', closeAchModal);
+  document.getElementById('achModal').addEventListener('modal-dismiss', closeAchModal);
 
   // ---------- tap to earn ----------
   const bowlWrap = document.getElementById('bowlWrap');
@@ -479,14 +533,17 @@
     if(pendingOfflineGain < 1) return;
     document.getElementById('offlineText').textContent =
       `While you were away for ${Math.round(elapsedSec/60)} min, your shops earned ${fmt(pendingOfflineGain)}.`;
-    document.getElementById('offlineModal').classList.add('show');
+    openModal(document.getElementById('offlineModal'));
   }
-  document.getElementById('collectOfflineBtn').addEventListener('click', () => {
-    state.cash += pendingOfflineGain;
-    state.totalEarned += pendingOfflineGain;
-    document.getElementById('offlineModal').classList.remove('show');
+  function collectOffline(multiplier){
+    const amount = pendingOfflineGain * multiplier;
+    state.cash += amount;
+    state.totalEarned += amount;
+    closeModal(document.getElementById('offlineModal'));
     renderStats(); checkAchievements();
-  });
+  }
+  document.getElementById('collectOfflineBtn').addEventListener('click', () => collectOffline(1));
+  document.getElementById('offlineModal').addEventListener('modal-dismiss', () => collectOffline(1));
   const doubleOfflineBtn = document.getElementById('doubleOfflineBtn');
   doubleOfflineBtn.style.display = FEATURES.adsEnabled ? '' : 'none';
   if(!FEATURES.adsEnabled){
@@ -499,10 +556,7 @@
     }
     // TODO: replace this stub with a real rewarded-ad SDK call. Only credit
     // the doubled reward inside the ad's successful-view callback, not here.
-    state.cash += pendingOfflineGain * 2;
-    state.totalEarned += pendingOfflineGain * 2;
-    document.getElementById('offlineModal').classList.remove('show');
-    renderStats(); checkAchievements();
+    collectOffline(2);
   });
 
   // ---------- game loop ----------
