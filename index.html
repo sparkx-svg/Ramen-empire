@@ -50,6 +50,8 @@
 
   <div class="panel-view" id="achPanel"></div>
 
+  <div class="panel-view" id="recipePanel"></div>
+
   <div class="panel-view" id="prestigePanel">
     <div class="prestige-hero">
       <div class="big" id="prestigePreview">+0</div>
@@ -57,17 +59,20 @@
     </div>
     <button class="prestige-btn" id="prestigeBtn">Retire & Reopen (Prestige)</button>
     <div class="settings-item" style="margin-top:16px;"><span>Current multiplier</span><strong id="multiplierDisplay">x1.00</strong></div>
+    <div class="panel-subhead">Prestige Tree <small>spend Miso Points on permanent perks</small></div>
+    <div id="prestigeTreeList"></div>
   </div>
 
   <div class="panel-view" id="settingsPanel">
     <div class="settings-item"><span>Save game</span><button class="modal-btn" style="width:auto; padding:8px 16px; margin:0;" id="saveBtn">Save Now</button></div>
     <div class="settings-item"><span>Reset all progress</span><button class="modal-btn secondary" style="width:auto; padding:8px 16px; margin:0; background:var(--red); color:white;" id="resetBtn">Reset</button></div>
-    <div class="settings-item"><span>Version</span><strong>1.1.0</strong></div>
+    <div class="settings-item"><span>Version</span><strong>1.2.0</strong></div>
   </div>
 
   <div class="bottom-bar">
     <button class="nav-btn active" data-panel="bizPanel"><span class="nav-icon">🏮</span>Shops</button>
     <button class="nav-btn" data-panel="achPanel"><span class="nav-icon">🏆</span>Goals<span class="nav-dot" id="achDot"></span></button>
+    <button class="nav-btn" data-panel="recipePanel"><span class="nav-icon">🍲</span>Recipes</button>
     <button class="nav-btn" data-panel="prestigePanel"><span class="nav-icon">⭐</span>Prestige</button>
     <button class="nav-btn" data-panel="settingsPanel"><span class="nav-icon">⚙️</span>Settings</button>
   </div>
@@ -86,6 +91,14 @@
       <h2 id="achModalTitle">Achievement Unlocked!</h2>
       <p id="achModalText"></p>
       <button class="modal-btn" id="achModalClose">Nice</button>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="streakModal">
+    <div class="modal">
+      <h2>Welcome Back! <span id="streakDayText">Day 1</span></h2>
+      <p id="streakRewardText"></p>
+      <button class="modal-btn" id="streakModalClose">Nice</button>
     </div>
   </div>
 

@@ -21,6 +21,24 @@
     quality:  {icon:'✨', label:'Quality',  boost:0.25, costMult:6,   costGrowth:1.22, max:20},
   };
 
+  // recipes: unlock permanently via milestone, then can be equipped one at a time.
+  // 'tap' recipes boost manual bowl-tap gains; 'biz' recipes boost passive business income.
+  const RECIPES = [
+    {id:'shoyu',    icon:'🟤', name:'Shoyu Ramen',    desc:'+35% cash per tap',        type:'tap', mult:0.35, unlock: s => s.totalEarned >= 2000},
+    {id:'tonkotsu', icon:'⚪', name:'Tonkotsu Ramen',  desc:'+25% business income',      type:'biz', mult:0.25, unlock: s => s.totalEarned >= 50000},
+    {id:'miso',     icon:'🟠', name:'Miso Ramen',      desc:'+60% cash per tap',        type:'tap', mult:0.60, unlock: s => s.prestigeCount >= 1},
+    {id:'spicy',    icon:'🌶️', name:'Spicy Ramen',     desc:'+45% business income',      type:'biz', mult:0.45, unlock: s => s.criticEventsSeen >= 5},
+  ];
+
+  // prestige tree: permanent perks bought with spendable Miso Points (state.prestigePoints).
+  // Buying these does NOT reduce the lifetime total that drives the passive income multiplier.
+  const PRESTIGE_UPGRADES = [
+    {id:'fastEvents',      icon:'⏱️', name:'Efficient Kitchen', desc:'+20% random event frequency per level',      costBase:3, costGrowth:1.8, max:5},
+    {id:'cheaperManagers', icon:'🤝', name:'Staff Network',     desc:'-10% manager hiring cost per level',           costBase:5, costGrowth:1.8, max:5},
+    {id:'autoTap',         icon:'🤖', name:'Auto-Tapper',       desc:'Automatically taps the bowl, faster per level', costBase:8, costGrowth:2.2, max:5},
+    {id:'offlineBoost',    icon:'🌙', name:'Night Shift',       desc:'+1hr offline cap & +10% offline rate per level',costBase:4, costGrowth:1.8, max:3},
+  ];
+
   const ACHIEVEMENTS = [
     {id:'first_bowl',  icon:'🥢', name:'First Bowl',       desc:'Tap the bowl once',              reward:0.01, cond: s => s.totalTaps >= 1},
     {id:'open_shop',   icon:'🏮', name:'Open For Business', desc:'Open your first business',       reward:0.01, cond: s => Object.values(s.businesses).some(b=>b.level>0)},
@@ -39,7 +57,8 @@
   let state = {
     cash: 0,
     totalEarned: 0,
-    prestigePoints: 0,
+    prestigePoints: 0,        // spendable wallet, used to buy prestige tree upgrades
+    lifetimePrestigePoints: 0,// never decreases; drives the passive +2%/point multiplier
     prestigeCount: 0,
     businesses: {}, // id -> {level, manager, speed, capacity, quality}
     lastSeen: Date.now(),
@@ -47,7 +66,12 @@
     criticEventsSeen: 0,
     inspectorsPassed: 0,
     achievementsClaimed: {},
-    achievementBonus: 0
+    achievementBonus: 0,
+    unlockedRecipes: {},      // id -> true
+    activeRecipe: null,
+    prestigeUpgrades: {},     // id -> level
+    lastLoginDay: null,       // 'YYYY-MM-DD'
+    loginStreak: 0
   };
 
   function freshBusiness(){ return {level:0, manager:false, speed:0, capacity:0, quality:0}; }
@@ -78,11 +102,20 @@
       if(state.criticEventsSeen === undefined) state.criticEventsSeen = 0;
       if(state.inspectorsPassed === undefined) state.inspectorsPassed = 0;
       if(state.prestigeCount === undefined) state.prestigeCount = 0;
+      if(!state.unlockedRecipes) state.unlockedRecipes = {};
+      if(state.activeRecipe === undefined) state.activeRecipe = null;
+      if(!state.prestigeUpgrades) state.prestigeUpgrades = {};
+      PRESTIGE_UPGRADES.forEach(u => { if(state.prestigeUpgrades[u.id] === undefined) state.prestigeUpgrades[u.id] = 0; });
+      if(state.lastLoginDay === undefined) state.lastLoginDay = null;
+      if(state.loginStreak === undefined) state.loginStreak = 0;
+      // migration: older saves never had a separate lifetime pool, so seed it from the
+      // existing prestigePoints balance to preserve the player's current multiplier.
+      if(state.lifetimePrestigePoints === undefined) state.lifetimePrestigePoints = state.prestigePoints;
     }catch(e){ console.warn('save corrupt, starting fresh'); }
   }
 
   // ---------- math ----------
-  function prestigeMultiplier(){ return 1 + state.prestigePoints * 0.02; }
+  function prestigeMultiplier(){ return 1 + state.lifetimePrestigePoints * 0.02; }
   function globalMultiplier(){ return prestigeMultiplier() * (1 + state.achievementBonus); }
   function businessCost(def, level){ return def.baseCost * Math.pow(COST_GROWTH, level); }
   function upgradeCost(def, type, level){
@@ -95,11 +128,32 @@
   function businessIncome(def, b){
     return def.baseIncome * b.level * (1 + b.level*0.01) * businessUpgradeMult(b);
   }
-  function managerCost(def){ return def.baseCost * MANAGER_COST_MULT; }
+  function managerCost(def){
+    const lvl = state.prestigeUpgrades.cheaperManagers || 0;
+    const discount = Math.max(0.5, 1 - lvl * 0.1); // capped at 50% off
+    return def.baseCost * MANAGER_COST_MULT * discount;
+  }
 
+  // active equipped recipe bonus, split by which stream it boosts
+  function recipeTapMult(){
+    const r = RECIPES.find(r => r.id === state.activeRecipe);
+    return (r && r.type === 'tap') ? 1 + r.mult : 1;
+  }
+  function recipeBizMult(){
+    const r = RECIPES.find(r => r.id === state.activeRecipe);
+    return (r && r.type === 'biz') ? 1 + r.mult : 1;
+  }
+
+  // passive-income event effects (critic/inspector/shortage)
   function eventMultiplier(){
     if(activeEvent.type === 'critic') return 2.5;
     if(activeEvent.type === 'inspector') return 0.4;
+    if(activeEvent.type === 'shortage') return 0.5;
+    return 1;
+  }
+  // tap-gain event effects (rush only)
+  function tapEventMultiplier(){
+    if(activeEvent.type === 'rush') return 3;
     return 1;
   }
 
@@ -113,10 +167,10 @@
         total += inc;
       }
     });
-    return total * globalMultiplier() * eventMultiplier();
+    return total * globalMultiplier() * recipeBizMult() * eventMultiplier();
   }
   function nextTapGain(){
-    return (1 + state.totalEarned * 0.00001) * globalMultiplier();
+    return (1 + state.totalEarned * 0.00001) * globalMultiplier() * recipeTapMult() * tapEventMultiplier();
   }
   function fmt(n){
     if(n < 1000) return '¥' + n.toFixed(n < 10 ? 1 : 0);
@@ -134,9 +188,15 @@
     if(activeEvent.type) return;
     if(Date.now() < nextEventCheck) return;
     nextEventCheck = Date.now() + 15000;
-    if(Math.random() < 0.12){
-      if(Math.random() < 0.7) startCriticEvent();
-      else startInspectorEvent();
+    const freqLvl = state.prestigeUpgrades.fastEvents || 0;
+    const chance = 0.12 * (1 + freqLvl * 0.2);
+    if(Math.random() < chance){
+      // weighted pick: critic 40% / inspector 20% / rush 25% / shortage 15%
+      const roll = Math.random();
+      if(roll < 0.40) startCriticEvent();
+      else if(roll < 0.60) startInspectorEvent();
+      else if(roll < 0.85) startRushEvent();
+      else startShortageEvent();
     }
   }
   function startCriticEvent(){
@@ -146,6 +206,14 @@
   }
   function startInspectorEvent(){
     activeEvent = {type:'inspector', endsAt: Date.now() + 20000, tapsNeeded:15, tapsDone:0};
+    renderEventBanner();
+  }
+  function startRushEvent(){
+    activeEvent = {type:'rush', endsAt: Date.now() + 30000, tapsNeeded:0, tapsDone:0};
+    renderEventBanner();
+  }
+  function startShortageEvent(){
+    activeEvent = {type:'shortage', endsAt: Date.now() + 25000, tapsNeeded:0, tapsDone:0};
     renderEventBanner();
   }
   function clearEvent(passed){
@@ -169,6 +237,18 @@
       document.getElementById('eventText').textContent = 'Health Inspector! Tap fast to pass';
       bowl.classList.add('inspector-mode');
       inspProg.classList.add('show');
+    } else if(activeEvent.type === 'rush'){
+      banner.className = 'event-banner show rush';
+      document.getElementById('eventIcon').textContent = '🔥';
+      document.getElementById('eventText').textContent = 'Rush Hour! Tap gains x3';
+      bowl.classList.remove('inspector-mode');
+      inspProg.classList.remove('show');
+    } else if(activeEvent.type === 'shortage'){
+      banner.className = 'event-banner show shortage';
+      document.getElementById('eventIcon').textContent = '📉';
+      document.getElementById('eventText').textContent = 'Ingredient Shortage! Income halved';
+      bowl.classList.remove('inspector-mode');
+      inspProg.classList.remove('show');
     } else {
       banner.className = 'event-banner';
       bowl.classList.remove('inspector-mode');
@@ -275,6 +355,51 @@
     document.getElementById('prestigeBtn').disabled = potential <= 0;
   }
 
+  function renderRecipePanel(){
+    const panel = document.getElementById('recipePanel');
+    if(!panel) return;
+    panel.innerHTML = '';
+    RECIPES.forEach(r => {
+      const unlocked = !!state.unlockedRecipes[r.id];
+      const active = state.activeRecipe === r.id;
+      const card = document.createElement('div');
+      card.className = 'ach-card recipe-card' + (active ? ' active' : '') + (unlocked ? '' : ' locked');
+      card.innerHTML = `
+        <div class="ach-icon${unlocked?' done':''}">${r.icon}</div>
+        <div class="ach-info">
+          <div class="ach-name">${r.name}${active ? ' <span class="manager-badge">Equipped</span>' : ''}</div>
+          <div class="ach-desc">${r.desc}</div>
+          <div class="ach-reward">${unlocked ? (r.type==='tap' ? 'Boosts tap gains' : 'Boosts business income') : 'Locked'}</div>
+        </div>
+        <button class="claim-btn${active?' done':''}" data-action="equip" data-id="${r.id}" ${!unlocked || active ? 'disabled':''}>${active ? '✓ Equipped' : (unlocked ? 'Equip' : 'Locked')}</button>
+      `;
+      panel.appendChild(card);
+    });
+  }
+
+  function renderPrestigeTree(){
+    const list = document.getElementById('prestigeTreeList');
+    if(!list) return;
+    list.innerHTML = '';
+    PRESTIGE_UPGRADES.forEach(u => {
+      const lvl = state.prestigeUpgrades[u.id] || 0;
+      const maxed = lvl >= u.max;
+      const cost = u.costBase * Math.pow(u.costGrowth, lvl);
+      const canBuy = !maxed && state.prestigePoints >= cost;
+      const card = document.createElement('div');
+      card.className = 'ach-card';
+      card.innerHTML = `
+        <div class="ach-icon${lvl>0?' done':''}">${u.icon}</div>
+        <div class="ach-info">
+          <div class="ach-name">${u.name} <span class="biz-level">Lv ${lvl}/${u.max}</span></div>
+          <div class="ach-desc">${u.desc}</div>
+        </div>
+        <button class="claim-btn" data-action="prestige-upgrade" data-id="${u.id}" ${!canBuy ? 'disabled':''}>${maxed ? 'MAX' : Math.ceil(cost)+' ☆'}</button>
+      `;
+      list.appendChild(card);
+    });
+  }
+
   // ---------- actions ----------
   function buyBusiness(id){
     const def = BUSINESS_DEFS.find(d => d.id === id);
@@ -308,13 +433,41 @@
   function doPrestige(){
     const potential = Math.floor(Math.sqrt(state.totalEarned / 1e6));
     if(potential <= 0) return;
-    state.prestigePoints += potential;
+    state.prestigePoints += potential;         // spendable wallet for the prestige tree
+    state.lifetimePrestigePoints += potential;  // permanent, drives the +2%/point multiplier
     state.prestigeCount++;
     state.cash = 0;
     state.totalEarned = 0;
     BUSINESS_DEFS.forEach(def => state.businesses[def.id] = freshBusiness());
     save();
-    renderBusinesses(); renderStats(); checkAchievements();
+    renderBusinesses(); renderStats(); renderPrestigeTree(); checkAchievements();
+  }
+
+  function checkRecipeUnlocks(){
+    let changed = false;
+    RECIPES.forEach(r => {
+      if(!state.unlockedRecipes[r.id] && r.unlock(state)){
+        state.unlockedRecipes[r.id] = true;
+        changed = true;
+      }
+    });
+    if(changed) renderRecipePanel();
+  }
+  function equipRecipe(id){
+    if(!state.unlockedRecipes[id]) return;
+    state.activeRecipe = id;
+    renderRecipePanel(); renderStats();
+  }
+  function buyPrestigeUpgrade(id){
+    const u = PRESTIGE_UPGRADES.find(u => u.id === id);
+    if(!u) return;
+    const lvl = state.prestigeUpgrades[id] || 0;
+    if(lvl >= u.max) return;
+    const cost = u.costBase * Math.pow(u.costGrowth, lvl);
+    if(state.prestigePoints < cost) return;
+    state.prestigePoints -= cost;
+    state.prestigeUpgrades[id] = lvl + 1;
+    renderPrestigeTree(); renderStats(); renderBusinesses();
   }
 
   function checkAchievements(){
@@ -322,6 +475,7 @@
     // (each ach.cond(state) is evaluated there), so this just needs to trigger a re-render
     // after any state change that might unlock/claim something.
     renderAchievements();
+    checkRecipeUnlocks();
   }
   function claimAchievement(id){
     const ach = ACHIEVEMENTS.find(a => a.id === id);
@@ -359,10 +513,22 @@
     document.getElementById('achModal').classList.remove('show');
   });
 
+  document.getElementById('recipePanel').addEventListener('click', e => {
+    const btn = e.target.closest('[data-action="equip"]');
+    if(!btn) return;
+    equipRecipe(btn.dataset.id);
+  });
+
+  document.getElementById('prestigeTreeList').addEventListener('click', e => {
+    const btn = e.target.closest('[data-action="prestige-upgrade"]');
+    if(!btn) return;
+    buyPrestigeUpgrade(btn.dataset.id);
+  });
+
   // ---------- tap to earn ----------
   const bowlWrap = document.getElementById('bowlWrap');
   const tapZone = document.getElementById('tapZone');
-  bowlWrap.addEventListener('click', () => {
+  function performTap(){
     state.totalTaps++;
     if(activeEvent.type === 'inspector'){
       activeEvent.tapsDone++;
@@ -379,7 +545,8 @@
     }
     renderStats();
     checkAchievements();
-  });
+  }
+  bowlWrap.addEventListener('click', performTap);
   function spawnFloatingGain(gain, mode){
     const el = document.createElement('div');
     el.className = 'float-gain';
@@ -402,6 +569,8 @@
       btn.classList.add('active');
       document.getElementById(btn.dataset.panel).classList.add('active');
       if(btn.dataset.panel === 'achPanel') renderAchievements();
+      else if(btn.dataset.panel === 'recipePanel') renderRecipePanel();
+      else if(btn.dataset.panel === 'prestigePanel') renderPrestigeTree();
     });
   });
 
@@ -417,12 +586,15 @@
   // ---------- offline earnings ----------
   let pendingOfflineGain = 0;
   function checkOfflineEarnings(){
+    const boostLvl = state.prestigeUpgrades.offlineBoost || 0;
+    const capHours = 4 + boostLvl;         // +1hr cap per level
+    const offlineRate = 0.5 + boostLvl * 0.1; // +10% of the normal rate per level
     const now = Date.now();
-    const elapsedSec = Math.min((now - state.lastSeen) / 1000, 4 * 3600);
+    const elapsedSec = Math.min((now - state.lastSeen) / 1000, capHours * 3600);
     if(elapsedSec < 30) return;
     const rate = totalRatePerSec();
     if(rate <= 0) return;
-    pendingOfflineGain = rate * elapsedSec * 0.5;
+    pendingOfflineGain = rate * elapsedSec * offlineRate;
     if(pendingOfflineGain < 1) return;
     document.getElementById('offlineText').textContent =
       `While you were away for ${Math.round(elapsedSec/60)} min, your shops earned ${fmt(pendingOfflineGain)}.`;
@@ -445,6 +617,7 @@
 
   // ---------- game loop ----------
   let lastTick = Date.now();
+  let autoTapTimer = 0;
   function tick(){
     const now = Date.now();
     const dt = (now - lastTick) / 1000;
@@ -456,6 +629,15 @@
       state.cash += gain;
       state.totalEarned += gain;
     }
+    const autoLvl = state.prestigeUpgrades.autoTap || 0;
+    if(autoLvl > 0){
+      autoTapTimer += dt;
+      const interval = Math.max(1, 6 - autoLvl); // 5s at Lv1 down to 1s at Lv5
+      if(autoTapTimer >= interval){
+        autoTapTimer = 0;
+        performTap();
+      }
+    }
     maybeTriggerEvent();
     tickEvent();
     renderStats();
@@ -465,11 +647,54 @@
   setInterval(() => { renderBusinesses(); checkAchievements(); }, 1000);
   setInterval(save, 10000);
 
+  // ---------- daily login streak ----------
+  function todayStr(){
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  // Converts a 'YYYY-MM-DD' string to a UTC day index. Using Date.UTC consistently for
+  // both dates (rather than letting `new Date(str)` parse strings, which is timezone-
+  // dependent and can be off by a day) keeps the streak diff accurate everywhere.
+  function dayIndex(str){
+    const [y,m,d] = str.split('-').map(Number);
+    return Math.floor(Date.UTC(y, m-1, d) / 86400000);
+  }
+  function checkDailyStreak(){
+    const today = todayStr();
+    if(state.lastLoginDay === today) return; // already counted today
+    if(state.lastLoginDay === null){
+      // very first-ever launch: start the streak silently, no popup
+      state.loginStreak = 1;
+      state.lastLoginDay = today;
+      save();
+      return;
+    }
+    const diffDays = dayIndex(today) - dayIndex(state.lastLoginDay);
+    state.loginStreak = (diffDays === 1) ? state.loginStreak + 1 : 1;
+    state.lastLoginDay = today;
+    const cappedStreak = Math.min(state.loginStreak, 14);
+    const reward = 25 * cappedStreak * globalMultiplier();
+    state.cash += reward;
+    state.totalEarned += reward;
+    save();
+    document.getElementById('streakDayText').textContent = `Day ${state.loginStreak}`;
+    document.getElementById('streakRewardText').textContent =
+      `You earned ${fmt(reward)} for coming back today. Keep your streak going!`;
+    document.getElementById('streakModal').classList.add('show');
+    renderStats();
+  }
+  document.getElementById('streakModalClose').addEventListener('click', () => {
+    document.getElementById('streakModal').classList.remove('show');
+  });
+
   // ---------- init ----------
   load();
   checkOfflineEarnings();
+  checkDailyStreak();
   renderBusinesses();
   renderAchievements();
+  renderRecipePanel();
+  renderPrestigeTree();
   renderStats();
   requestAnimationFrame(tick);
 
