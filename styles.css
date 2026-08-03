@@ -95,6 +95,41 @@
   .insp-progress.show{display:block;}
   .insp-progress-fill{height:100%; background:var(--jade-light); width:0%; transition:width 0.15s ease;}
 
+  /* COUNTRY BAR (shown above Shops list) */
+  .country-bar{
+    display:flex; align-items:center; gap:8px; padding:10px 14px; margin:0 0 9px;
+    background:var(--panel); border-radius:12px; font-size:13px; font-weight:800;
+    border:1px solid rgba(255,255,255,0.05);
+  }
+  .country-bar span:first-child{font-size:18px;}
+  .country-switch{
+    margin-left:auto; background:transparent; border:1px solid rgba(212,160,23,0.4); color:var(--gold);
+    border-radius:8px; padding:6px 10px; font-size:10.5px; font-weight:700; letter-spacing:0.3px;
+  }
+
+  /* WORLD TAB */
+  .world-card{
+    background:var(--panel); border-radius:14px; padding:12px 14px; margin-bottom:9px; display:flex; align-items:center; gap:12px;
+    border:1px solid rgba(255,255,255,0.05); transition:opacity 0.3s, border-color 0.3s;
+  }
+  .world-card.locked{opacity:0.55;}
+  .world-card.active{border-color:rgba(212,160,23,0.5);}
+  .world-flag{width:48px; height:48px; border-radius:10px; background:var(--panel-light); display:flex; align-items:center; justify-content:center; font-size:26px; flex-shrink:0;}
+  .world-info{flex:1; min-width:0;}
+  .world-name{font-weight:800; font-size:14.5px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;}
+  .active-tag{font-size:9px; background:var(--gold); color:#2a1c04; padding:1px 6px; border-radius:6px; font-weight:700; letter-spacing:0.3px;}
+  .world-tagline{font-size:10.5px; opacity:0.7; margin-top:1px;}
+  .world-income{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--jade-light); margin-top:3px; font-weight:600;}
+  .world-btn{
+    background:var(--gold); color:#2a1c04; border:none; border-radius:10px; padding:10px 12px;
+    font-family:'JetBrains Mono',monospace; font-weight:700; font-size:11px; min-width:84px; flex-shrink:0;
+    display:flex; flex-direction:column; align-items:center; gap:1px; box-shadow:0 3px 0 #a37811;
+  }
+  .world-btn:active{transform:translateY(2px); box-shadow:0 1px 0 #a37811;}
+  .world-btn:disabled{background:#4a453e; color:#8a837a; box-shadow:0 3px 0 #35312c;}
+  .world-btn.active-btn{background:var(--jade); color:#0e1a12; box-shadow:0 3px 0 #2f5038;}
+  .world-btn small{font-size:8px; opacity:0.8; font-weight:600;}
+
   /* BUSINESS LIST */
   .biz-scroll{flex:1; overflow-y:auto; padding:8px 12px 90px; -webkit-overflow-scrolling:touch;}
   .biz-card{

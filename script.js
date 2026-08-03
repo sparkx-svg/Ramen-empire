@@ -1,19 +1,72 @@
 (function(){
   "use strict";
 
-  const BUSINESS_DEFS = [
-    {id:'cart',   name:'Street Cart',       icon:'🛒', baseCost:10,      baseIncome:0.5,   unlockAt:0},
-    {id:'stall',  name:'Noodle Stall',      icon:'🏮', baseCost:100,     baseIncome:4,     unlockAt:0},
-    {id:'shop',   name:'Corner Shop',       icon:'🏠', baseCost:1100,    baseIncome:30,    unlockAt:0},
-    {id:'diner',  name:'Family Diner',      icon:'🍽️', baseCost:12000,   baseIncome:200,   unlockAt:5},
-    {id:'chain',  name:'City Chain',        icon:'🏢', baseCost:130000,  baseIncome:1400,  unlockAt:5},
-    {id:'factory',name:'Broth Factory',     icon:'🏭', baseCost:1400000, baseIncome:9000,  unlockAt:10},
-    {id:'mall',   name:'Mall Franchise',    icon:'🏬', baseCost:2e7,     baseIncome:55000, unlockAt:10},
-    {id:'global', name:'Global Empire HQ',  icon:'🌆', baseCost:3.3e8,   baseIncome:330000,unlockAt:15},
+  // ---------- countries / cuisines ----------
+  // Each country owns its own 8-tier business ladder (same cost/income curve
+  // shape, different theme). All UNLOCKED countries produce income in
+  // parallel at all times — state.activeCountry only controls which one's
+  // shop list is currently shown/managed in the Shops tab, it does not gate
+  // production. unlockCost is spent once, in cash, via the World tab.
+  const COUNTRIES = [
+    {
+      id:'japan', name:'Japan', icon:'🇯🇵', tagline:'Where it all began', unlockCost:0,
+      businesses:[
+        {id:'cart',   name:'Street Cart',       icon:'🛒', baseCost:10,      baseIncome:0.5,   unlockAt:0},
+        {id:'stall',  name:'Noodle Stall',      icon:'🏮', baseCost:100,     baseIncome:4,     unlockAt:0},
+        {id:'shop',   name:'Corner Shop',       icon:'🏠', baseCost:1100,    baseIncome:30,    unlockAt:0},
+        {id:'diner',  name:'Family Diner',      icon:'🍽️', baseCost:12000,   baseIncome:200,   unlockAt:5},
+        {id:'chain',  name:'City Chain',        icon:'🏢', baseCost:130000,  baseIncome:1400,  unlockAt:5},
+        {id:'factory',name:'Broth Factory',     icon:'🏭', baseCost:1400000, baseIncome:9000,  unlockAt:10},
+        {id:'mall',   name:'Mall Franchise',    icon:'🏬', baseCost:2e7,     baseIncome:55000, unlockAt:10},
+        {id:'global', name:'Global Empire HQ',  icon:'🌆', baseCost:3.3e8,   baseIncome:330000,unlockAt:15},
+      ]
+    },
+    {
+      id:'italy', name:'Italy', icon:'🇮🇹', tagline:'Pasta, pizza & espresso', unlockCost:75000,
+      businesses:[
+        {id:'cart',   name:'Panini Cart',        icon:'🥖', baseCost:10,      baseIncome:0.5,   unlockAt:0},
+        {id:'stall',  name:'Pizza Stall',        icon:'🍕', baseCost:100,     baseIncome:4,     unlockAt:0},
+        {id:'shop',   name:'Trattoria',          icon:'🍝', baseCost:1100,    baseIncome:30,    unlockAt:0},
+        {id:'diner',  name:'Family Ristorante',  icon:'🍷', baseCost:12000,   baseIncome:200,   unlockAt:5},
+        {id:'chain',  name:'City Pizzeria Chain',icon:'🏢', baseCost:130000,  baseIncome:1400,  unlockAt:5},
+        {id:'factory',name:'Pasta Factory',      icon:'🏭', baseCost:1400000, baseIncome:9000,  unlockAt:10},
+        {id:'mall',   name:'Piazza Franchise',   icon:'🏬', baseCost:2e7,     baseIncome:55000, unlockAt:10},
+        {id:'global', name:'Roman Empire HQ',    icon:'🏛️', baseCost:3.3e8,   baseIncome:330000,unlockAt:15},
+      ]
+    },
+    {
+      id:'mexico', name:'Mexico', icon:'🇲🇽', tagline:'Tacos, salsa & fire', unlockCost:6000000,
+      businesses:[
+        {id:'cart',   name:'Taco Cart',         icon:'🌮', baseCost:10,      baseIncome:0.5,   unlockAt:0},
+        {id:'stall',  name:'Salsa Stall',       icon:'🌶️', baseCost:100,     baseIncome:4,     unlockAt:0},
+        {id:'shop',   name:'Taqueria',          icon:'🫔', baseCost:1100,    baseIncome:30,    unlockAt:0},
+        {id:'diner',  name:'Family Cantina',    icon:'🍹', baseCost:12000,   baseIncome:200,   unlockAt:5},
+        {id:'chain',  name:'City Taco Chain',   icon:'🏢', baseCost:130000,  baseIncome:1400,  unlockAt:5},
+        {id:'factory',name:'Tortilla Factory',  icon:'🏭', baseCost:1400000, baseIncome:9000,  unlockAt:10},
+        {id:'mall',   name:'Mercado Franchise', icon:'🏬', baseCost:2e7,     baseIncome:55000, unlockAt:10},
+        {id:'global', name:'Aztec Empire HQ',   icon:'🌆', baseCost:3.3e8,   baseIncome:330000,unlockAt:15},
+      ]
+    },
+    {
+      id:'india', name:'India', icon:'🇮🇳', tagline:'Curry, spice & chai', unlockCost:600000000,
+      businesses:[
+        {id:'cart',   name:'Chai Cart',         icon:'🍵', baseCost:10,      baseIncome:0.5,   unlockAt:0},
+        {id:'stall',  name:'Samosa Stall',      icon:'🥟', baseCost:100,     baseIncome:4,     unlockAt:0},
+        {id:'shop',   name:'Curry House',       icon:'🍛', baseCost:1100,    baseIncome:30,    unlockAt:0},
+        {id:'diner',  name:'Family Dhaba',      icon:'🫓', baseCost:12000,   baseIncome:200,   unlockAt:5},
+        {id:'chain',  name:'City Curry Chain',  icon:'🏢', baseCost:130000,  baseIncome:1400,  unlockAt:5},
+        {id:'factory',name:'Spice Factory',     icon:'🏭', baseCost:1400000, baseIncome:9000,  unlockAt:10},
+        {id:'mall',   name:'Bazaar Franchise',  icon:'🏬', baseCost:2e7,     baseIncome:55000, unlockAt:10},
+        {id:'global', name:'Mughal Empire HQ',  icon:'🕌', baseCost:3.3e8,   baseIncome:330000,unlockAt:15},
+      ]
+    },
   ];
+  function getCountry(id){ return COUNTRIES.find(c => c.id === id); }
+  function activeCountryDef(){ return getCountry(state.activeCountry); }
+  function isUnlocked(id){ return state.unlockedCountries.includes(id); }
   // ---------- balance & timing config ----------
   // Every tunable gameplay number that isn't already organized into one of
-  // the data tables above (BUSINESS_DEFS, UPGRADE_TYPES, ACHIEVEMENTS) lives
+  // the data tables above (COUNTRIES, UPGRADE_TYPES, ACHIEVEMENTS) lives
   // here, so play-testing tweaks are a one-line change instead of a hunt
   // through function bodies. Formatting-only constants (fmt()'s unit
   // thresholds) are left where they are since they're not balance knobs.
@@ -73,25 +126,36 @@
 
   const ACHIEVEMENTS = [
     {id:'first_bowl',  icon:'🥢', name:'First Bowl',       desc:'Tap the bowl once',              reward:0.01, cond: s => s.totalTaps >= 1},
-    {id:'open_shop',   icon:'🏮', name:'Open For Business', desc:'Open your first business',       reward:0.01, cond: s => Object.values(s.businesses).some(b=>b.level>0)},
+    {id:'open_shop',   icon:'🏮', name:'Open For Business', desc:'Open your first business',       reward:0.01, cond: s => allBusinessStates(s).some(b=>b.level>0)},
     {id:'fast_hands',  icon:'👋', name:'Fast Hands',        desc:'Tap the bowl 100 times',          reward:0.02, cond: s => s.totalTaps >= 100},
     {id:'century',     icon:'💴', name:'Century Club',      desc:'Earn ¥1,000 total',               reward:0.01, cond: s => s.totalEarned >= 1000},
     {id:'millionaire', icon:'💰', name:'Millionaire',       desc:'Earn ¥1,000,000 total',           reward:0.03, cond: s => s.totalEarned >= 1e6},
     {id:'empire',      icon:'🌆', name:'Empire Builder',    desc:'Earn ¥100,000,000 total',         reward:0.05, cond: s => s.totalEarned >= 1e8},
-    {id:'full_house',  icon:'🗾', name:'Full House',        desc:'Open all 8 business types',       reward:0.03, cond: s => Object.values(s.businesses).every(b=>b.level>0)},
-    {id:'master_chef', icon:'👨‍🍳', name:'Master Chef',       desc:'Reach Quality level 10 on any shop', reward:0.02, cond: s => Object.values(s.businesses).some(b=>b.quality>=10)},
+    {id:'full_house',  icon:'🗾', name:'Full House',        desc:'Open all 8 Japan shop types',     reward:0.03, cond: s => Object.values(s.countries.japan).every(b=>b.level>0)},
+    {id:'master_chef', icon:'👨‍🍳', name:'Master Chef',       desc:'Reach Quality level 10 on any shop', reward:0.02, cond: s => allBusinessStates(s).some(b=>b.quality>=10)},
     {id:'first_prestige',icon:'⭐', name:'First Retirement', desc:'Prestige once',                  reward:0.03, cond: s => s.prestigeCount >= 1},
     {id:'ten_prestige', icon:'🌟', name:'Serial Retiree',   desc:'Prestige 10 times',               reward:0.05, cond: s => s.prestigeCount >= 10},
     {id:'critic_5',     icon:'📰', name:"Critic's Choice",  desc:'Experience 5 Food Critic events',  reward:0.02, cond: s => s.criticEventsSeen >= 5},
     {id:'inspector_pass',icon:'🕵️', name:'Inspection Passed', desc:'Clear a Health Inspector event by tapping', reward:0.02, cond: s => s.inspectorsPassed >= 1},
+    {id:'world_tour',  icon:'🌍', name:'World Tour',        desc:'Expand your empire to every country', reward:0.05, cond: s => s.unlockedCountries.length >= COUNTRIES.length},
   ];
+  // Flattens every business-state object across all UNLOCKED countries, so
+  // achievement conditions (and anything else that wants "any shop anywhere")
+  // don't need to know about the country structure.
+  function allBusinessStates(s){
+    const out = [];
+    COUNTRIES.forEach(c => { if(s.unlockedCountries.includes(c.id)) out.push(...Object.values(s.countries[c.id])); });
+    return out;
+  }
 
   let state = {
     cash: 0,
     totalEarned: 0,
     prestigePoints: 0,
     prestigeCount: 0,
-    businesses: {}, // id -> {level, manager, speed, capacity, quality}
+    countries: {}, // countryId -> { businessId -> {level, manager, speed, capacity, quality} }
+    unlockedCountries: ['japan'],
+    activeCountry: 'japan',
     lastSeen: Date.now(),
     totalTaps: 0,
     criticEventsSeen: 0,
@@ -102,7 +166,12 @@
   };
 
   function freshBusiness(){ return {level:0, manager:false, speed:0, capacity:0, quality:0}; }
-  BUSINESS_DEFS.forEach(b => state.businesses[b.id] = freshBusiness());
+  function initCountryState(country){
+    const obj = {};
+    country.businesses.forEach(b => obj[b.id] = freshBusiness());
+    return obj;
+  }
+  COUNTRIES.forEach(c => state.countries[c.id] = initCountryState(c));
 
   // ---------- persistence ----------
   const SAVE_KEY = 'ramenEmpireSave_v2';
@@ -139,15 +208,31 @@
       const loaded = JSON.parse(raw);
       const savedChecksum = loaded.__checksum;
       const valid = savedChecksum !== undefined && savedChecksum === computeChecksum(loaded);
+      // Pre-1.2.0 saves kept a single flat `businesses` map (Japan only, no
+      // country concept). Detect that shape before merging and fold it into
+      // countries.japan so existing players don't lose progress.
+      if(loaded.businesses && !loaded.countries){
+        loaded.countries = { japan: loaded.businesses };
+        loaded.unlockedCountries = ['japan'];
+        loaded.activeCountry = 'japan';
+        delete loaded.businesses;
+      }
       state = Object.assign(state, loaded);
       state.integrityFlag = !valid;
       if(!valid) console.warn('Ramen Empire: save checksum mismatch — state may have been edited outside the game.');
-      BUSINESS_DEFS.forEach(b => {
-        if(!state.businesses[b.id]) state.businesses[b.id] = freshBusiness();
-        const biz = state.businesses[b.id];
-        if(biz.speed === undefined) biz.speed = 0;
-        if(biz.capacity === undefined) biz.capacity = 0;
-        if(biz.quality === undefined) biz.quality = 0;
+      if(!state.unlockedCountries) state.unlockedCountries = ['japan'];
+      if(!state.unlockedCountries.includes('japan')) state.unlockedCountries.unshift('japan');
+      if(!state.activeCountry || !isUnlocked(state.activeCountry)) state.activeCountry = 'japan';
+      COUNTRIES.forEach(country => {
+        if(!state.countries[country.id]) state.countries[country.id] = initCountryState(country);
+        const bizState = state.countries[country.id];
+        country.businesses.forEach(def => {
+          if(!bizState[def.id]) bizState[def.id] = freshBusiness();
+          const biz = bizState[def.id];
+          if(biz.speed === undefined) biz.speed = 0;
+          if(biz.capacity === undefined) biz.capacity = 0;
+          if(biz.quality === undefined) biz.quality = 0;
+        });
       });
       if(!state.achievementsClaimed) state.achievementsClaimed = {};
       if(state.achievementBonus === undefined) state.achievementBonus = 0;
@@ -183,13 +268,20 @@
     return 1;
   }
 
+  function countryRatePerSec(country){
+    let total = 0;
+    const bizState = state.countries[country.id];
+    country.businesses.forEach(def => {
+      const b = bizState[def.id];
+      if(b.level > 0) total += businessIncomeWithManager(def, b);
+    });
+    return total;
+  }
   function totalRatePerSec(){
     let total = 0;
-    BUSINESS_DEFS.forEach(def => {
-      const b = state.businesses[def.id];
-      if(b.level > 0){
-        total += businessIncomeWithManager(def, b);
-      }
+    COUNTRIES.forEach(country => {
+      if(!isUnlocked(country.id)) return;
+      total += countryRatePerSec(country);
     });
     return total * globalMultiplier() * eventMultiplier();
   }
@@ -274,7 +366,7 @@
   // Derived once from CONFIG so the badge and button text can never drift
   // out of sync with the actual multiplier applied in businessIncomeWithManager().
   const MANAGER_BONUS_LABEL = '+' + Math.round((CONFIG.MANAGER_INCOME_MULT - 1) * 100) + '%';
-  const bizPanel = document.getElementById('bizPanel');
+  const bizPanel = document.getElementById('bizCards');
   // Maps business id -> cached references to its buy/manager/upgrade buttons,
   // populated whenever renderBusinesses() does a full rebuild. Lets the
   // once-a-second affordability check (below) flip .disabled on existing
@@ -282,12 +374,16 @@
   let bizElCache = {};
 
   function renderBusinesses(){
+    const country = activeCountryDef();
+    const bizState = state.countries[country.id];
+    document.getElementById('countryBarIcon').textContent = country.icon;
+    document.getElementById('countryBarName').textContent = country.name;
     bizPanel.innerHTML = '';
     bizElCache = {};
-    BUSINESS_DEFS.forEach((def, idx) => {
-      const b = state.businesses[def.id];
-      const prevDef = BUSINESS_DEFS[idx-1];
-      const locked = idx > 0 && b.level === 0 && (!prevDef || state.businesses[prevDef.id].level < def.unlockAt) && def.unlockAt > 0;
+    country.businesses.forEach((def, idx) => {
+      const b = bizState[def.id];
+      const prevDef = country.businesses[idx-1];
+      const locked = idx > 0 && b.level === 0 && (!prevDef || bizState[prevDef.id].level < def.unlockAt) && def.unlockAt > 0;
       const cost = businessCost(def, b.level);
       const canAfford = state.cash >= cost;
       const income = businessIncomeWithManager(def, b);
@@ -352,12 +448,14 @@
   // (buy, hire, upgrade, toggle) — each of those already calls the full
   // renderBusinesses() directly, so this never needs to touch text or layout.
   function refreshBusinessAffordability(){
-    BUSINESS_DEFS.forEach((def, idx) => {
+    const country = activeCountryDef();
+    const bizState = state.countries[country.id];
+    country.businesses.forEach((def, idx) => {
       const cache = bizElCache[def.id];
       if(!cache) return;
-      const b = state.businesses[def.id];
-      const prevDef = BUSINESS_DEFS[idx-1];
-      const locked = idx > 0 && b.level === 0 && (!prevDef || state.businesses[prevDef.id].level < def.unlockAt) && def.unlockAt > 0;
+      const b = bizState[def.id];
+      const prevDef = country.businesses[idx-1];
+      const locked = idx > 0 && b.level === 0 && (!prevDef || bizState[prevDef.id].level < def.unlockAt) && def.unlockAt > 0;
       const cost = businessCost(def, b.level);
       if(cache.buyBtn) cache.buyBtn.disabled = state.cash < cost || locked;
       if(cache.managerBtn) cache.managerBtn.disabled = state.cash < managerCost(def);
@@ -398,6 +496,52 @@
     document.getElementById('achDot').classList.toggle('show', anyUnclaimed);
   }
 
+  function renderWorld(){
+    const panel = document.getElementById('worldPanel');
+    panel.innerHTML = '';
+    COUNTRIES.forEach(country => {
+      const unlocked = isUnlocked(country.id);
+      const active = state.activeCountry === country.id;
+      const rate = unlocked ? countryRatePerSec(country) * globalMultiplier() : 0;
+      const card = document.createElement('div');
+      card.className = 'world-card' + (unlocked ? '' : ' locked') + (active ? ' active' : '');
+      const btn = unlocked
+        ? `<button class="world-btn${active ? ' active-btn' : ''}" data-action="select" data-id="${country.id}" aria-label="${active ? country.name + ' is currently active' : 'Manage ' + country.name}" ${active ? 'disabled' : ''}>${active ? 'ACTIVE' : 'MANAGE'}</button>`
+        : `<button class="world-btn" data-action="unlock" data-id="${country.id}" aria-label="Unlock ${country.name} for ${fmt(country.unlockCost)}" ${state.cash < country.unlockCost ? 'disabled' : ''}>UNLOCK<small>${fmt(country.unlockCost)}</small></button>`;
+      card.innerHTML = `
+        <div class="world-flag" aria-hidden="true">${country.icon}</div>
+        <div class="world-info">
+          <div class="world-name">${country.name}${active ? '<span class="active-tag">ACTIVE</span>' : ''}</div>
+          <div class="world-tagline">${country.tagline}</div>
+          <div class="world-income">${unlocked ? fmt(rate) + '/s' : 'Locked'}</div>
+        </div>
+        ${btn}
+      `;
+      panel.appendChild(card);
+    });
+  }
+  function unlockCountry(id){
+    const country = getCountry(id);
+    if(!country || isUnlocked(id) || state.cash < country.unlockCost) return;
+    state.cash -= country.unlockCost;
+    state.unlockedCountries.push(id);
+    state.activeCountry = id;
+    renderWorld(); renderBusinesses(); renderStats(); checkAchievements();
+    activatePanel('bizPanel');
+  }
+  function selectCountry(id){
+    if(!isUnlocked(id) || state.activeCountry === id) return;
+    state.activeCountry = id;
+    renderWorld(); renderBusinesses(); renderStats();
+    activatePanel('bizPanel');
+  }
+  document.getElementById('worldPanel').addEventListener('click', e => {
+    const btn = e.target.closest('[data-action]');
+    if(!btn) return;
+    if(btn.dataset.action === 'unlock') unlockCountry(btn.dataset.id);
+    else if(btn.dataset.action === 'select') selectCountry(btn.dataset.id);
+  });
+
   function renderStats(){
     document.getElementById('cashDisplay').textContent = fmt(state.cash);
     document.getElementById('rateDisplay').textContent = fmt(totalRatePerSec()) + '/s';
@@ -409,9 +553,13 @@
   }
 
   // ---------- actions ----------
+  // All buy/manager/upgrade actions operate on the currently active country
+  // (the one shown in the Shops tab) — every other unlocked country keeps
+  // producing in the background regardless of which one is active.
   function buyBusiness(id){
-    const def = BUSINESS_DEFS.find(d => d.id === id);
-    const b = state.businesses[id];
+    const country = activeCountryDef();
+    const def = country.businesses.find(d => d.id === id);
+    const b = state.countries[country.id][id];
     const cost = businessCost(def, b.level);
     if(state.cash < cost) return;
     state.cash -= cost;
@@ -419,8 +567,9 @@
     renderBusinesses(); renderStats(); checkAchievements();
   }
   function hireManager(id){
-    const def = BUSINESS_DEFS.find(d => d.id === id);
-    const b = state.businesses[id];
+    const country = activeCountryDef();
+    const def = country.businesses.find(d => d.id === id);
+    const b = state.countries[country.id][id];
     const cost = managerCost(def);
     if(state.cash < cost) return;
     state.cash -= cost;
@@ -428,8 +577,9 @@
     renderBusinesses(); renderStats();
   }
   function buyUpgrade(id, type){
-    const def = BUSINESS_DEFS.find(d => d.id === id);
-    const b = state.businesses[id];
+    const country = activeCountryDef();
+    const def = country.businesses.find(d => d.id === id);
+    const b = state.countries[country.id][id];
     const t = UPGRADE_TYPES[type];
     if(b[type] >= t.max) return;
     const cost = upgradeCost(def, type, b[type]);
@@ -445,13 +595,23 @@
     state.prestigeCount++;
     state.cash = 0;
     state.totalEarned = 0;
-    BUSINESS_DEFS.forEach(def => state.businesses[def.id] = freshBusiness());
+    // Retiring resets every country's shops — unlocked countries stay
+    // unlocked, only their business levels/upgrades/managers reset.
+    COUNTRIES.forEach(c => state.countries[c.id] = initCountryState(c));
     save();
-    renderBusinesses(); renderStats(); checkAchievements();
+    renderBusinesses(); renderWorld(); renderStats(); checkAchievements();
   }
 
+  // Called on every tap/purchase plus once a second — cheap by default
+  // (just recomputes the nav dot). Only pays for a full achievements-panel
+  // rebuild when that panel is actually the one on screen.
   function checkAchievements(){
-    renderAchievements();
+    let anyUnclaimed = false;
+    ACHIEVEMENTS.forEach(ach => {
+      if(!state.achievementsClaimed[ach.id] && ach.cond(state)) anyUnclaimed = true;
+    });
+    document.getElementById('achDot').classList.toggle('show', anyUnclaimed);
+    if(document.getElementById('achPanel').classList.contains('active')) renderAchievements();
   }
 
   // ---------- modal focus management ----------
@@ -528,7 +688,7 @@
     else if(action === 'manager') hireManager(id);
     else if(action === 'upgrade') buyUpgrade(id, btn.dataset.type);
     else if(action === 'toggle'){
-      if(state.businesses[id].level === 0) return;
+      if(state.countries[state.activeCountry][id].level === 0) return;
       if(expandedCards.has(id)) expandedCards.delete(id); else expandedCards.add(id);
       renderBusinesses();
     }
@@ -594,16 +754,20 @@
   }
 
   // ---------- nav ----------
-  document.querySelectorAll('.nav-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.nav-btn').forEach(b => { b.classList.remove('active'); b.setAttribute('aria-selected', 'false'); });
-      document.querySelectorAll('.panel-view').forEach(p => p.classList.remove('active'));
-      btn.classList.add('active');
-      btn.setAttribute('aria-selected', 'true');
-      document.getElementById(btn.dataset.panel).classList.add('active');
-      if(btn.dataset.panel === 'achPanel') renderAchievements();
+  function activatePanel(panelId){
+    document.querySelectorAll('.nav-btn').forEach(b => {
+      const on = b.dataset.panel === panelId;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
     });
+    document.querySelectorAll('.panel-view').forEach(p => p.classList.toggle('active', p.id === panelId));
+    if(panelId === 'achPanel') renderAchievements();
+    if(panelId === 'worldPanel') renderWorld();
+  }
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => activatePanel(btn.dataset.panel));
   });
+  document.getElementById('countrySwitchBtn').addEventListener('click', () => activatePanel('worldPanel'));
 
   document.getElementById('prestigeBtn').addEventListener('click', doPrestige);
   document.getElementById('saveBtn').addEventListener('click', () => { save(); alert('Saved!'); });
@@ -683,6 +847,7 @@
   checkOfflineEarnings();
   renderBusinesses();
   renderAchievements();
+  renderWorld();
   renderStats();
   requestAnimationFrame(tick);
 

@@ -46,7 +46,16 @@
     <div class="insp-progress" id="inspProgress"><div class="insp-progress-fill" id="inspProgressFill"></div></div>
   </div>
 
-  <div class="biz-scroll panel-view active" id="bizPanel" role="tabpanel" aria-labelledby="navBiz"></div>
+  <div class="biz-scroll panel-view active" id="bizPanel" role="tabpanel" aria-labelledby="navBiz">
+    <div class="country-bar">
+      <span id="countryBarIcon" aria-hidden="true">🇯🇵</span>
+      <span id="countryBarName">Japan</span>
+      <button class="country-switch" id="countrySwitchBtn" aria-label="Switch country">Switch ▸</button>
+    </div>
+    <div id="bizCards"></div>
+  </div>
+
+  <div class="panel-view" id="worldPanel" role="tabpanel" aria-labelledby="navWorld"></div>
 
   <div class="panel-view" id="achPanel" role="tabpanel" aria-labelledby="navAch"></div>
 
@@ -62,11 +71,12 @@
   <div class="panel-view" id="settingsPanel" role="tabpanel" aria-labelledby="navSettings">
     <div class="settings-item"><span>Save game</span><button class="modal-btn" style="width:auto; padding:8px 16px; margin:0;" id="saveBtn">Save Now</button></div>
     <div class="settings-item"><span>Reset all progress</span><button class="modal-btn secondary" style="width:auto; padding:8px 16px; margin:0; background:var(--red); color:white;" id="resetBtn">Reset</button></div>
-    <div class="settings-item"><span>Version</span><strong>1.1.0</strong></div>
+    <div class="settings-item"><span>Version</span><strong>1.2.0</strong></div>
   </div>
 
   <div class="bottom-bar" role="tablist" aria-label="Sections">
     <button class="nav-btn active" id="navBiz" role="tab" aria-selected="true" aria-controls="bizPanel" data-panel="bizPanel"><span class="nav-icon" aria-hidden="true">🏮</span>Shops</button>
+    <button class="nav-btn" id="navWorld" role="tab" aria-selected="false" aria-controls="worldPanel" data-panel="worldPanel"><span class="nav-icon" aria-hidden="true">🌍</span>World</button>
     <button class="nav-btn" id="navAch" role="tab" aria-selected="false" aria-controls="achPanel" data-panel="achPanel"><span class="nav-icon" aria-hidden="true">🏆</span>Goals<span class="nav-dot" id="achDot"><span class="sr-only">New achievement available</span></span></button>
     <button class="nav-btn" id="navPrestige" role="tab" aria-selected="false" aria-controls="prestigePanel" data-panel="prestigePanel"><span class="nav-icon" aria-hidden="true">⭐</span>Prestige</button>
     <button class="nav-btn" id="navSettings" role="tab" aria-selected="false" aria-controls="settingsPanel" data-panel="settingsPanel"><span class="nav-icon" aria-hidden="true">⚙️</span>Settings</button>
