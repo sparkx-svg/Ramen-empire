@@ -14,6 +14,12 @@
   const COST_GROWTH = 1.15;
   const MANAGER_COST_MULT = 80;
 
+  // Set to true only once a real rewarded-ad SDK (AdMob, etc.) is wired into
+  // doubleOfflineBtn's click handler below. Until then this stays false so the
+  // button is hidden rather than silently doubling rewards for a "watch ad"
+  // that never actually shows an ad.
+  const FEATURES = { adsEnabled: false };
+
   // upgrade tier definitions: type -> {icon, label, boostPerLevel, costMult, costGrowth, maxLevel}
   const UPGRADE_TYPES = {
     speed:    {icon:'⚡', label:'Speed',    boost:0.08, costMult:0.6, costGrowth:1.12, max:20},
@@ -47,7 +53,8 @@
     criticEventsSeen: 0,
     inspectorsPassed: 0,
     achievementsClaimed: {},
-    achievementBonus: 0
+    achievementBonus: 0,
+    integrityFlag: false
   };
 
   function freshBusiness(){ return {level:0, manager:false, speed:0, capacity:0, quality:0}; }
@@ -55,8 +62,30 @@
 
   // ---------- persistence ----------
   const SAVE_KEY = 'ramenEmpireSave_v2';
+
+  // NOTE on integrity: this is tamper-EVIDENCE, not tamper-PROOF. The salt below
+  // ships in plain client JS, so anyone who opens devtools can read it and forge
+  // a matching checksum. All this does is catch casual/naive save edits (someone
+  // pasting a bigger cash number into localStorage without recalculating the
+  // checksum) and set state.integrityFlag so a future leaderboard or IAP check
+  // can refuse to trust a flagged save. A determined cheater on a client-only
+  // game can always get around this — real protection requires a server that
+  // validates state server-side.
+  const SAVE_SALT = 'ramen-empire-v2-integrity';
+  function hashString(str){
+    let h = 5381;
+    for(let i = 0; i < str.length; i++){
+      h = ((h << 5) + h + str.charCodeAt(i)) | 0; // djb2
+    }
+    return (h >>> 0).toString(36);
+  }
+  function computeChecksum(s){
+    const { __checksum, ...rest } = s;
+    return hashString(SAVE_SALT + JSON.stringify(rest));
+  }
   function save(){
     state.lastSeen = Date.now();
+    state.__checksum = computeChecksum(state);
     localStorage.setItem(SAVE_KEY, JSON.stringify(state));
   }
   function load(){
@@ -64,7 +93,11 @@
     if(!raw) return;
     try{
       const loaded = JSON.parse(raw);
+      const savedChecksum = loaded.__checksum;
+      const valid = savedChecksum !== undefined && savedChecksum === computeChecksum(loaded);
       state = Object.assign(state, loaded);
+      state.integrityFlag = !valid;
+      if(!valid) console.warn('Ramen Empire: save checksum mismatch — state may have been edited outside the game.');
       BUSINESS_DEFS.forEach(b => {
         if(!state.businesses[b.id]) state.businesses[b.id] = freshBusiness();
         const biz = state.businesses[b.id];
@@ -432,9 +465,18 @@
     document.getElementById('offlineModal').classList.remove('show');
     renderStats(); checkAchievements();
   });
-  document.getElementById('doubleOfflineBtn').addEventListener('click', () => {
-    // Stub for rewarded ad integration (AdMob). On real device, show rewarded ad,
-    // then call this callback on successful view.
+  const doubleOfflineBtn = document.getElementById('doubleOfflineBtn');
+  doubleOfflineBtn.style.display = FEATURES.adsEnabled ? '' : 'none';
+  if(!FEATURES.adsEnabled){
+    console.warn('Ramen Empire: FEATURES.adsEnabled is false — "Watch Ad to Double" is hidden because no ad SDK is wired in yet.');
+  }
+  doubleOfflineBtn.addEventListener('click', () => {
+    if(!FEATURES.adsEnabled){
+      console.warn('Ramen Empire: doubleOfflineBtn clicked while adsEnabled is false — this should be unreachable since the button is hidden.');
+      return;
+    }
+    // TODO: replace this stub with a real rewarded-ad SDK call. Only credit
+    // the doubled reward inside the ad's successful-view callback, not here.
     state.cash += pendingOfflineGain * 2;
     state.totalEarned += pendingOfflineGain * 2;
     document.getElementById('offlineModal').classList.remove('show');
