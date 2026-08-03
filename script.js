@@ -115,6 +115,7 @@
   // doubleOfflineBtn's click handler below. Until then this stays false so the
   // button is hidden rather than silently doubling rewards for a "watch ad"
   // that never actually shows an ad.
+  //
   const FEATURES = { adsEnabled: false };
 
   // upgrade tier definitions: type -> {icon, label, boostPerLevel, costMult, costGrowth, maxLevel}
@@ -162,7 +163,9 @@
     inspectorsPassed: 0,
     achievementsClaimed: {},
     achievementBonus: 0,
-    integrityFlag: false
+    integrityFlag: false,
+    profile: { name: '', age: null, provider: null }, // set once onboarding completes
+    onboarded: false
   };
 
   function freshBusiness(){ return {level:0, manager:false, speed:0, capacity:0, quality:0}; }
@@ -235,6 +238,8 @@
         });
       });
       if(!state.achievementsClaimed) state.achievementsClaimed = {};
+      if(!state.profile) state.profile = { name: '', age: null, provider: null };
+      if(state.onboarded === undefined) state.onboarded = false;
       if(state.achievementBonus === undefined) state.achievementBonus = 0;
       if(state.totalTaps === undefined) state.totalTaps = 0;
       if(state.criticEventsSeen === undefined) state.criticEventsSeen = 0;
@@ -711,6 +716,95 @@
   document.getElementById('achModalClose').addEventListener('click', closeAchModal);
   document.getElementById('achModal').addEventListener('modal-dismiss', closeAchModal);
 
+  // ---------- login / profile ----------
+  // pendingProvider tracks which button the person tapped on the provider
+  // step so submitProfile() knows what to store once the name+age step is
+  // submitted. It's also pre-filled when re-opening the overlay to edit an
+  // existing profile from Settings.
+  let pendingProvider = null;
+  const authOverlay = document.getElementById('authOverlay');
+  const authStepProvider = document.getElementById('authStepProvider');
+  const authStepProfile = document.getElementById('authStepProfile');
+  const authNameInput = document.getElementById('authNameInput');
+  const authAgeInput = document.getElementById('authAgeInput');
+  const authError = document.getElementById('authError');
+  const authCancelBtn = document.getElementById('authCancelBtn');
+
+  function openAuthOverlay(mode){
+    authError.style.display = 'none';
+    if(mode === 'edit'){
+      authStepProvider.style.display = 'none';
+      authStepProfile.style.display = 'block';
+      authNameInput.value = state.profile.name || '';
+      authAgeInput.value = state.profile.age || '';
+      pendingProvider = state.profile.provider;
+      authCancelBtn.style.display = 'block';
+    } else {
+      authStepProvider.style.display = 'block';
+      authStepProfile.style.display = 'none';
+      authCancelBtn.style.display = 'none';
+    }
+    openModal(authOverlay);
+  }
+  function beginLogin(provider){
+    pendingProvider = provider;
+    authStepProvider.style.display = 'none';
+    authStepProfile.style.display = 'block';
+    authCancelBtn.style.display = 'none';
+    authNameInput.focus();
+  }
+  function beginGoogleLogin(){
+    authError.style.display = 'none';
+    auth.signInWithPopup(googleProvider).then(result => {
+      const user = result.user;
+      pendingProvider = 'google';
+      authNameInput.value = (user.displayName || '').slice(0, 24);
+      // Firebase doesn't provide age, so still collect it on the profile step.
+      authStepProvider.style.display = 'none';
+      authStepProfile.style.display = 'block';
+      authCancelBtn.style.display = 'none';
+      authAgeInput.focus();
+    }).catch(err => {
+      console.warn('Google sign-in failed', err);
+      showAuthError('Google sign-in failed. Please try again.');
+    });
+  }
+  document.getElementById('authGoogleBtn').addEventListener('click', beginGoogleLogin);
+  document.getElementById('authGuestBtn').addEventListener('click', () => beginLogin('guest'));
+
+  function showAuthError(msg){ authError.textContent = msg; authError.style.display = 'block'; }
+  function submitProfile(){
+    const name = authNameInput.value.trim();
+    const age = parseInt(authAgeInput.value, 10);
+    if(!name){ showAuthError('Please enter a name.'); authNameInput.focus(); return; }
+    if(!authAgeInput.value || isNaN(age) || age < 5 || age > 120){ showAuthError('Please enter a valid age.'); authAgeInput.focus(); return; }
+    state.profile = { name: name.slice(0, 24), age, provider: pendingProvider || state.profile.provider || 'guest' };
+    state.onboarded = true;
+    save();
+    renderProfileSettings();
+    closeModal(authOverlay);
+    startGame();
+  }
+  document.getElementById('authSubmitBtn').addEventListener('click', submitProfile);
+  authAgeInput.addEventListener('keydown', e => { if(e.key === 'Enter') submitProfile(); });
+  authNameInput.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); authAgeInput.focus(); } });
+
+  authCancelBtn.addEventListener('click', () => closeModal(authOverlay));
+  authOverlay.addEventListener('click', e => { if(e.target === authOverlay) authOverlay.dispatchEvent(new CustomEvent('modal-dismiss')); });
+  // Escape/backdrop dismissal only applies once a profile already exists
+  // (i.e. this is an edit) — during first-run onboarding there's no game
+  // state yet to fall back to, so dismissal is ignored and the person must
+  // pick a provider and submit a name+age to proceed.
+  authOverlay.addEventListener('modal-dismiss', () => { if(state.onboarded) closeModal(authOverlay); });
+
+  document.getElementById('editProfileBtn').addEventListener('click', () => openAuthOverlay('edit'));
+  function renderProfileSettings(){
+    const el = document.getElementById('profileNameDisplay');
+    if(!el) return;
+    const providerLabel = {google:'Google', guest:'Guest'}[state.profile.provider] || 'Guest';
+    el.textContent = state.profile.name ? `${state.profile.name}, ${state.profile.age} · ${providerLabel}` : '—';
+  }
+
   // ---------- tap to earn ----------
   const bowlWrap = document.getElementById('bowlWrap');
   const tapZone = document.getElementById('tapZone');
@@ -843,13 +937,29 @@
   setInterval(save, CONFIG.AUTOSAVE_INTERVAL_MS);
 
   // ---------- init ----------
+  // startGame() is idempotent so it can be called both from here (returning,
+  // already-onboarded players) and from submitProfile() (first-run players,
+  // right after they finish the login+profile flow) without double-starting
+  // the render loop.
+  let gameStarted = false;
+  function startGame(){
+    if(gameStarted) return;
+    gameStarted = true;
+    checkOfflineEarnings();
+    renderBusinesses();
+    renderAchievements();
+    renderWorld();
+    renderStats();
+    requestAnimationFrame(tick);
+  }
+
   load();
-  checkOfflineEarnings();
-  renderBusinesses();
-  renderAchievements();
-  renderWorld();
-  renderStats();
-  requestAnimationFrame(tick);
+  renderProfileSettings();
+  if(state.onboarded){
+    startGame();
+  } else {
+    openAuthOverlay('onboard');
+  }
 
   window.addEventListener('beforeunload', save);
   window.addEventListener('pagehide', save);

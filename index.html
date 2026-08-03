@@ -69,9 +69,11 @@
   </div>
 
   <div class="panel-view" id="settingsPanel" role="tabpanel" aria-labelledby="navSettings">
+    <div class="settings-item"><span>Playing as</span><strong id="profileNameDisplay">—</strong></div>
+    <div class="settings-item"><span>Edit profile</span><button class="modal-btn secondary" style="width:auto; padding:8px 16px; margin:0;" id="editProfileBtn">Edit</button></div>
     <div class="settings-item"><span>Save game</span><button class="modal-btn" style="width:auto; padding:8px 16px; margin:0;" id="saveBtn">Save Now</button></div>
     <div class="settings-item"><span>Reset all progress</span><button class="modal-btn secondary" style="width:auto; padding:8px 16px; margin:0; background:var(--red); color:white;" id="resetBtn">Reset</button></div>
-    <div class="settings-item"><span>Version</span><strong>1.2.0</strong></div>
+    <div class="settings-item"><span>Version</span><strong>1.3.0</strong></div>
   </div>
 
   <div class="bottom-bar" role="tablist" aria-label="Sections">
@@ -99,8 +101,34 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="authOverlay">
+    <div class="modal auth-modal" role="dialog" aria-modal="true" aria-labelledby="authTitle" tabindex="-1">
+      <div id="authStepProvider">
+        <h2 id="authTitle">Welcome to Ramen Empire</h2>
+        <p>Sign in to start building your empire.</p>
+        <button class="auth-btn google" id="authGoogleBtn" data-provider="google">Continue with Google</button>
+        <button class="auth-btn guest" id="authGuestBtn" data-provider="guest">Continue as Guest</button>
+      </div>
+      <div id="authStepProfile" style="display:none;">
+        <h2>Tell us about you</h2>
+        <p>You can change this anytime in Settings.</p>
+        <label class="auth-label" for="authNameInput">Name</label>
+        <input class="auth-input" id="authNameInput" type="text" maxlength="24" placeholder="Your name" autocomplete="given-name">
+        <label class="auth-label" for="authAgeInput">Age</label>
+        <input class="auth-input" id="authAgeInput" type="number" min="5" max="120" inputmode="numeric" placeholder="Your age">
+        <p class="auth-error" id="authError" style="display:none;"></p>
+        <button class="modal-btn" id="authSubmitBtn" style="margin-top:16px;">Start Playing</button>
+        <button class="modal-btn secondary" id="authCancelBtn" style="display:none;">Cancel</button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-analytics-compat.js"></script>
+<script src="firebase-config.js"></script>
 <script src="script.js"></script>
 </body>
 </html>
