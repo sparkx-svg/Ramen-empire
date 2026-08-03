@@ -107,7 +107,11 @@
     let total = 0;
     BUSINESS_DEFS.forEach(def => {
       const b = state.businesses[def.id];
-      if(b.manager && b.level > 0) total += businessIncome(def, b);
+      if(b.level > 0){
+        let inc = businessIncome(def, b);
+        if(b.manager) inc *= 1.5; // manager bonus: +50% on top of base income
+        total += inc;
+      }
     });
     return total * globalMultiplier() * eventMultiplier();
   }
@@ -195,7 +199,7 @@
       const locked = idx > 0 && b.level === 0 && (!prevDef || state.businesses[prevDef.id].level < def.unlockAt) && def.unlockAt > 0;
       const cost = businessCost(def, b.level);
       const canAfford = state.cash >= cost;
-      const income = businessIncome(def, b);
+      const income = businessIncome(def, b) * (b.manager ? 1.5 : 1);
       const mCost = managerCost(def);
       const isOpen = expandedCards.has(def.id);
 
@@ -224,11 +228,11 @@
         <div class="biz-main" data-action="toggle" data-id="${def.id}">
           <div class="biz-icon">${def.icon}</div>
           <div class="biz-info">
-            <div class="biz-name">${def.name} ${b.manager ? '<span class="manager-badge">AUTO</span>' : ''}${b.level>0 ? '<span class="expand-caret'+(isOpen?' open':'')+'">▶</span>':''}</div>
+            <div class="biz-name">${def.name} ${b.manager ? '<span class="manager-badge">+50%</span>' : ''}${b.level>0 ? '<span class="expand-caret'+(isOpen?' open':'')+'">▶</span>':''}</div>
             <div class="biz-level">Level ${b.level}</div>
             <div class="biz-income">${b.level>0 ? fmt(income)+'/s' : 'Not opened yet'}</div>
           </div>
-          ${!b.manager && b.level >= 5 ? `<button class="buy-btn manager-btn" data-action="manager" data-id="${def.id}" ${state.cash < mCost ? 'disabled' : ''}>HIRE<small>${fmt(mCost)}</small></button>` : ''}
+          ${!b.manager && b.level >= 5 ? `<button class="buy-btn manager-btn" data-action="manager" data-id="${def.id}" ${state.cash < mCost ? 'disabled' : ''}>+50%<small>${fmt(mCost)}</small></button>` : ''}
           <button class="buy-btn" data-action="buy" data-id="${def.id}" ${!canAfford || locked ? 'disabled' : ''}>${b.level===0?'OPEN':'UPGRADE'}<small>${fmt(cost)}</small></button>
         </div>
         ${b.level > 0 ? `<div class="upgrade-panel${isOpen?' open':''}"><div class="upgrade-row">${upgradeChips}</div></div>` : ''}
