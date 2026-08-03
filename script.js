@@ -115,7 +115,16 @@
     AUTOSAVE_INTERVAL_MS: 10000,
     FLOAT_GAIN_LIFETIME_MS: 900,    // how long the "+¥X" tap popup stays before removal
     FLOAT_GAIN_SPREAD_MIN_PCT: 45,  // horizontal placement range for the tap popup (min%)
-    FLOAT_GAIN_SPREAD_RANGE_PCT: 10 // ...plus a random amount up to this many percentage points
+    FLOAT_GAIN_SPREAD_RANGE_PCT: 10, // ...plus a random amount up to this many percentage points
+
+    // Tap feedback ("juice") — screen shake, particle burst, pop sound, haptic
+    TAP_SHAKE_MS: 220,
+    TAP_PARTICLE_COUNT: 6,
+    TAP_PARTICLE_MIN_DIST: 26,
+    TAP_PARTICLE_DIST_RANGE: 26,
+    TAP_PARTICLE_LIFETIME_MS: 480,
+    TAP_HAPTIC_MS: 12,           // normal reward tap
+    TAP_HAPTIC_INSPECTOR_MS: 8   // lighter buzz for health-inspector taps (no cash reward)
   };
 
   // Set to true only once a real rewarded-ad SDK (AdMob, etc.) is wired into
@@ -215,7 +224,8 @@
     challenges: { daily: null, weekly: null },
     weeklyEarned: 0,   // earnings so far in the current leaderboard week (see weekId)
     weekId: null,      // ISO week id ('2026-W31') this weeklyEarned total belongs to
-    seasonWins: 0       // number of past weeks this player finished #1 on the Weekly board
+    seasonWins: 0,      // number of past weeks this player finished #1 on the Weekly board
+    tapFxEnabled: true  // screen shake + particle burst + pop sound + haptic on tap
   };
 
   // Every source of cash gain (tap, tick, offline, milestone, challenge/daily
@@ -1333,7 +1343,55 @@
     if(!el) return;
     const providerLabel = {google:'Google', guest:'Guest'}[state.profile.provider] || 'Guest';
     el.textContent = state.profile.name ? `${state.profile.name}, ${state.profile.age} · ${providerLabel}` : '—';
+    const logoutBtn = document.getElementById('logoutBtn');
+    if(logoutBtn) logoutBtn.style.display = state.profile.provider === 'google' ? '' : 'none';
   }
+
+  // ---- tap effects toggle ----
+  const tapFxBtn = document.getElementById('tapFxBtn');
+  function renderTapFxBtn(){ tapFxBtn.textContent = state.tapFxEnabled ? 'On' : 'Off'; }
+  tapFxBtn.addEventListener('click', () => {
+    state.tapFxEnabled = !state.tapFxEnabled;
+    renderTapFxBtn();
+    save();
+  });
+  renderTapFxBtn();
+
+  // ---- log out ----
+  // Signs out of the Google/Firebase session only. Local progress lives in
+  // localStorage regardless of auth state, so nothing about the save is
+  // touched — this just stops leaderboard submissions under this identity
+  // and drops the player's profile back to Guest until they sign in again.
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    if(state.profile.provider !== 'google') return;
+    auth.signOut().then(() => {
+      state.profile.provider = 'guest';
+      save();
+      renderProfileSettings();
+    }).catch(err => console.warn('Sign out failed', err));
+  });
+
+  // ---- delete account ----
+  // Destructive: removes this player's leaderboard + friends docs, deletes
+  // the Firebase Auth account itself (Google sign-in only — guests have no
+  // cloud account to delete), then wipes local progress just like Reset.
+  document.getElementById('deleteAccountBtn').addEventListener('click', () => {
+    if(!confirm('Delete your account? This removes you from the leaderboard and erases all local progress. This cannot be undone.')) return;
+    const finish = () => { localStorage.removeItem(SAVE_KEY); location.reload(); };
+    if(!firebaseUser){ finish(); return; }
+    const uid = firebaseUser.uid;
+    Promise.all([
+      db.collection('leaderboard').doc(uid).delete().catch(err => console.warn('Delete leaderboard doc failed', err)),
+      db.collection('friends').doc(uid).delete().catch(err => console.warn('Delete friends doc failed', err))
+    ]).then(() => firebaseUser.delete()).then(finish).catch(err => {
+      console.warn('Account deletion failed', err);
+      // Firebase requires a recent sign-in to delete the auth account itself
+      // (auth/requires-recent-login). The cloud data above is already gone
+      // either way, so still sign out and wipe local progress rather than
+      // leaving the person stuck.
+      auth.signOut().catch(() => {}).then(finish);
+    });
+  });
 
   // ---------- leaderboard ----------
   // Only signed-in Google players get a leaderboard entry — guests have no
@@ -1553,6 +1611,77 @@
   });
 
   // ---------- tap to earn ----------
+  // ---- tap "juice": screen shake, particle burst, pop sound, haptic ----
+  // All gated on state.tapFxEnabled (toggle lives in Settings) so anyone who
+  // finds it distracting — or is tapping fast enough that constant vibration
+  // gets annoying — can turn the whole bundle off in one switch.
+  function shakeTapZone(){
+    tapZone.classList.remove('tap-shake');
+    void tapZone.offsetWidth; // force reflow so the animation restarts on rapid consecutive taps
+    tapZone.classList.add('tap-shake');
+  }
+  function spawnTapParticles(){
+    const count = CONFIG.TAP_PARTICLE_COUNT;
+    for(let i = 0; i < count; i++){
+      const p = document.createElement('div');
+      p.className = 'tap-particle';
+      const angle = (Math.PI * 2 * i) / count + (Math.random() * 0.6 - 0.3);
+      const dist = CONFIG.TAP_PARTICLE_MIN_DIST + Math.random() * CONFIG.TAP_PARTICLE_DIST_RANGE;
+      p.style.setProperty('--dx', (Math.cos(angle) * dist) + 'px');
+      p.style.setProperty('--dy', (Math.sin(angle) * dist) + 'px');
+      p.textContent = ['✨', '💫', '⭐'][Math.floor(Math.random() * 3)];
+      tapZone.appendChild(p);
+      setTimeout(() => p.remove(), CONFIG.TAP_PARTICLE_LIFETIME_MS);
+    }
+  }
+  // Synthesizes a short decaying noise "pop" rather than shipping an audio
+  // asset — same reasoning as playMilestoneChime() above. The buffer is built
+  // once and reused; only a cheap BufferSource is created per tap.
+  let tapAudioCtx = null;
+  let tapNoiseBuffer = null;
+  function ensureTapAudio(){
+    if(tapAudioCtx) return;
+    try{
+      tapAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const rate = tapAudioCtx.sampleRate;
+      const duration = 0.05;
+      tapNoiseBuffer = tapAudioCtx.createBuffer(1, Math.floor(rate * duration), rate);
+      const data = tapNoiseBuffer.getChannelData(0);
+      for(let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+    }catch(e){ /* Web Audio unavailable/blocked — shake/particles/haptic still fire */ }
+  }
+  function playTapPop(){
+    ensureTapAudio();
+    if(!tapAudioCtx || !tapNoiseBuffer) return;
+    try{
+      const src = tapAudioCtx.createBufferSource();
+      src.buffer = tapNoiseBuffer;
+      const filter = tapAudioCtx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.value = 900 + Math.random() * 300; // slight variation so rapid taps don't sound identical
+      const gain = tapAudioCtx.createGain();
+      gain.gain.value = 0.22;
+      src.connect(filter).connect(gain).connect(tapAudioCtx.destination);
+      src.start();
+    }catch(e){ /* ignore */ }
+  }
+  function tapHaptic(ms){
+    if('vibrate' in navigator){
+      try{ navigator.vibrate(ms); }catch(e){ /* some browsers throw if called outside a user gesture */ }
+    }
+  }
+  function fireTapFeedback(isInspector){
+    if(!state.tapFxEnabled) return;
+    if(isInspector){
+      tapHaptic(CONFIG.TAP_HAPTIC_INSPECTOR_MS);
+      return; // no shake/particles/sound for inspector taps — nothing's actually being earned
+    }
+    shakeTapZone();
+    spawnTapParticles();
+    playTapPop();
+    tapHaptic(CONFIG.TAP_HAPTIC_MS);
+  }
+
   const bowlWrap = document.getElementById('bowlWrap');
   const tapZone = document.getElementById('tapZone');
   function handleTap(){
@@ -1561,6 +1690,7 @@
     if(activeEvent.type === 'inspector'){
       activeEvent.tapsDone++;
       spawnFloatingGain(0, 'insp');
+      fireTapFeedback(true);
       if(activeEvent.tapsDone >= activeEvent.tapsNeeded){
         clearEvent(true);
         checkAchievements();
@@ -1571,6 +1701,7 @@
       addEarned(gain);
       addChallengeProgress('earn', gain);
       spawnFloatingGain(gain);
+      fireTapFeedback(false);
     }
     renderStats();
     checkAchievements();
