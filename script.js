@@ -165,7 +165,9 @@
     achievementBonus: 0,
     integrityFlag: false,
     profile: { name: '', age: null, provider: null }, // set once onboarding completes
-    onboarded: false
+    onboarded: false,
+    daily: { streak: 0, lastClaimDate: null },
+    challenges: { daily: null, weekly: null }
   };
 
   function freshBusiness(){ return {level:0, manager:false, speed:0, capacity:0, quality:0}; }
@@ -241,6 +243,8 @@
       if(!state.achievementsClaimed) state.achievementsClaimed = {};
       if(!state.profile) state.profile = { name: '', age: null, provider: null };
       if(state.onboarded === undefined) state.onboarded = false;
+      if(!state.daily) state.daily = { streak: 0, lastClaimDate: null };
+      if(!state.challenges) state.challenges = { daily: null, weekly: null };
       if(state.achievementBonus === undefined) state.achievementBonus = 0;
       if(state.totalTaps === undefined) state.totalTaps = 0;
       if(state.criticEventsSeen === undefined) state.criticEventsSeen = 0;
@@ -304,6 +308,193 @@
     while(n >= 1000 && u < units.length - 1){ n /= 1000; u++; }
     return '¥' + n.toFixed(2) + units[u];
   }
+
+  // ---------- date helpers ----------
+  // Keys are local-calendar 'YYYY-MM-DD' strings, not UTC/timestamps, so a
+  // streak or challenge rolls over at the player's own midnight, not GMT's.
+  function todayKey(d){
+    d = d || new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  function daysBetween(aKey, bKey){
+    const a = new Date(aKey + 'T00:00:00');
+    const b = new Date(bKey + 'T00:00:00');
+    return Math.round((b - a) / 86400000);
+  }
+  function weekKey(d){
+    d = d || new Date();
+    const dow = (d.getDay() + 6) % 7; // Mon=0 ... Sun=6
+    const monday = new Date(d);
+    monday.setDate(d.getDate() - dow);
+    return todayKey(monday);
+  }
+
+  // ---------- daily login streak ----------
+  let pendingDailyReward = null;
+  function dailyStreakReward(streakDay){
+    const rate = Math.max(totalRatePerSec(), 1);
+    const seconds = 20 + Math.min(streakDay, 30) * 8; // grows with streak, caps around day 30
+    let cash = rate * seconds;
+    let miso = 0;
+    if(streakDay % 30 === 0) miso = 3;
+    else if(streakDay % 7 === 0) miso = 1;
+    else if(streakDay % 3 === 0) cash *= 1.5;
+    return { cash, miso };
+  }
+  // Returns true if today's reward hasn't been claimed yet (and updates the
+  // streak count), so the caller knows whether to show the modal.
+  function checkDailyStreak(){
+    const today = todayKey();
+    if(state.daily.lastClaimDate === today) return false;
+    if(state.daily.lastClaimDate){
+      const gap = daysBetween(state.daily.lastClaimDate, today);
+      state.daily.streak = (gap === 1) ? state.daily.streak + 1 : 1;
+    } else {
+      state.daily.streak = 1;
+    }
+    state.daily.lastClaimDate = today;
+    pendingDailyReward = dailyStreakReward(state.daily.streak);
+    return true;
+  }
+  function showDailyStreakModal(){
+    document.getElementById('dailyStreakSubtitle').textContent = `Streak day ${state.daily.streak}`;
+    let text = fmt(pendingDailyReward.cash);
+    if(pendingDailyReward.miso > 0) text += ` + ${pendingDailyReward.miso} Miso Point${pendingDailyReward.miso > 1 ? 's' : ''}`;
+    document.getElementById('dailyStreakReward').textContent = '+' + text;
+    openModal(document.getElementById('dailyStreakModal'));
+  }
+  // Called once at startup, right after the offline-earnings modal has
+  // either been skipped or closed, so the two modals never show at once.
+  function maybeShowDailyStreak(){
+    if(checkDailyStreak()) showDailyStreakModal();
+  }
+  function collectDailyStreak(){
+    if(!pendingDailyReward) return;
+    state.cash += pendingDailyReward.cash;
+    state.totalEarned += pendingDailyReward.cash;
+    state.prestigePoints += pendingDailyReward.miso;
+    pendingDailyReward = null;
+    closeModal(document.getElementById('dailyStreakModal'));
+    save(); renderStats();
+    maybeShowChallengesReadyNotification();
+  }
+  document.getElementById('dailyStreakCollectBtn').addEventListener('click', collectDailyStreak);
+  document.getElementById('dailyStreakModal').addEventListener('click', e => {
+    if(e.target === e.currentTarget) e.currentTarget.dispatchEvent(new CustomEvent('modal-dismiss'));
+  });
+  document.getElementById('dailyStreakModal').addEventListener('modal-dismiss', collectDailyStreak);
+
+  // ---------- daily / weekly challenges ----------
+  const CHALLENGE_TYPES = ['taps', 'earn', 'buy'];
+  const CHALLENGE_LABELS = {
+    taps: { icon: '👋', name: 'Tap Rush', desc: n => `Tap the bowl ${n} times` },
+    earn: { icon: '💴', name: 'Big Earner', desc: n => `Earn ${fmt(n)}` },
+    buy:  { icon: '🛠️', name: 'Shop Upgrade', desc: n => `Buy ${n} shop levels or upgrades` },
+  };
+  function genChallenge(scale){
+    const type = CHALLENGE_TYPES[Math.floor(Math.random() * CHALLENGE_TYPES.length)];
+    const rate = Math.max(totalRatePerSec(), 1);
+    let target, reward;
+    if(type === 'taps'){
+      target = Math.round((100 + Math.random() * 100) * scale);
+      reward = { cash: rate * 30 * scale };
+    } else if(type === 'earn'){
+      target = Math.round(rate * (120 + Math.random() * 180) * scale);
+      reward = { cash: target * 0.15 };
+    } else {
+      target = Math.max(1, Math.round((3 + Math.random() * 4) * scale));
+      reward = { cash: rate * 45 * scale };
+    }
+    if(scale > 1) reward.miso = 1;
+    return { type, target, progress: 0, reward, claimed: false, notified: false };
+  }
+  function ensureChallenges(){
+    const dKey = todayKey();
+    if(!state.challenges.daily || state.challenges.daily.dateKey !== dKey){
+      state.challenges.daily = Object.assign({ dateKey: dKey }, genChallenge(1));
+    }
+    const wKey = weekKey();
+    if(!state.challenges.weekly || state.challenges.weekly.weekKey !== wKey){
+      state.challenges.weekly = Object.assign({ weekKey: wKey }, genChallenge(5));
+    }
+  }
+  function addChallengeProgress(type, amount){
+    ['daily', 'weekly'].forEach(which => {
+      const c = state.challenges[which];
+      if(c && c.type === type && !c.claimed){
+        const wasReady = c.progress >= c.target;
+        c.progress = Math.min(c.target, c.progress + amount);
+        if(!wasReady && c.progress >= c.target) notifyChallengeReady(which, c);
+      }
+    });
+  }
+  function claimChallenge(which){
+    const c = state.challenges[which];
+    if(!c || c.claimed || c.progress < c.target) return;
+    state.cash += c.reward.cash || 0;
+    state.totalEarned += c.reward.cash || 0;
+    state.prestigePoints += c.reward.miso || 0;
+    c.claimed = true;
+    save(); renderAchievements(); renderStats();
+  }
+  function renderChallengeCard(which, label){
+    const c = state.challenges[which];
+    if(!c) return '';
+    const info = CHALLENGE_LABELS[c.type];
+    const pct = Math.min(100, Math.round((c.progress / c.target) * 100));
+    const ready = c.progress >= c.target;
+    const fmtVal = c.type === 'earn' ? fmt : Math.round;
+    let rewardText = fmt(c.reward.cash);
+    if(c.reward.miso) rewardText += ` + ${c.reward.miso} Miso Point${c.reward.miso > 1 ? 's' : ''}`;
+    return `
+      <div class="ach-card${c.claimed ? ' claimed' : ''}">
+        <div class="ach-icon${ready ? ' done' : ''}" aria-hidden="true">${info.icon}</div>
+        <div class="ach-info">
+          <div class="ach-name">${label}: ${info.name}</div>
+          <div class="ach-desc">${info.desc(c.type === 'earn' ? c.target : Math.round(c.target))} (${fmtVal(c.progress)} / ${fmtVal(c.target)})</div>
+          <div class="chal-progress"><div class="chal-progress-fill" style="width:${pct}%"></div></div>
+          <div class="ach-reward">+${rewardText}</div>
+        </div>
+        <button class="claim-btn${c.claimed ? ' done' : ''}" data-action="claim-challenge" data-which="${which}" ${!ready || c.claimed ? 'disabled' : ''}>${c.claimed ? '✓ Done' : (ready ? 'Claim' : 'Locked')}</button>
+      </div>`;
+  }
+
+  // ---------- notifications ----------
+  // Requests permission and relays local notifications through the service
+  // worker, which can show them even while the tab is backgrounded. This
+  // does NOT reach someone after they've fully closed the browser — that
+  // needs a real server push (Firebase Cloud Messaging + a Cloud Function),
+  // which isn't set up here.
+  function notifyChallengeReady(which, c){
+    if(c.notified) return;
+    c.notified = true;
+    sendLocalNotification('Challenge complete!', `Your ${which} challenge is done — come claim your reward.`, 'challenge-' + which);
+  }
+  function maybeShowChallengesReadyNotification(){
+    ['daily', 'weekly'].forEach(which => {
+      const c = state.challenges[which];
+      if(c && c.progress >= c.target && !c.claimed) notifyChallengeReady(which, c);
+    });
+  }
+  function sendLocalNotification(title, body, tag){
+    if(!('Notification' in window) || Notification.permission !== 'granted') return;
+    if(!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.getRegistration().then(reg => {
+      if(reg && reg.active) reg.active.postMessage({ type: 'show-notification', title, body, tag });
+    });
+  }
+  function updateNotifBtn(){
+    const btn = document.getElementById('notifBtn');
+    if(!btn) return;
+    if(!('Notification' in window)){ btn.textContent = 'Unsupported'; btn.disabled = true; return; }
+    if(Notification.permission === 'granted'){ btn.textContent = 'Enabled ✓'; btn.disabled = true; }
+    else if(Notification.permission === 'denied'){ btn.textContent = 'Blocked'; btn.disabled = true; }
+    else { btn.textContent = 'Enable'; btn.disabled = false; }
+  }
+  document.getElementById('notifBtn').addEventListener('click', () => {
+    Notification.requestPermission().then(updateNotifBtn);
+  });
+  updateNotifBtn();
 
   // ---------- random events ----------
   let activeEvent = {type:null, endsAt:0, tapsNeeded:0, tapsDone:0};
@@ -480,7 +671,9 @@
 
   function renderAchievements(){
     const panel = document.getElementById('achPanel');
-    panel.innerHTML = '';
+    panel.innerHTML = '<div class="chal-section-label">Challenges</div>' +
+      renderChallengeCard('daily', 'Daily') + renderChallengeCard('weekly', 'Weekly') +
+      '<div class="chal-section-label" style="margin-top:14px;">Achievements</div>';
     let anyUnclaimed = false;
     ACHIEVEMENTS.forEach(ach => {
       const claimed = !!state.achievementsClaimed[ach.id];
@@ -499,7 +692,11 @@
       `;
       panel.appendChild(card);
     });
-    document.getElementById('achDot').classList.toggle('show', anyUnclaimed);
+    const challengeReady = ['daily','weekly'].some(w => {
+      const c = state.challenges[w];
+      return c && !c.claimed && c.progress >= c.target;
+    });
+    document.getElementById('achDot').classList.toggle('show', anyUnclaimed || challengeReady);
   }
 
   function renderWorld(){
@@ -570,6 +767,7 @@
     if(state.cash < cost) return;
     state.cash -= cost;
     b.level++;
+    addChallengeProgress('buy', 1);
     renderBusinesses(); renderStats(); checkAchievements();
   }
   function hireManager(id){
@@ -592,6 +790,7 @@
     if(state.cash < cost) return;
     state.cash -= cost;
     b[type]++;
+    addChallengeProgress('buy', 1);
     renderBusinesses(); renderStats(); checkAchievements();
   }
   function doPrestige(){
@@ -616,7 +815,11 @@
     ACHIEVEMENTS.forEach(ach => {
       if(!state.achievementsClaimed[ach.id] && ach.cond(state)) anyUnclaimed = true;
     });
-    document.getElementById('achDot').classList.toggle('show', anyUnclaimed);
+    const challengeReady = ['daily','weekly'].some(w => {
+      const c = state.challenges[w];
+      return c && !c.claimed && c.progress >= c.target;
+    });
+    document.getElementById('achDot').classList.toggle('show', anyUnclaimed || challengeReady);
     if(document.getElementById('achPanel').classList.contains('active')) renderAchievements();
   }
 
@@ -709,9 +912,10 @@
   });
 
   document.getElementById('achPanel').addEventListener('click', e => {
-    const btn = e.target.closest('[data-action="claim"]');
-    if(!btn) return;
-    claimAchievement(btn.dataset.id);
+    const claimBtn = e.target.closest('[data-action="claim"]');
+    if(claimBtn){ claimAchievement(claimBtn.dataset.id); return; }
+    const chalBtn = e.target.closest('[data-action="claim-challenge"]');
+    if(chalBtn){ claimChallenge(chalBtn.dataset.which); return; }
   });
   function closeAchModal(){ closeModal(document.getElementById('achModal')); }
   document.getElementById('achModalClose').addEventListener('click', closeAchModal);
@@ -863,6 +1067,7 @@
   const tapZone = document.getElementById('tapZone');
   function handleTap(){
     state.totalTaps++;
+    addChallengeProgress('taps', 1);
     if(activeEvent.type === 'inspector'){
       activeEvent.tapsDone++;
       spawnFloatingGain(0, 'insp');
@@ -874,6 +1079,7 @@
       const gain = nextTapGain();
       state.cash += gain;
       state.totalEarned += gain;
+      addChallengeProgress('earn', gain);
       spawnFloatingGain(gain);
     }
     renderStats();
@@ -931,14 +1137,15 @@
   function checkOfflineEarnings(){
     const now = Date.now();
     const elapsedSec = Math.min((now - state.lastSeen) / 1000, CONFIG.OFFLINE_MAX_HOURS * 3600);
-    if(elapsedSec < CONFIG.OFFLINE_MIN_SEC) return;
+    if(elapsedSec < CONFIG.OFFLINE_MIN_SEC) return false;
     const rate = totalRatePerSec();
-    if(rate <= 0) return;
+    if(rate <= 0) return false;
     pendingOfflineGain = rate * elapsedSec * CONFIG.OFFLINE_EARN_MULT;
-    if(pendingOfflineGain < CONFIG.OFFLINE_MIN_GAIN) return;
+    if(pendingOfflineGain < CONFIG.OFFLINE_MIN_GAIN) return false;
     document.getElementById('offlineText').textContent =
       `While you were away for ${Math.round(elapsedSec/60)} min, your shops earned ${fmt(pendingOfflineGain)}.`;
     openModal(document.getElementById('offlineModal'));
+    return true;
   }
   function collectOffline(multiplier){
     const amount = pendingOfflineGain * multiplier;
@@ -946,6 +1153,7 @@
     state.totalEarned += amount;
     closeModal(document.getElementById('offlineModal'));
     renderStats(); checkAchievements();
+    maybeShowDailyStreak();
   }
   document.getElementById('collectOfflineBtn').addEventListener('click', () => collectOffline(1));
   document.getElementById('offlineModal').addEventListener('modal-dismiss', () => collectOffline(1));
@@ -977,6 +1185,7 @@
     if(gain > 0){
       state.cash += gain;
       state.totalEarned += gain;
+      addChallengeProgress('earn', gain);
     }
     maybeTriggerEvent();
     tickEvent();
@@ -987,7 +1196,7 @@
     requestAnimationFrame(tick);
   }
 
-  setInterval(() => { refreshBusinessAffordability(); checkAchievements(); }, CONFIG.AFFORDABILITY_REFRESH_MS);
+  setInterval(() => { refreshBusinessAffordability(); checkAchievements(); ensureChallenges(); }, CONFIG.AFFORDABILITY_REFRESH_MS);
   setInterval(save, CONFIG.AUTOSAVE_INTERVAL_MS);
 
   // ---------- init ----------
@@ -999,7 +1208,9 @@
   function startGame(){
     if(gameStarted) return;
     gameStarted = true;
-    checkOfflineEarnings();
+    ensureChallenges();
+    const offlineModalShown = checkOfflineEarnings();
+    if(!offlineModalShown) maybeShowDailyStreak();
     renderBusinesses();
     renderAchievements();
     renderWorld();

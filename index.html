@@ -76,9 +76,10 @@
   <div class="panel-view" id="settingsPanel" role="tabpanel" aria-labelledby="navSettings">
     <div class="settings-item"><span>Playing as</span><strong id="profileNameDisplay">—</strong></div>
     <div class="settings-item"><span>Edit profile</span><button class="modal-btn secondary" style="width:auto; padding:8px 16px; margin:0;" id="editProfileBtn">Edit</button></div>
+    <div class="settings-item"><span>Notifications</span><button class="modal-btn secondary" style="width:auto; padding:8px 16px; margin:0;" id="notifBtn">Enable</button></div>
     <div class="settings-item"><span>Save game</span><button class="modal-btn" style="width:auto; padding:8px 16px; margin:0;" id="saveBtn">Save Now</button></div>
     <div class="settings-item"><span>Reset all progress</span><button class="modal-btn secondary" style="width:auto; padding:8px 16px; margin:0; background:var(--red); color:white;" id="resetBtn">Reset</button></div>
-    <div class="settings-item"><span>Version</span><strong>1.3.0</strong></div>
+    <div class="settings-item"><span>Version</span><strong>1.4.0</strong></div>
   </div>
 
   <div class="bottom-bar" role="tablist" aria-label="Sections">
@@ -96,6 +97,15 @@
       <p id="offlineText">Your shops kept simmering while you were away.</p>
       <button class="modal-btn ad" id="doubleOfflineBtn">📺 Watch Ad to Double</button>
       <button class="modal-btn secondary" id="collectOfflineBtn">Collect</button>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="dailyStreakModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="dailyStreakTitle" tabindex="-1">
+      <h2 id="dailyStreakTitle">Daily Bonus!</h2>
+      <p id="dailyStreakSubtitle">Streak day 1</p>
+      <div class="big" id="dailyStreakReward">+¥0</div>
+      <button class="modal-btn" id="dailyStreakCollectBtn">Collect</button>
     </div>
   </div>
 

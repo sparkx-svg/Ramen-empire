@@ -15,7 +15,7 @@
 // stuck on stale assets indefinitely even with SWR serving cache-first.
 // Forgetting to bump this is the main way this strategy goes stale, so
 // treat it like a changelog entry: bump it, don't skip it.
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.4.0';
 const CACHE_NAME = 'ramen-empire-v' + APP_VERSION;
 
 const CORE_ASSETS = [
@@ -72,6 +72,52 @@ self.addEventListener('fetch', event => {
 
       const fresh = await networkFetch;
       return fresh || cache.match('./index.html');
+    })
+  );
+});
+
+// ---------- notifications ----------
+// showNotification() works even while the tab is backgrounded (not focused),
+// as long as the browser process itself is still running — that covers
+// "come back and claim your challenge reward" while the person has the game
+// open in another tab or minimized. It does NOT cover notifying someone
+// after they've fully closed the browser; that requires a real push message
+// from a server (Firebase Cloud Messaging + a Cloud Function watching
+// Firestore), which needs the Blaze billing plan and isn't set up here yet.
+self.addEventListener('message', event => {
+  if(event.data && event.data.type === 'show-notification'){
+    const { title, body, tag } = event.data;
+    self.registration.showNotification(title, {
+      body,
+      tag,               // reuses/replaces a notification with the same tag instead of stacking duplicates
+      icon: './icons/icon-192.png',
+      badge: './icons/icon-192.png'
+    });
+  }
+});
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientsArr => {
+      const existing = clientsArr.find(c => 'focus' in c);
+      if(existing) return existing.focus();
+      return self.clients.openWindow('./');
+    })
+  );
+});
+
+// Placeholder for real server-sent push (e.g. "a friend passed you on the
+// leaderboard"). Wiring this up requires Firebase Cloud Messaging on the
+// client plus a Cloud Function that watches Firestore and sends the push —
+// not implemented yet.
+self.addEventListener('push', event => {
+  if(!event.data) return;
+  const data = event.data.json();
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'Ramen Empire', {
+      body: data.body || '',
+      icon: './icons/icon-192.png'
     })
   );
 });
