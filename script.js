@@ -124,7 +124,35 @@
     TAP_PARTICLE_DIST_RANGE: 26,
     TAP_PARTICLE_LIFETIME_MS: 480,
     TAP_HAPTIC_MS: 12,           // normal reward tap
-    TAP_HAPTIC_INSPECTOR_MS: 8   // lighter buzz for health-inspector taps (no cash reward)
+    TAP_HAPTIC_INSPECTOR_MS: 8,  // lighter buzz for health-inspector taps (no cash reward)
+
+    // Reputation (0–100). Multiplies passive income; decays while the game is open.
+    REP_START: 70,
+    REP_MIN: 0,
+    REP_MAX: 100,
+    REP_DECAY_PER_SEC: 0.015,      // ~1 point per minute while playing
+    REP_TAP_GAIN: 0.08,            // small bump per reward tap
+    REP_ORDER_GAIN: 4,             // fulfill a customer order
+    REP_ORDER_MISS: 3,             // let an order expire
+    REP_INSPECTOR_PASS: 5,
+    REP_INSPECTOR_FAIL: 8,
+    REP_CRITIC_GAIN: 2,
+    REP_REPAIR_COST_MULT: 8,       // cash repair costs this many seconds of income
+    REP_REPAIR_AMOUNT: 12,         // points restored per paid repair
+    // Income multiplier from reputation: linear from REP_INCOME_MIN at 0 to REP_INCOME_MAX at 100
+    REP_INCOME_MIN: 0.55,
+    REP_INCOME_MAX: 1.45,
+
+    // Customer orders (active-play requests near the bowl)
+    ORDER_CHECK_INTERVAL_MS: 22000,
+    ORDER_TRIGGER_CHANCE: 0.28,
+    ORDER_DURATION_MS: 18000,
+    ORDER_REWARD_SECONDS: 12,      // bonus cash ≈ this many seconds of current income
+    ORDER_REWARD_TAP_MULT: 1.35,   // also scales with nextTapGain() a bit
+
+    // Crafting / signature ramen
+    INGREDIENT_DROP_CHANCE: 0.22,  // chance a business level-up grants an ingredient
+    RECIPE_DURATION_MS: 90000      // how long a crafted signature ramen boost lasts
   };
 
   // Set to true only once a real rewarded-ad SDK (AdMob, etc.) is wired into
@@ -155,6 +183,52 @@
     {id:'luck',    icon:'🍀', name:"Fortune's Favor",  desc:'+1% random event chance per level',   boost:0.01, baseCost:3, costGrowth:1.50, max:8},
   ];
 
+  // Ingredients drop when you level businesses (themed by country). Used only
+  // for crafting signature ramen — no other economy touchpoints.
+  const INGREDIENTS = [
+    {id:'noodles',   icon:'🍜', name:'Fresh Noodles',   country:'japan'},
+    {id:'broth',     icon:'🍲', name:'Rich Broth',      country:'japan'},
+    {id:'chashu',    icon:'🥓', name:'Chashu Pork',     country:'japan'},
+    {id:'nori',      icon:'🍙', name:'Nori Sheets',     country:'japan'},
+    {id:'dough',     icon:'🥖', name:'Pasta Dough',     country:'italy'},
+    {id:'tomato',    icon:'🍅', name:'San Marzano',     country:'italy'},
+    {id:'basil',     icon:'🌿', name:'Fresh Basil',     country:'italy'},
+    {id:'cheese',    icon:'🧀', name:'Aged Parmesan',   country:'italy'},
+    {id:'tortilla',  icon:'🌮', name:'Corn Tortilla',   country:'mexico'},
+    {id:'salsa',     icon:'🌶️', name:'Fire Salsa',      country:'mexico'},
+    {id:'avocado',   icon:'🥑', name:'Ripe Avocado',    country:'mexico'},
+    {id:'lime',      icon:'🍋', name:'Zesty Lime',      country:'mexico'},
+    {id:'spice',     icon:'🧂', name:'Garam Masala',    country:'india'},
+    {id:'naan',      icon:'🫓', name:'Warm Naan',       country:'india'},
+    {id:'paneer',    icon:'🧈', name:'Fresh Paneer',    country:'india'},
+    {id:'chai',      icon:'🍵', name:'Masala Chai',     country:'india'},
+  ];
+  // Signature recipes: consume ingredients for a temporary global boost.
+  // boost: { income?: number, tap?: number, rep?: number } — additive multipliers / flat rep.
+  const RECIPES = [
+    {id:'tonkotsu',   icon:'🍜', name:'Signature Tonkotsu', desc:'+40% income for 90s',
+      cost:{noodles:2, broth:2, chashu:1}, boost:{income:0.40}},
+    {id:'miso_bomb',  icon:'🍥', name:'Miso Umami Bomb',   desc:'+60% tap gain for 90s',
+      cost:{noodles:1, broth:1, nori:2}, boost:{tap:0.60}},
+    {id:'carbonara',  icon:'🍝', name:'Ramen Carbonara',   desc:'+25% income & +5 rep',
+      cost:{dough:2, cheese:1, basil:1}, boost:{income:0.25, rep:5}},
+    {id:'spicy_taco', icon:'🌶️', name:'Spicy Taco Ramen',  desc:'+50% income for 90s',
+      cost:{tortilla:1, salsa:2, lime:1}, boost:{income:0.50}},
+    {id:'curry_bowl', icon:'🍛', name:'Curry Ramen Bowl',  desc:'+30% income & +20% tap',
+      cost:{spice:2, naan:1, paneer:1}, boost:{income:0.30, tap:0.20}},
+    {id:'legend',     icon:'👑', name:'Empire Special',    desc:'+75% income for 90s',
+      cost:{noodles:2, broth:1, tomato:1, salsa:1, spice:1, cheese:1}, boost:{income:0.75}},
+  ];
+  // Customer order templates — short timed requests the player can fulfill with a tap.
+  const ORDER_TYPES = [
+    {id:'spicy',   icon:'🌶️', label:'Extra spicy!',       flavor:'A customer wants heat.'},
+    {id:'extra',   icon:'🥚', label:'Extra toppings',     flavor:'Pile it high, please.'},
+    {id:'quick',   icon:'⚡', label:'Rush order',         flavor:'They\'re in a hurry!'},
+    {id:'classic', icon:'🍜', label:'Classic bowl',       flavor:'Keep it traditional.'},
+    {id:'veggie',  icon:'🥬', label:'Vegetarian special', flavor:'No meat this time.'},
+    {id:'large',   icon:'📦', label:'Large portion',      flavor:'Make it a big one.'},
+  ];
+
   const ACHIEVEMENTS = [
     {id:'first_bowl',  icon:'🥢', name:'First Bowl',       desc:'Tap the bowl once',              reward:0.01, cond: s => s.totalTaps >= 1},
     {id:'open_shop',   icon:'🏮', name:'Open For Business', desc:'Open your first business',       reward:0.01, cond: s => allBusinessStates(s).some(b=>b.level>0)},
@@ -170,6 +244,11 @@
     {id:'inspector_pass',icon:'🕵️', name:'Inspection Passed', desc:'Clear a Health Inspector event by tapping', reward:0.02, cond: s => s.inspectorsPassed >= 1},
     {id:'lucky_break', icon:'🍀', name:'Lucky Break',       desc:'Catch a Lucky Customer event',    reward:0.02, cond: s => (s.luckyEventsSeen||0) >= 1},
     {id:'world_tour',  icon:'🌍', name:'World Tour',        desc:'Expand your empire to every country', reward:0.05, cond: s => s.unlockedCountries.length >= COUNTRIES.length},
+    {id:'first_order', icon:'🧾', name:'Order Up!',         desc:'Fulfill your first customer order', reward:0.02, cond: s => (s.ordersFulfilled||0) >= 1},
+    {id:'order_pro',   icon:'🛎️', name:'Service Pro',       desc:'Fulfill 25 customer orders',       reward:0.03, cond: s => (s.ordersFulfilled||0) >= 25},
+    {id:'first_craft', icon:'🧪', name:'Kitchen Debut',     desc:'Craft your first signature ramen', reward:0.02, cond: s => (s.recipesCrafted||0) >= 1},
+    {id:'chef_five',   icon:'👨‍🍳', name:'Five-Star Kitchen', desc:'Craft 10 signature ramen dishes',  reward:0.03, cond: s => (s.recipesCrafted||0) >= 10},
+    {id:'rep_high',    icon:'⭐', name:'Beloved Shop',      desc:'Reach 95 reputation',              reward:0.03, cond: s => (s.reputation||0) >= 95},
   ];
   // Cash-earned thresholds that trigger a celebratory milestone popup (confetti
   // + chime + a small bonus). Independent of ACHIEVEMENTS above: these are
@@ -225,7 +304,13 @@
     weeklyEarned: 0,   // earnings so far in the current leaderboard week (see weekId)
     weekId: null,      // ISO week id ('2026-W31') this weeklyEarned total belongs to
     seasonWins: 0,      // number of past weeks this player finished #1 on the Weekly board
-    tapFxEnabled: true  // screen shake + particle burst + pop sound + haptic on tap
+    tapFxEnabled: true, // screen shake + particle burst + pop sound + haptic on tap
+    // Depth systems (v1.6)
+    reputation: 70,           // 0–100; multiplies passive income, decays over time
+    ingredients: {},          // ingredientId -> count
+    activeRecipe: null,       // {id, endsAt} while a signature ramen boost is active
+    ordersFulfilled: 0,
+    recipesCrafted: 0
   };
 
   // Every source of cash gain (tap, tick, offline, milestone, challenge/daily
@@ -323,6 +408,12 @@
       META_UPGRADES.forEach(m => { if(state.metaUpgrades[m.id] === undefined) state.metaUpgrades[m.id] = 0; });
       if(!state.equippedSkin || !COSMETICS.some(c => c.id === state.equippedSkin)) state.equippedSkin = 'classic';
       if(state.prestigeCount === undefined) state.prestigeCount = 0;
+      if(state.reputation === undefined) state.reputation = CONFIG.REP_START;
+      if(!state.ingredients) state.ingredients = {};
+      if(state.activeRecipe && state.activeRecipe.endsAt < Date.now()) state.activeRecipe = null;
+      if(state.ordersFulfilled === undefined) state.ordersFulfilled = 0;
+      if(state.recipesCrafted === undefined) state.recipesCrafted = 0;
+      if(state.tapFxEnabled === undefined) state.tapFxEnabled = true;
     }catch(e){ console.warn('save corrupt, starting fresh'); }
   }
 
@@ -337,7 +428,23 @@
   function potentialShards(){ return Math.floor(potentialPrestigePoints() / CONFIG.SHARDS_PER_PRESTIGE_POINT); }
 
   function prestigeMultiplier(){ return 1 + state.prestigePoints * CONFIG.PRESTIGE_BONUS_PER_POINT; }
-  function globalMultiplier(){ return prestigeMultiplier() * (1 + state.achievementBonus) * (1 + metaBonus('umami')); }
+  function reputationMultiplier(){
+    const r = Math.max(CONFIG.REP_MIN, Math.min(CONFIG.REP_MAX, state.reputation || CONFIG.REP_START));
+    const t = r / CONFIG.REP_MAX;
+    return CONFIG.REP_INCOME_MIN + (CONFIG.REP_INCOME_MAX - CONFIG.REP_INCOME_MIN) * t;
+  }
+  function activeRecipeBoost(kind){
+    if(!state.activeRecipe || state.activeRecipe.endsAt <= Date.now()) return 0;
+    const def = RECIPES.find(r => r.id === state.activeRecipe.id);
+    return (def && def.boost && def.boost[kind]) || 0;
+  }
+  function globalMultiplier(){
+    return prestigeMultiplier()
+      * (1 + state.achievementBonus)
+      * (1 + metaBonus('umami'))
+      * reputationMultiplier()
+      * (1 + activeRecipeBoost('income'));
+  }
   function businessCost(def, level){ return def.baseCost * Math.pow(CONFIG.COST_GROWTH, level); }
   function upgradeCost(def, type, level){
     const t = UPGRADE_TYPES[type];
@@ -381,7 +488,11 @@
   }
   function nextTapGain(){
     const luckyMult = activeEvent.type === 'lucky' ? CONFIG.LUCKY_TAP_MULT : 1;
-    return (1 + state.totalEarned * CONFIG.TAP_SCALING_FACTOR) * globalMultiplier() * luckyMult * (1 + metaBonus('tap'));
+    return (1 + state.totalEarned * CONFIG.TAP_SCALING_FACTOR)
+      * globalMultiplier()
+      * luckyMult
+      * (1 + metaBonus('tap'))
+      * (1 + activeRecipeBoost('tap'));
   }
   function potentialPrestigePoints(){
     return Math.floor(Math.sqrt(state.totalEarned / CONFIG.PRESTIGE_EARNINGS_DIVISOR));
@@ -615,7 +726,16 @@
     checkAchievements();
   }
   function clearEvent(passed){
-    if(activeEvent.type === 'inspector' && passed) state.inspectorsPassed++;
+    if(activeEvent.type === 'inspector'){
+      if(passed){
+        state.inspectorsPassed++;
+        adjustReputation(CONFIG.REP_INSPECTOR_PASS);
+      } else {
+        adjustReputation(-CONFIG.REP_INSPECTOR_FAIL);
+      }
+    } else if(activeEvent.type === 'critic'){
+      adjustReputation(CONFIG.REP_CRITIC_GAIN);
+    }
     activeEvent = {type:null, endsAt:0, tapsNeeded:0, tapsDone:0};
     renderEventBanner();
   }
@@ -658,6 +778,198 @@
     if(remain <= 0){
       clearEvent(false);
     }
+  }
+
+  // ---------- reputation ----------
+  function adjustReputation(delta){
+    state.reputation = Math.max(CONFIG.REP_MIN, Math.min(CONFIG.REP_MAX, (state.reputation || CONFIG.REP_START) + delta));
+  }
+  function tickReputation(dt){
+    if(dt <= 0) return;
+    adjustReputation(-CONFIG.REP_DECAY_PER_SEC * dt);
+  }
+  function reputationRepairCost(){
+    return Math.max(10, totalRatePerSec() * CONFIG.REP_REPAIR_COST_MULT);
+  }
+  function repairReputation(){
+    if(state.reputation >= CONFIG.REP_MAX) return;
+    const cost = reputationRepairCost();
+    if(state.cash < cost) return;
+    state.cash -= cost;
+    adjustReputation(CONFIG.REP_REPAIR_AMOUNT);
+    renderStats();
+    renderKitchen();
+  }
+
+  // ---------- customer orders ----------
+  let activeOrder = null; // { typeId, endsAt }
+  let nextOrderCheck = Date.now() + CONFIG.ORDER_CHECK_INTERVAL_MS;
+
+  function maybeTriggerOrder(){
+    if(activeOrder) return;
+    if(activeEvent.type === 'inspector') return; // don't stack with inspector taps
+    if(Date.now() < nextOrderCheck) return;
+    nextOrderCheck = Date.now() + CONFIG.ORDER_CHECK_INTERVAL_MS;
+    if(Math.random() < CONFIG.ORDER_TRIGGER_CHANCE){
+      const def = ORDER_TYPES[Math.floor(Math.random() * ORDER_TYPES.length)];
+      activeOrder = { typeId: def.id, endsAt: Date.now() + CONFIG.ORDER_DURATION_MS };
+      renderOrderCard();
+    }
+  }
+  function fulfillOrder(){
+    if(!activeOrder) return;
+    const rate = Math.max(totalRatePerSec(), 0.5);
+    const gain = rate * CONFIG.ORDER_REWARD_SECONDS + nextTapGain() * CONFIG.ORDER_REWARD_TAP_MULT;
+    state.cash += gain;
+    addEarned(gain);
+    state.ordersFulfilled = (state.ordersFulfilled || 0) + 1;
+    adjustReputation(CONFIG.REP_ORDER_GAIN);
+    spawnFloatingGain(gain);
+    fireTapFeedback(false);
+    activeOrder = null;
+    renderOrderCard();
+    renderStats();
+    checkAchievements();
+  }
+  function missOrder(){
+    if(!activeOrder) return;
+    adjustReputation(-CONFIG.REP_ORDER_MISS);
+    activeOrder = null;
+    renderOrderCard();
+    renderStats();
+  }
+  function renderOrderCard(){
+    const el = document.getElementById('orderCard');
+    if(!el) return;
+    if(!activeOrder){
+      el.classList.remove('show');
+      return;
+    }
+    const def = ORDER_TYPES.find(o => o.id === activeOrder.typeId) || ORDER_TYPES[0];
+    el.classList.add('show');
+    document.getElementById('orderIcon').textContent = def.icon;
+    document.getElementById('orderLabel').textContent = def.label;
+    document.getElementById('orderFlavor').textContent = def.flavor;
+  }
+  function tickOrder(){
+    if(!activeOrder) return;
+    const remain = Math.max(0, activeOrder.endsAt - Date.now());
+    const timeEl = document.getElementById('orderTime');
+    if(timeEl) timeEl.textContent = Math.ceil(remain/1000) + 's';
+    if(remain <= 0) missOrder();
+  }
+
+  // ---------- crafting / ingredients ----------
+  function ingredientCount(id){ return (state.ingredients && state.ingredients[id]) || 0; }
+  function addIngredient(id, n){
+    if(!state.ingredients) state.ingredients = {};
+    state.ingredients[id] = (state.ingredients[id] || 0) + (n || 1);
+  }
+  function tryDropIngredient(countryId){
+    if(Math.random() > CONFIG.INGREDIENT_DROP_CHANCE) return null;
+    const pool = INGREDIENTS.filter(ing => ing.country === countryId && isUnlocked(ing.country));
+    // Also allow japan ingredients always once unlocked (always is)
+    if(!pool.length) return null;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    addIngredient(pick.id, 1);
+    return pick;
+  }
+  function canCraft(recipe){
+    return Object.keys(recipe.cost).every(id => ingredientCount(id) >= recipe.cost[id]);
+  }
+  function craftRecipe(recipeId){
+    const recipe = RECIPES.find(r => r.id === recipeId);
+    if(!recipe || !canCraft(recipe)) return;
+    if(state.activeRecipe && state.activeRecipe.endsAt > Date.now()) return; // one at a time
+    Object.keys(recipe.cost).forEach(id => {
+      state.ingredients[id] -= recipe.cost[id];
+    });
+    state.activeRecipe = { id: recipe.id, endsAt: Date.now() + CONFIG.RECIPE_DURATION_MS };
+    state.recipesCrafted = (state.recipesCrafted || 0) + 1;
+    if(recipe.boost.rep) adjustReputation(recipe.boost.rep);
+    renderKitchen();
+    renderStats();
+    checkAchievements();
+  }
+  function tickRecipe(){
+    if(state.activeRecipe && state.activeRecipe.endsAt <= Date.now()){
+      state.activeRecipe = null;
+      renderKitchen();
+      renderStats();
+    }
+  }
+  function renderKitchen(){
+    const panel = document.getElementById('kitchenPanel');
+    if(!panel || !panel.classList.contains('active')) return;
+    // Reputation block
+    const rep = Math.round(state.reputation || 0);
+    const repPct = Math.max(0, Math.min(100, rep));
+    const mult = reputationMultiplier();
+    const repairCost = reputationRepairCost();
+    let html = `
+      <div class="chal-section-label">Reputation</div>
+      <div class="rep-panel-card">
+        <div class="rep-panel-top">
+          <span class="rep-panel-score">${rep}/100</span>
+          <span class="rep-panel-mult">Income ×${mult.toFixed(2)}</span>
+        </div>
+        <div class="rep-track big"><div class="rep-fill" style="width:${repPct}%"></div></div>
+        <p class="rep-hint">Decays slowly while you play. Fulfill orders, pass inspections, or spend cash to restore it.</p>
+        <button class="modal-btn" id="repairRepBtn" ${rep >= CONFIG.REP_MAX || state.cash < repairCost ? 'disabled' : ''}>
+          Polish Reputation · ${fmt(repairCost)}
+        </button>
+      </div>`;
+
+    // Active recipe
+    html += `<div class="chal-section-label" style="margin-top:14px;">Signature Ramen</div>`;
+    if(state.activeRecipe && state.activeRecipe.endsAt > Date.now()){
+      const def = RECIPES.find(r => r.id === state.activeRecipe.id);
+      const remain = Math.ceil((state.activeRecipe.endsAt - Date.now()) / 1000);
+      html += `<div class="recipe-active-banner">
+        <span aria-hidden="true">${def ? def.icon : '🍜'}</span>
+        <div><strong>${def ? def.name : 'Boost'}</strong> active · ${remain}s left</div>
+      </div>`;
+    } else {
+      html += `<p class="rep-hint">Craft a signature dish for a temporary boost. Ingredients drop when you level shops.</p>`;
+    }
+
+    // Ingredient inventory
+    html += `<div class="chal-section-label" style="margin-top:12px;">Ingredients</div><div class="ing-grid">`;
+    INGREDIENTS.forEach(ing => {
+      const locked = !isUnlocked(ing.country);
+      const count = ingredientCount(ing.id);
+      html += `<div class="ing-chip${locked ? ' locked' : ''}${count ? ' has' : ''}" title="${ing.name}">
+        <span class="ing-icon">${ing.icon}</span>
+        <span class="ing-count">${locked ? '🔒' : count}</span>
+        <span class="ing-name">${ing.name}</span>
+      </div>`;
+    });
+    html += `</div>`;
+
+    // Recipes
+    html += `<div class="chal-section-label" style="margin-top:14px;">Recipes</div>`;
+    RECIPES.forEach(recipe => {
+      const ok = canCraft(recipe);
+      const busy = state.activeRecipe && state.activeRecipe.endsAt > Date.now();
+      const costParts = Object.keys(recipe.cost).map(id => {
+        const ing = INGREDIENTS.find(i => i.id === id);
+        const have = ingredientCount(id);
+        const need = recipe.cost[id];
+        return `<span class="${have >= need ? 'have' : 'need'}">${ing ? ing.icon : '?'} ${have}/${need}</span>`;
+      }).join(' ');
+      html += `<div class="recipe-card${!ok || busy ? ' dim' : ''}">
+        <div class="recipe-icon" aria-hidden="true">${recipe.icon}</div>
+        <div class="recipe-info">
+          <div class="recipe-name">${recipe.name}</div>
+          <div class="recipe-desc">${recipe.desc}</div>
+          <div class="recipe-cost">${costParts}</div>
+        </div>
+        <button class="claim-btn" data-action="craft" data-id="${recipe.id}" ${!ok || busy ? 'disabled' : ''}>Craft</button>
+      </div>`;
+    });
+    panel.innerHTML = html;
+    const repairBtn = document.getElementById('repairRepBtn');
+    if(repairBtn) repairBtn.addEventListener('click', repairReputation);
   }
 
   // ---------- rendering ----------
@@ -949,10 +1261,31 @@
     document.getElementById('cashDisplay').textContent = fmt(state.cash);
     document.getElementById('rateDisplay').textContent = fmt(totalRatePerSec()) + '/s';
     document.getElementById('prestigeDisplay').textContent = Math.floor(state.prestigePoints);
-    document.getElementById('multiplierDisplay').textContent = 'x' + globalMultiplier().toFixed(2);
+    const multEl = document.getElementById('multiplierDisplay');
+    if(multEl) multEl.textContent = 'x' + globalMultiplier().toFixed(2);
     const potential = potentialPrestigePoints();
-    document.getElementById('prestigePreview').textContent = '+' + potential;
-    document.getElementById('prestigeBtn').disabled = potential <= 0;
+    const prev = document.getElementById('prestigePreview');
+    if(prev) prev.textContent = '+' + potential;
+    const pBtn = document.getElementById('prestigeBtn');
+    if(pBtn) pBtn.disabled = potential <= 0;
+    // Reputation header meter
+    const rep = Math.max(0, Math.min(100, state.reputation || 0));
+    const repFill = document.getElementById('repFill');
+    const repValue = document.getElementById('repValue');
+    if(repFill) repFill.style.width = rep + '%';
+    if(repValue) repValue.textContent = Math.round(rep);
+    // Active recipe chip in header
+    const recipeChip = document.getElementById('recipeChip');
+    if(recipeChip){
+      if(state.activeRecipe && state.activeRecipe.endsAt > Date.now()){
+        const def = RECIPES.find(r => r.id === state.activeRecipe.id);
+        const remain = Math.ceil((state.activeRecipe.endsAt - Date.now()) / 1000);
+        recipeChip.style.display = 'flex';
+        recipeChip.textContent = `${def ? def.icon : '🍜'} ${remain}s`;
+      } else {
+        recipeChip.style.display = 'none';
+      }
+    }
     renderNextUnlock();
   }
 
@@ -1018,6 +1351,16 @@
     state.cash -= cost;
     b.level++;
     addChallengeProgress('buy', 1);
+    const dropped = tryDropIngredient(country.id);
+    if(dropped){
+      // Brief toast via floating gain style
+      const el = document.createElement('div');
+      el.className = 'float-gain';
+      el.textContent = `+${dropped.icon}`;
+      el.style.left = '50%';
+      const zone = document.getElementById('tapZone');
+      if(zone){ zone.appendChild(el); setTimeout(() => el.remove(), CONFIG.FLOAT_GAIN_LIFETIME_MS); }
+    }
     renderBusinesses(); renderStats(); checkAchievements();
   }
   function hireManager(id){
@@ -1056,7 +1399,12 @@
     // unlocked, only their business levels/upgrades/managers reset.
     // Umami Shards and metaUpgrades are untouched: that's the whole point of
     // the second currency, a grind that survives every retirement.
+    // Reputation, ingredients, and craft counters also persist — kitchen
+    // mastery is a long-term layer alongside shards.
     COUNTRIES.forEach(c => state.countries[c.id] = initCountryState(c));
+    state.activeRecipe = null;
+    activeOrder = null;
+    renderOrderCard();
     save();
     renderBusinesses(); renderWorld(); renderStats(); checkAchievements();
     if(document.getElementById('prestigePanel').classList.contains('active')) renderPrestige();
@@ -1708,11 +2056,15 @@
         clearEvent(true);
         checkAchievements();
       }
+    } else if(activeOrder){
+      // Fulfilling a customer order takes priority over a normal cash tap
+      fulfillOrder();
     } else {
       const gain = nextTapGain();
       state.cash += gain;
       addEarned(gain);
       addChallengeProgress('earn', gain);
+      adjustReputation(CONFIG.REP_TAP_GAIN);
       spawnFloatingGain(gain);
       fireTapFeedback(false);
     }
@@ -1754,11 +2106,20 @@
     if(panelId === 'leaderboardPanel') renderLeaderboard();
     if(panelId === 'prestigePanel') renderPrestige();
     if(panelId === 'collectionPanel') renderCollection();
+    if(panelId === 'kitchenPanel') renderKitchen();
   }
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => activatePanel(btn.dataset.panel));
   });
   document.getElementById('countrySwitchBtn').addEventListener('click', () => activatePanel('worldPanel'));
+  // Kitchen craft buttons (delegated — panel is rebuilt on each open)
+  document.getElementById('kitchenPanel').addEventListener('click', e => {
+    const btn = e.target.closest('[data-action="craft"]');
+    if(btn) craftRecipe(btn.dataset.id);
+  });
+  // Order card fulfill button
+  const fulfillBtn = document.getElementById('orderFulfillBtn');
+  if(fulfillBtn) fulfillBtn.addEventListener('click', fulfillOrder);
 
   document.getElementById('prestigeBtn').addEventListener('click', doPrestige);
   document.getElementById('saveBtn').addEventListener('click', () => { save(); alert('Saved!'); });
@@ -1824,8 +2185,12 @@
       addEarned(gain);
       addChallengeProgress('earn', gain);
     }
+    tickReputation(dt);
     maybeTriggerEvent();
     tickEvent();
+    maybeTriggerOrder();
+    tickOrder();
+    tickRecipe();
     if(now - lastStatsRender >= CONFIG.STATS_RENDER_INTERVAL_MS){
       renderStats();
       lastStatsRender = now;
