@@ -11,8 +11,52 @@
     {id:'mall',   name:'Mall Franchise',    icon:'🏬', baseCost:2e7,     baseIncome:55000, unlockAt:10},
     {id:'global', name:'Global Empire HQ',  icon:'🌆', baseCost:3.3e8,   baseIncome:330000,unlockAt:15},
   ];
-  const COST_GROWTH = 1.15;
-  const MANAGER_COST_MULT = 80;
+  // ---------- balance & timing config ----------
+  // Every tunable gameplay number that isn't already organized into one of
+  // the data tables above (BUSINESS_DEFS, UPGRADE_TYPES, ACHIEVEMENTS) lives
+  // here, so play-testing tweaks are a one-line change instead of a hunt
+  // through function bodies. Formatting-only constants (fmt()'s unit
+  // thresholds) are left where they are since they're not balance knobs.
+  const CONFIG = {
+    // Business economy
+    COST_GROWTH: 1.15,              // cost multiplier per business level purchased
+    MANAGER_COST_MULT: 80,          // manager costs this many times the business's base cost
+    MANAGER_UNLOCK_LEVEL: 5,        // business must reach this level before a manager can be hired
+    MANAGER_INCOME_MULT: 1.5,       // +50% income once a manager is hired
+    LEVEL_INCOME_SCALING: 0.01,     // each business level adds this fraction of extra income on top of linear scaling
+
+    // Prestige
+    PRESTIGE_BONUS_PER_POINT: 0.02, // each Miso Point adds 2% to the global income multiplier
+    PRESTIGE_EARNINGS_DIVISOR: 1e6, // totalEarned is divided by this before sqrt to get potential prestige points
+
+    // Tapping
+    TAP_SCALING_FACTOR: 0.00001,    // how much lifetime earnings boost each tap's base cash gain
+
+    // Random events
+    EVENT_CHECK_INTERVAL_MS: 15000, // how often we roll for a new event
+    EVENT_TRIGGER_CHANCE: 0.12,     // chance a check actually starts an event
+    CRITIC_EVENT_SHARE: 0.7,        // of triggered events, this fraction are Food Critic (rest are Health Inspector)
+    CRITIC_DURATION_MS: 60000,
+    CRITIC_INCOME_MULT: 2.5,
+    INSPECTOR_DURATION_MS: 20000,
+    INSPECTOR_TAPS_NEEDED: 15,
+    INSPECTOR_INCOME_MULT: 0.4,
+
+    // Offline earnings
+    OFFLINE_MIN_SEC: 30,            // don't show the modal for very short absences
+    OFFLINE_MAX_HOURS: 4,           // cap how much offline time counts toward the reward
+    OFFLINE_EARN_MULT: 0.5,         // offline earnings accrue at 50% of the live rate
+    OFFLINE_MIN_GAIN: 1,            // don't show the modal for a negligible amount
+    OFFLINE_AD_MULT: 2,             // "watch ad to double" multiplier
+
+    // UI / performance timing
+    STATS_RENDER_INTERVAL_MS: 100,  // throttle stats DOM writes to ~10fps
+    AFFORDABILITY_REFRESH_MS: 1000, // how often buy/manager/upgrade buttons re-check affordability
+    AUTOSAVE_INTERVAL_MS: 10000,
+    FLOAT_GAIN_LIFETIME_MS: 900,    // how long the "+¥X" tap popup stays before removal
+    FLOAT_GAIN_SPREAD_MIN_PCT: 45,  // horizontal placement range for the tap popup (min%)
+    FLOAT_GAIN_SPREAD_RANGE_PCT: 10 // ...plus a random amount up to this many percentage points
+  };
 
   // Set to true only once a real rewarded-ad SDK (AdMob, etc.) is wired into
   // doubleOfflineBtn's click handler below. Until then this stays false so the
@@ -115,9 +159,9 @@
   }
 
   // ---------- math ----------
-  function prestigeMultiplier(){ return 1 + state.prestigePoints * 0.02; }
+  function prestigeMultiplier(){ return 1 + state.prestigePoints * CONFIG.PRESTIGE_BONUS_PER_POINT; }
   function globalMultiplier(){ return prestigeMultiplier() * (1 + state.achievementBonus); }
-  function businessCost(def, level){ return def.baseCost * Math.pow(COST_GROWTH, level); }
+  function businessCost(def, level){ return def.baseCost * Math.pow(CONFIG.COST_GROWTH, level); }
   function upgradeCost(def, type, level){
     const t = UPGRADE_TYPES[type];
     return def.baseCost * t.costMult * Math.pow(t.costGrowth, level);
@@ -126,16 +170,16 @@
     return (1 + b.speed*UPGRADE_TYPES.speed.boost) * (1 + b.capacity*UPGRADE_TYPES.capacity.boost) * (1 + b.quality*UPGRADE_TYPES.quality.boost);
   }
   function businessIncome(def, b){
-    return def.baseIncome * b.level * (1 + b.level*0.01) * businessUpgradeMult(b);
+    return def.baseIncome * b.level * (1 + b.level*CONFIG.LEVEL_INCOME_SCALING) * businessUpgradeMult(b);
   }
   function businessIncomeWithManager(def, b){
-    return businessIncome(def, b) * (b.manager ? 1.5 : 1);
+    return businessIncome(def, b) * (b.manager ? CONFIG.MANAGER_INCOME_MULT : 1);
   }
-  function managerCost(def){ return def.baseCost * MANAGER_COST_MULT; }
+  function managerCost(def){ return def.baseCost * CONFIG.MANAGER_COST_MULT; }
 
   function eventMultiplier(){
-    if(activeEvent.type === 'critic') return 2.5;
-    if(activeEvent.type === 'inspector') return 0.4;
+    if(activeEvent.type === 'critic') return CONFIG.CRITIC_INCOME_MULT;
+    if(activeEvent.type === 'inspector') return CONFIG.INSPECTOR_INCOME_MULT;
     return 1;
   }
 
@@ -150,7 +194,10 @@
     return total * globalMultiplier() * eventMultiplier();
   }
   function nextTapGain(){
-    return (1 + state.totalEarned * 0.00001) * globalMultiplier();
+    return (1 + state.totalEarned * CONFIG.TAP_SCALING_FACTOR) * globalMultiplier();
+  }
+  function potentialPrestigePoints(){
+    return Math.floor(Math.sqrt(state.totalEarned / CONFIG.PRESTIGE_EARNINGS_DIVISOR));
   }
   function fmt(n){
     if(n < 1000) return '¥' + n.toFixed(n < 10 ? 1 : 0);
@@ -162,24 +209,24 @@
 
   // ---------- random events ----------
   let activeEvent = {type:null, endsAt:0, tapsNeeded:0, tapsDone:0};
-  let nextEventCheck = Date.now() + 15000;
+  let nextEventCheck = Date.now() + CONFIG.EVENT_CHECK_INTERVAL_MS;
 
   function maybeTriggerEvent(){
     if(activeEvent.type) return;
     if(Date.now() < nextEventCheck) return;
-    nextEventCheck = Date.now() + 15000;
-    if(Math.random() < 0.12){
-      if(Math.random() < 0.7) startCriticEvent();
+    nextEventCheck = Date.now() + CONFIG.EVENT_CHECK_INTERVAL_MS;
+    if(Math.random() < CONFIG.EVENT_TRIGGER_CHANCE){
+      if(Math.random() < CONFIG.CRITIC_EVENT_SHARE) startCriticEvent();
       else startInspectorEvent();
     }
   }
   function startCriticEvent(){
-    activeEvent = {type:'critic', endsAt: Date.now() + 60000, tapsNeeded:0, tapsDone:0};
+    activeEvent = {type:'critic', endsAt: Date.now() + CONFIG.CRITIC_DURATION_MS, tapsNeeded:0, tapsDone:0};
     state.criticEventsSeen++;
     renderEventBanner();
   }
   function startInspectorEvent(){
-    activeEvent = {type:'inspector', endsAt: Date.now() + 20000, tapsNeeded:15, tapsDone:0};
+    activeEvent = {type:'inspector', endsAt: Date.now() + CONFIG.INSPECTOR_DURATION_MS, tapsNeeded:CONFIG.INSPECTOR_TAPS_NEEDED, tapsDone:0};
     renderEventBanner();
   }
   function clearEvent(passed){
@@ -194,7 +241,7 @@
     if(activeEvent.type === 'critic'){
       banner.className = 'event-banner show critic';
       document.getElementById('eventIcon').textContent = '📰';
-      document.getElementById('eventText').textContent = 'Food Critic visiting! Income x2.5';
+      document.getElementById('eventText').textContent = `Food Critic visiting! Income x${CONFIG.CRITIC_INCOME_MULT}`;
       bowl.classList.remove('inspector-mode');
       inspProg.classList.remove('show');
     } else if(activeEvent.type === 'inspector'){
@@ -224,6 +271,9 @@
 
   // ---------- rendering ----------
   const expandedCards = new Set();
+  // Derived once from CONFIG so the badge and button text can never drift
+  // out of sync with the actual multiplier applied in businessIncomeWithManager().
+  const MANAGER_BONUS_LABEL = '+' + Math.round((CONFIG.MANAGER_INCOME_MULT - 1) * 100) + '%';
   const bizPanel = document.getElementById('bizPanel');
   // Maps business id -> cached references to its buy/manager/upgrade buttons,
   // populated whenever renderBusinesses() does a full rebuild. Lets the
@@ -275,11 +325,11 @@
         <div class="biz-main" data-action="toggle" data-id="${def.id}" ${toggleAttrs}>
           <div class="biz-icon" aria-hidden="true">${def.icon}</div>
           <div class="biz-info">
-            <div class="biz-name">${def.name} ${b.manager ? '<span class="manager-badge">+50%</span>' : ''}${b.level>0 ? '<span class="expand-caret'+(isOpen?' open':'')+'" aria-hidden="true">▶</span>':''}</div>
+            <div class="biz-name">${def.name} ${b.manager ? `<span class="manager-badge">${MANAGER_BONUS_LABEL}</span>` : ''}${b.level>0 ? '<span class="expand-caret'+(isOpen?' open':'')+'" aria-hidden="true">▶</span>':''}</div>
             <div class="biz-level">Level ${b.level}</div>
             <div class="biz-income">${b.level>0 ? fmt(income)+'/s' : 'Not opened yet'}</div>
           </div>
-          ${!b.manager && b.level >= 5 ? `<button class="buy-btn manager-btn" data-action="manager" data-id="${def.id}" aria-label="Hire manager for ${def.name}, cost ${fmt(mCost)}" ${state.cash < mCost ? 'disabled' : ''}>+50%<small>${fmt(mCost)}</small></button>` : ''}
+          ${!b.manager && b.level >= CONFIG.MANAGER_UNLOCK_LEVEL ? `<button class="buy-btn manager-btn" data-action="manager" data-id="${def.id}" aria-label="Hire manager for ${def.name}, cost ${fmt(mCost)}" ${state.cash < mCost ? 'disabled' : ''}>${MANAGER_BONUS_LABEL}<small>${fmt(mCost)}</small></button>` : ''}
           <button class="buy-btn" data-action="buy" data-id="${def.id}" aria-label="${buyLabel}" ${!canAfford || locked ? 'disabled' : ''}>${b.level===0?'OPEN':'UPGRADE'}<small>${fmt(cost)}</small></button>
         </div>
         ${b.level > 0 ? `<div class="upgrade-panel${isOpen?' open':''}"><div class="upgrade-row">${upgradeChips}</div></div>` : ''}
@@ -353,7 +403,7 @@
     document.getElementById('rateDisplay').textContent = fmt(totalRatePerSec()) + '/s';
     document.getElementById('prestigeDisplay').textContent = Math.floor(state.prestigePoints);
     document.getElementById('multiplierDisplay').textContent = 'x' + globalMultiplier().toFixed(2);
-    const potential = Math.floor(Math.sqrt(state.totalEarned / 1e6));
+    const potential = potentialPrestigePoints();
     document.getElementById('prestigePreview').textContent = '+' + potential;
     document.getElementById('prestigeBtn').disabled = potential <= 0;
   }
@@ -389,7 +439,7 @@
     renderBusinesses(); renderStats(); checkAchievements();
   }
   function doPrestige(){
-    const potential = Math.floor(Math.sqrt(state.totalEarned / 1e6));
+    const potential = potentialPrestigePoints();
     if(potential <= 0) return;
     state.prestigePoints += potential;
     state.prestigeCount++;
@@ -538,9 +588,9 @@
     } else {
       el.textContent = '+' + fmt(gain);
     }
-    el.style.left = (45 + Math.random()*10) + '%';
+    el.style.left = (CONFIG.FLOAT_GAIN_SPREAD_MIN_PCT + Math.random()*CONFIG.FLOAT_GAIN_SPREAD_RANGE_PCT) + '%';
     tapZone.appendChild(el);
-    setTimeout(() => el.remove(), 900);
+    setTimeout(() => el.remove(), CONFIG.FLOAT_GAIN_LIFETIME_MS);
   }
 
   // ---------- nav ----------
@@ -568,12 +618,12 @@
   let pendingOfflineGain = 0;
   function checkOfflineEarnings(){
     const now = Date.now();
-    const elapsedSec = Math.min((now - state.lastSeen) / 1000, 4 * 3600);
-    if(elapsedSec < 30) return;
+    const elapsedSec = Math.min((now - state.lastSeen) / 1000, CONFIG.OFFLINE_MAX_HOURS * 3600);
+    if(elapsedSec < CONFIG.OFFLINE_MIN_SEC) return;
     const rate = totalRatePerSec();
     if(rate <= 0) return;
-    pendingOfflineGain = rate * elapsedSec * 0.5;
-    if(pendingOfflineGain < 1) return;
+    pendingOfflineGain = rate * elapsedSec * CONFIG.OFFLINE_EARN_MULT;
+    if(pendingOfflineGain < CONFIG.OFFLINE_MIN_GAIN) return;
     document.getElementById('offlineText').textContent =
       `While you were away for ${Math.round(elapsedSec/60)} min, your shops earned ${fmt(pendingOfflineGain)}.`;
     openModal(document.getElementById('offlineModal'));
@@ -599,19 +649,18 @@
     }
     // TODO: replace this stub with a real rewarded-ad SDK call. Only credit
     // the doubled reward inside the ad's successful-view callback, not here.
-    collectOffline(2);
+    collectOffline(CONFIG.OFFLINE_AD_MULT);
   });
 
   // ---------- game loop ----------
   let lastTick = Date.now();
   let lastStatsRender = 0;
-  const STATS_RENDER_INTERVAL_MS = 100; // ~10fps — text-only display, doesn't need 60 DOM writes/sec
   function tick(){
     const now = Date.now();
     const dt = (now - lastTick) / 1000;
     lastTick = now;
     // Businesses keep producing passively even during a health inspector event;
-    // eventMultiplier() already applies the 0.4x penalty inside totalRatePerSec().
+    // eventMultiplier() already applies the CONFIG.INSPECTOR_INCOME_MULT penalty inside totalRatePerSec().
     const gain = totalRatePerSec() * dt;
     if(gain > 0){
       state.cash += gain;
@@ -619,15 +668,15 @@
     }
     maybeTriggerEvent();
     tickEvent();
-    if(now - lastStatsRender >= STATS_RENDER_INTERVAL_MS){
+    if(now - lastStatsRender >= CONFIG.STATS_RENDER_INTERVAL_MS){
       renderStats();
       lastStatsRender = now;
     }
     requestAnimationFrame(tick);
   }
 
-  setInterval(() => { refreshBusinessAffordability(); checkAchievements(); }, 1000);
-  setInterval(save, 10000);
+  setInterval(() => { refreshBusinessAffordability(); checkAchievements(); }, CONFIG.AFFORDABILITY_REFRESH_MS);
+  setInterval(save, CONFIG.AUTOSAVE_INTERVAL_MS);
 
   // ---------- init ----------
   load();
