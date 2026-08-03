@@ -317,13 +317,10 @@
     renderBusinesses(); renderStats(); checkAchievements();
   }
 
-  let pendingAchToast = [];
   function checkAchievements(){
-    ACHIEVEMENTS.forEach(ach => {
-      if(!state.achievementsClaimed[ach.id] && ach.cond(state)){
-        // just mark as available; rendering shows Claim button. No auto-claim.
-      }
-    });
+    // Achievement unlock state is derived live from `state` inside renderAchievements()
+    // (each ach.cond(state) is evaluated there), so this just needs to trigger a re-render
+    // after any state change that might unlock/claim something.
     renderAchievements();
   }
   function claimAchievement(id){
@@ -452,12 +449,10 @@
     const now = Date.now();
     const dt = (now - lastTick) / 1000;
     lastTick = now;
+    // totalRatePerSec() already applies the inspector penalty via eventMultiplier(),
+    // so passive income is added the same way regardless of active event type.
     const gain = totalRatePerSec() * dt;
-    if(gain > 0 && activeEvent.type !== 'inspector'){
-      state.cash += gain;
-      state.totalEarned += gain;
-    } else if(gain > 0){
-      // even during inspection, businesses still produce (penalized) passively
+    if(gain > 0){
       state.cash += gain;
       state.totalEarned += gain;
     }
