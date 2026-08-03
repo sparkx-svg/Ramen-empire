@@ -37,12 +37,36 @@
         <div class="nu-detail" id="nuDetail"></div>
       </div>
     </div>
+    <div class="rep-bar" id="repBar" title="Reputation affects income. Fulfill orders and keep customers happy.">
+      <span class="rep-label">⭐ Rep</span>
+      <div class="rep-track"><div class="rep-fill" id="repFill" style="width:70%"></div></div>
+      <span class="rep-value" id="repValue">70</span>
+      <span class="recipe-chip" id="recipeChip" style="display:none;" aria-live="polite"></span>
+    </div>
   </header>
 
   <div class="event-banner" id="eventBanner" role="status" aria-live="polite">
     <div class="ev-icon" id="eventIcon" aria-hidden="true">🍜</div>
     <div class="ev-text" id="eventText">Event</div>
     <div class="ev-time" id="eventTime">0s</div>
+  </div>
+
+  <div class="seasonal-banner" id="seasonalBanner" role="status">
+    <span class="seasonal-banner-icon" id="seasonalBannerIcon" aria-hidden="true">🎆</span>
+    <span class="seasonal-banner-text" id="seasonalBannerText">Seasonal Event</span>
+    <span class="seasonal-banner-time" id="seasonalBannerTime">0d</span>
+  </div>
+
+  <div class="order-card" id="orderCard" role="status" aria-live="polite">
+    <div class="order-icon" id="orderIcon" aria-hidden="true">🌶️</div>
+    <div class="order-body">
+      <div class="order-label" id="orderLabel">Extra spicy!</div>
+      <div class="order-flavor" id="orderFlavor">A customer wants heat.</div>
+    </div>
+    <div class="order-right">
+      <div class="order-time" id="orderTime">18s</div>
+      <button class="order-fulfill" id="orderFulfillBtn" aria-label="Fulfill customer order">Serve</button>
+    </div>
   </div>
 
   <div class="tap-zone" id="tapZone">
@@ -85,6 +109,8 @@
 
   <div class="panel-view" id="collectionPanel" role="tabpanel" aria-labelledby="navCollection"></div>
 
+  <div class="panel-view" id="kitchenPanel" role="tabpanel" aria-labelledby="navKitchen"></div>
+
   <div class="panel-view" id="leaderboardPanel" role="tabpanel" aria-labelledby="navLeaderboard">
     <div class="lb-filter-tabs" role="tablist" aria-label="Leaderboard filter">
       <button class="lb-filter-btn active" data-mode="global" role="tab" aria-selected="true">🌍 Global</button>
@@ -115,12 +141,13 @@
     <div class="settings-item"><span>Log in with Google</span><button class="modal-btn secondary" style="width:auto; padding:8px 16px; margin:0;" id="loginGoogleBtn">Log In</button></div>
     <div class="settings-item"><span>Log out</span><button class="modal-btn secondary" style="width:auto; padding:8px 16px; margin:0;" id="logoutBtn">Log Out</button></div>
     <div class="settings-item"><span>Reset all progress</span><button class="modal-btn secondary" style="width:auto; padding:8px 16px; margin:0; background:var(--red); color:white;" id="resetBtn">Reset</button></div>
-    <div class="settings-item"><span>Version</span><strong>1.5.0</strong></div>
+    <div class="settings-item"><span>Version</span><strong>1.7.0</strong></div>
   </div>
 
   <div class="bottom-bar" role="tablist" aria-label="Sections">
     <button class="nav-btn active" id="navBiz" role="tab" aria-selected="true" aria-controls="bizPanel" data-panel="bizPanel"><span class="nav-icon" aria-hidden="true">🏮</span>Shops</button>
     <button class="nav-btn" id="navWorld" role="tab" aria-selected="false" aria-controls="worldPanel" data-panel="worldPanel"><span class="nav-icon" aria-hidden="true">🌍</span>World</button>
+    <button class="nav-btn" id="navKitchen" role="tab" aria-selected="false" aria-controls="kitchenPanel" data-panel="kitchenPanel"><span class="nav-icon" aria-hidden="true">🧪</span>Kitchen</button>
     <button class="nav-btn" id="navAch" role="tab" aria-selected="false" aria-controls="achPanel" data-panel="achPanel"><span class="nav-icon" aria-hidden="true">🏆</span>Goals<span class="nav-dot" id="achDot"><span class="sr-only">New achievement available</span></span></button>
     <button class="nav-btn" id="navPrestige" role="tab" aria-selected="false" aria-controls="prestigePanel" data-panel="prestigePanel"><span class="nav-icon" aria-hidden="true">⭐</span>Prestige</button>
     <button class="nav-btn" id="navCollection" role="tab" aria-selected="false" aria-controls="collectionPanel" data-panel="collectionPanel"><span class="nav-icon" aria-hidden="true">🎀</span>Skins<span class="nav-dot" id="collectionDot"><span class="sr-only">New bowl skin available</span></span></button>
