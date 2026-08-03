@@ -152,7 +152,17 @@
 
     // Crafting / signature ramen
     INGREDIENT_DROP_CHANCE: 0.22,  // chance a business level-up grants an ingredient
-    RECIPE_DURATION_MS: 90000      // how long a crafted signature ramen boost lasts
+    RECIPE_DURATION_MS: 90000,     // how long a crafted signature ramen boost lasts
+
+    // Staff (manager) leveling — hired managers can be trained further
+    MANAGER_MAX_LEVEL: 10,         // level 1 = just hired; up to 10
+    MANAGER_TRAIN_COST_MULT: 25,   // train cost = baseCost * this * growth^level
+    MANAGER_TRAIN_COST_GROWTH: 1.45,
+    MANAGER_LEVEL_INCOME_BOOST: 0.06, // +6% income for that shop per manager level above 0
+    MANAGER_LEVEL_OFFLINE_BOOST: 0.02, // +2% offline rate contribution per level (global soft)
+
+    // Seasonal events
+    SEASONAL_CHALLENGE_SCALE: 2.5  // seasonal challenges are harder / richer than daily
   };
 
   // Set to true only once a real rewarded-ad SDK (AdMob, etc.) is wired into
@@ -229,6 +239,72 @@
     {id:'large',   icon:'📦', label:'Large portion',      flavor:'Make it a big one.'},
   ];
 
+  // Story chapters — narrative quests tied to each country unlock path.
+  // Quests unlock in order within a chapter; chapters gate on country unlock
+  // (except Japan, which is always available). cond(s) returns true when done.
+  const STORY_CHAPTERS = [
+    {
+      id:'japan', country:'japan', icon:'🇯🇵', title:'Chapter 1: First Steam',
+      blurb:'A single cart in the alley. Prove you can feed the neighborhood.',
+      quests:[
+        {id:'j1', icon:'🛒', name:'Open the Street Cart', desc:'Buy your first Street Cart', cond:s => (s.countries.japan&&s.countries.japan.cart&&s.countries.japan.cart.level>0), reward:{cashSec:20}},
+        {id:'j2', icon:'👋', name:'Serve 50 Bowls', desc:'Tap the bowl 50 times', cond:s => s.totalTaps>=50, reward:{cashSec:30}},
+        {id:'j3', icon:'🏮', name:'Noodle Stall Rising', desc:'Open a Noodle Stall', cond:s => (s.countries.japan&&s.countries.japan.stall&&s.countries.japan.stall.level>0), reward:{cashSec:40}},
+        {id:'j4', icon:'🧑‍🍳', name:'Hire Help', desc:'Hire any manager in Japan', cond:s => Object.values((s.countries.japan)||{}).some(b=>b.manager), reward:{cashSec:45, miso:0}},
+        {id:'j5', icon:'🏠', name:'Corner Shop', desc:'Open a Corner Shop', cond:s => (s.countries.japan&&s.countries.japan.shop&&s.countries.japan.shop.level>0), reward:{cashSec:60}},
+        {id:'j6', icon:'💴', name:'Neighborhood Hero', desc:'Earn ¥10,000 total', cond:s => s.totalEarned>=1e4, reward:{cashSec:80}},
+      ]
+    },
+    {
+      id:'italy', country:'italy', icon:'🇮🇹', title:'Chapter 2: Roman Expansion',
+      blurb:'Pasta meets broth. Cross the sea and plant a flag in Italy.',
+      quests:[
+        {id:'i1', icon:'🇮🇹', name:'Unlock Italy', desc:'Spend cash to unlock Italy', cond:s => (s.unlockedCountries||[]).includes('italy'), reward:{cashSec:50}},
+        {id:'i2', icon:'🥖', name:'Panini Cart', desc:'Open a Panini Cart in Italy', cond:s => (s.countries.italy&&s.countries.italy.cart&&s.countries.italy.cart.level>0), reward:{cashSec:40}},
+        {id:'i3', icon:'🍕', name:'Pizza Stall', desc:'Open a Pizza Stall', cond:s => (s.countries.italy&&s.countries.italy.stall&&s.countries.italy.stall.level>0), reward:{cashSec:50}},
+        {id:'i4', icon:'🧑‍🍳', name:'Italian Manager', desc:'Hire a manager in Italy', cond:s => Object.values((s.countries.italy)||{}).some(b=>b.manager), reward:{cashSec:55}},
+        {id:'i5', icon:'🍝', name:'Trattoria', desc:'Open a Trattoria', cond:s => (s.countries.italy&&s.countries.italy.shop&&s.countries.italy.shop.level>0), reward:{cashSec:70}},
+        {id:'i6', icon:'💰', name:'Pasta Empire', desc:'Earn ¥1,000,000 total', cond:s => s.totalEarned>=1e6, reward:{cashSec:100, miso:1}},
+      ]
+    },
+    {
+      id:'mexico', country:'mexico', icon:'🇲🇽', title:'Chapter 3: Fire & Spice',
+      blurb:'Heat rises. Bring the empire to the markets of Mexico.',
+      quests:[
+        {id:'m1', icon:'🇲🇽', name:'Unlock Mexico', desc:'Unlock Mexico on the World map', cond:s => (s.unlockedCountries||[]).includes('mexico'), reward:{cashSec:80}},
+        {id:'m2', icon:'🌮', name:'Taco Cart', desc:'Open a Taco Cart', cond:s => (s.countries.mexico&&s.countries.mexico.cart&&s.countries.mexico.cart.level>0), reward:{cashSec:50}},
+        {id:'m3', icon:'🌶️', name:'Salsa Stall', desc:'Open a Salsa Stall', cond:s => (s.countries.mexico&&s.countries.mexico.stall&&s.countries.mexico.stall.level>0), reward:{cashSec:60}},
+        {id:'m4', icon:'⭐', name:'Train a Star', desc:'Train any manager to level 3+', cond:s => allBusinessStates(s).some(b=>(b.managerLevel||0)>=3), reward:{cashSec:90}},
+        {id:'m5', icon:'🏭', name:'Tortilla Factory', desc:'Open a Tortilla Factory', cond:s => (s.countries.mexico&&s.countries.mexico.factory&&s.countries.mexico.factory.level>0), reward:{cashSec:120}},
+        {id:'m6', icon:'🌆', name:'Aztec Ambition', desc:'Earn ¥100,000,000 total', cond:s => s.totalEarned>=1e8, reward:{cashSec:150, miso:1}},
+      ]
+    },
+    {
+      id:'india', country:'india', icon:'🇮🇳', title:'Chapter 4: Spice Route',
+      blurb:'The final frontier of flavor. Curry, chai, and a global crown.',
+      quests:[
+        {id:'d1', icon:'🇮🇳', name:'Unlock India', desc:'Unlock India on the World map', cond:s => (s.unlockedCountries||[]).includes('india'), reward:{cashSec:100}},
+        {id:'d2', icon:'🍵', name:'Chai Cart', desc:'Open a Chai Cart', cond:s => (s.countries.india&&s.countries.india.cart&&s.countries.india.cart.level>0), reward:{cashSec:60}},
+        {id:'d3', icon:'🍛', name:'Curry House', desc:'Open a Curry House', cond:s => (s.countries.india&&s.countries.india.shop&&s.countries.india.shop.level>0), reward:{cashSec:80}},
+        {id:'d4', icon:'🧑‍🍳', name:'Master Staff', desc:'Train any manager to level 5+', cond:s => allBusinessStates(s).some(b=>(b.managerLevel||0)>=5), reward:{cashSec:120}},
+        {id:'d5', icon:'🕌', name:'Mughal HQ', desc:'Open the Mughal Empire HQ', cond:s => (s.countries.india&&s.countries.india.global&&s.countries.india.global.level>0), reward:{cashSec:200}},
+        {id:'d6', icon:'🌍', name:'World Tour Complete', desc:'Unlock every country', cond:s => (s.unlockedCountries||[]).length>=4, reward:{cashSec:250, miso:2}},
+      ]
+    },
+  ];
+
+  // Seasonal / limited-time events. Month is 1–12; day ranges are inclusive.
+  // When "today" falls in range, the event is live (client clock).
+  // challengeType mirrors daily challenge types for progress tracking.
+  const SEASONAL_EVENTS = [
+    {id:'newyear',   icon:'🎆', name:'New Year Noodles',   month:1,  startDay:1,  endDay:7,   skinId:'newyear',   challengeType:'taps', challengeTarget:200, rewardMiso:1, blurb:'Ring in the year with a thousand bowls.'},
+    {id:'valentine', icon:'💝', name:'Hearty Broth',       month:2,  startDay:10, endDay:16,  skinId:'valentine',challengeType:'earn', challengeTarget:0, rewardMiso:1, blurb:'Serve love by the ladle.'}, // target scaled at runtime
+    {id:'spring',    icon:'🌸', name:'Sakura Season',      month:3,  startDay:20, endDay:31,  skinId:'sakura_s', challengeType:'buy',  challengeTarget:15, rewardMiso:1, blurb:'Petals in the steam.'},
+    {id:'summer',    icon:'☀️', name:'Summer Festival',    month:7,  startDay:1,  endDay:21,  skinId:'summer',   challengeType:'taps', challengeTarget:300, rewardMiso:1, blurb:'Festival stalls and fireworks.'},
+    {id:'halloween', icon:'🎃', name:'Spooky Ramen',       month:10, startDay:24, endDay:31,  skinId:'halloween',challengeType:'earn', challengeTarget:0, rewardMiso:1, blurb:'A little fear, a lot of umami.'},
+    {id:'holiday',   icon:'🎄', name:'Winter Feast',       month:12, startDay:15, endDay:31,  skinId:'holiday',  challengeType:'buy',  challengeTarget:20, rewardMiso:2, blurb:'The empire\'s warmest week.'},
+  ];
+
   const ACHIEVEMENTS = [
     {id:'first_bowl',  icon:'🥢', name:'First Bowl',       desc:'Tap the bowl once',              reward:0.01, cond: s => s.totalTaps >= 1},
     {id:'open_shop',   icon:'🏮', name:'Open For Business', desc:'Open your first business',       reward:0.01, cond: s => allBusinessStates(s).some(b=>b.level>0)},
@@ -249,6 +325,10 @@
     {id:'first_craft', icon:'🧪', name:'Kitchen Debut',     desc:'Craft your first signature ramen', reward:0.02, cond: s => (s.recipesCrafted||0) >= 1},
     {id:'chef_five',   icon:'👨‍🍳', name:'Five-Star Kitchen', desc:'Craft 10 signature ramen dishes',  reward:0.03, cond: s => (s.recipesCrafted||0) >= 10},
     {id:'rep_high',    icon:'⭐', name:'Beloved Shop',      desc:'Reach 95 reputation',              reward:0.03, cond: s => (s.reputation||0) >= 95},
+    {id:'story_japan', icon:'📖', name:'First Chapter',     desc:'Complete Japan story chapter',      reward:0.02, cond: s => isChapterComplete(s,'japan')},
+    {id:'story_all',   icon:'📚', name:'Full Saga',         desc:'Complete every story chapter',      reward:0.05, cond: s => STORY_CHAPTERS.every(ch => isChapterComplete(s, ch.id))},
+    {id:'staff_train', icon:'🎓', name:'Staff Trainer',     desc:'Train any manager to level 5',      reward:0.03, cond: s => allBusinessStates(s).some(b => (b.managerLevel||0) >= 5)},
+    {id:'staff_max',   icon:'🏅', name:'Head Chef',         desc:'Max a manager to level 10',         reward:0.04, cond: s => allBusinessStates(s).some(b => (b.managerLevel||0) >= 10)},
   ];
   // Cash-earned thresholds that trigger a celebratory milestone popup (confetti
   // + chime + a small bonus). Independent of ACHIEVEMENTS above: these are
@@ -267,6 +347,13 @@
     {id:'fire',      name:'Fire Wok',       icon:'🔥', theme:'fire',      milestoneReq:7,  desc:'Serving up pure heat.'},
     {id:'cosmic',    name:'Cosmic Bowl',    icon:'🌌', theme:'cosmic',    milestoneReq:9,  desc:'Noodles from beyond the stars.'},
     {id:'legendary', name:'Legendary Bowl', icon:'👑', theme:'legendary', milestoneReq:11, desc:'The stuff of ramen legend.'},
+    // Seasonal skins — unlocked by completing the matching seasonal challenge
+    {id:'newyear',   name:'New Year Bowl',  icon:'🎆', theme:'newyear',   seasonal:true, desc:'Fireworks in the broth.'},
+    {id:'valentine', name:'Heart Bowl',     icon:'💝', theme:'sakura',    seasonal:true, desc:'Served with a side of affection.'},
+    {id:'sakura_s',  name:'Festival Sakura',icon:'🌸', theme:'sakura',    seasonal:true, desc:'Seasonal petal glaze.'},
+    {id:'summer',    name:'Summer Bowl',    icon:'☀️', theme:'fire',      seasonal:true, desc:'Bright as a festival lantern.'},
+    {id:'halloween', name:'Spooky Bowl',    icon:'🎃', theme:'cosmic',    seasonal:true, desc:'A little eerie, very delicious.'},
+    {id:'holiday',   name:'Winter Feast',   icon:'🎄', theme:'golden',    seasonal:true, desc:'The empire\'s holiday special.'},
   ];
   // Flattens every business-state object across all UNLOCKED countries, so
   // achievement conditions (and anything else that wants "any shop anywhere")
@@ -310,7 +397,11 @@
     ingredients: {},          // ingredientId -> count
     activeRecipe: null,       // {id, endsAt} while a signature ramen boost is active
     ordersFulfilled: 0,
-    recipesCrafted: 0
+    recipesCrafted: 0,
+    // Story / seasonal / staff (v1.7)
+    storyClaimed: {},     // questId -> true once reward claimed
+    seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
+    // seasonal.skinUnlocked[skinId] = true after completing that event's challenge
   };
 
   // Every source of cash gain (tap, tick, offline, milestone, challenge/daily
@@ -322,7 +413,7 @@
     state.weeklyEarned = (state.weeklyEarned || 0) + amount;
   }
 
-  function freshBusiness(){ return {level:0, manager:false, speed:0, capacity:0, quality:0}; }
+  function freshBusiness(){ return {level:0, manager:false, managerLevel:0, speed:0, capacity:0, quality:0}; }
   function initCountryState(country){
     const obj = {};
     country.businesses.forEach(b => obj[b.id] = freshBusiness());
@@ -414,6 +505,19 @@
       if(state.ordersFulfilled === undefined) state.ordersFulfilled = 0;
       if(state.recipesCrafted === undefined) state.recipesCrafted = 0;
       if(state.tapFxEnabled === undefined) state.tapFxEnabled = true;
+      if(!state.storyClaimed) state.storyClaimed = {};
+      if(!state.seasonal) state.seasonal = { eventId: null, progress: 0, claimed: false, skinUnlocked: {} };
+      if(!state.seasonal.skinUnlocked) state.seasonal.skinUnlocked = {};
+      // Migrate managerLevel on existing businesses
+      COUNTRIES.forEach(country => {
+        const bizState = state.countries[country.id];
+        if(!bizState) return;
+        country.businesses.forEach(def => {
+          const biz = bizState[def.id];
+          if(!biz) return;
+          if(biz.managerLevel === undefined) biz.managerLevel = biz.manager ? 1 : 0;
+        });
+      });
     }catch(e){ console.warn('save corrupt, starting fresh'); }
   }
 
@@ -457,11 +561,23 @@
     return def.baseIncome * b.level * (1 + b.level*CONFIG.LEVEL_INCOME_SCALING) * businessUpgradeMult(b);
   }
   function businessIncomeWithManager(def, b){
-    return businessIncome(def, b) * (b.manager ? CONFIG.MANAGER_INCOME_MULT : 1);
+    if(!b.manager) return businessIncome(def, b);
+    const level = Math.max(1, b.managerLevel || 1);
+    const levelBoost = 1 + (level - 1) * CONFIG.MANAGER_LEVEL_INCOME_BOOST;
+    return businessIncome(def, b) * CONFIG.MANAGER_INCOME_MULT * levelBoost;
   }
   // Manager Training (Shards) discounts hiring cost, capped so a maxed line
   // can never make managers free.
   function managerCost(def){ return def.baseCost * CONFIG.MANAGER_COST_MULT * (1 - Math.min(0.8, metaBonus('manager'))); }
+  function managerTrainCost(def, currentLevel){
+    // currentLevel is the level BEFORE training (1 = just hired)
+    return def.baseCost * CONFIG.MANAGER_TRAIN_COST_MULT * Math.pow(CONFIG.MANAGER_TRAIN_COST_GROWTH, Math.max(0, currentLevel - 1));
+  }
+  function totalManagerOfflineBoost(){
+    let levels = 0;
+    allBusinessStates(state).forEach(b => { if(b.manager) levels += Math.max(0, (b.managerLevel || 1) - 1); });
+    return levels * CONFIG.MANAGER_LEVEL_OFFLINE_BOOST;
+  }
 
   function eventMultiplier(){
     if(activeEvent.type === 'critic') return CONFIG.CRITIC_INCOME_MULT;
@@ -623,6 +739,7 @@
         if(!wasReady && c.progress >= c.target) notifyChallengeReady(which, c);
       }
     });
+    if(typeof addSeasonalProgress === 'function') addSeasonalProgress(type, amount);
   }
   function claimChallenge(which){
     const c = state.challenges[which];
@@ -1028,22 +1145,36 @@
         : '';
       const buyLabel = `${b.level === 0 ? 'Open' : 'Upgrade'} ${def.name} for ${fmt(cost)}`;
 
+      const mLvl = b.manager ? (b.managerLevel || 1) : 0;
+      const mBadge = b.manager
+        ? `<span class="manager-badge">${MANAGER_BONUS_LABEL} · Lv${mLvl}</span>`
+        : '';
+      let staffBtn = '';
+      if(!b.manager && b.level >= CONFIG.MANAGER_UNLOCK_LEVEL){
+        staffBtn = `<button class="buy-btn manager-btn" data-action="manager" data-id="${def.id}" aria-label="Hire manager for ${def.name}, cost ${fmt(mCost)}" ${state.cash < mCost ? 'disabled' : ''}>${MANAGER_BONUS_LABEL}<small>${fmt(mCost)}</small></button>`;
+      } else if(b.manager && mLvl < CONFIG.MANAGER_MAX_LEVEL){
+        const tCost = managerTrainCost(def, mLvl);
+        staffBtn = `<button class="buy-btn manager-btn train-btn" data-action="train" data-id="${def.id}" aria-label="Train manager for ${def.name} to level ${mLvl+1}, cost ${fmt(tCost)}" ${state.cash < tCost ? 'disabled' : ''}>Train Lv${mLvl+1}<small>${fmt(tCost)}</small></button>`;
+      } else if(b.manager){
+        staffBtn = `<button class="buy-btn manager-btn" disabled>MAX Lv${mLvl}</button>`;
+      }
+
       card.innerHTML = `
         <div class="biz-main" data-action="toggle" data-id="${def.id}" ${toggleAttrs}>
           <div class="biz-icon" aria-hidden="true">${def.icon}</div>
           <div class="biz-info">
-            <div class="biz-name">${def.name} ${b.manager ? `<span class="manager-badge">${MANAGER_BONUS_LABEL}</span>` : ''}${b.level>0 ? '<span class="expand-caret'+(isOpen?' open':'')+'" aria-hidden="true">▶</span>':''}</div>
+            <div class="biz-name">${def.name} ${mBadge}${b.level>0 ? '<span class="expand-caret'+(isOpen?' open':'')+'" aria-hidden="true">▶</span>':''}</div>
             <div class="biz-level">Level ${b.level}</div>
             <div class="biz-income">${b.level>0 ? fmt(income)+'/s' : 'Not opened yet'}</div>
           </div>
-          ${!b.manager && b.level >= CONFIG.MANAGER_UNLOCK_LEVEL ? `<button class="buy-btn manager-btn" data-action="manager" data-id="${def.id}" aria-label="Hire manager for ${def.name}, cost ${fmt(mCost)}" ${state.cash < mCost ? 'disabled' : ''}>${MANAGER_BONUS_LABEL}<small>${fmt(mCost)}</small></button>` : ''}
+          ${staffBtn}
           <button class="buy-btn" data-action="buy" data-id="${def.id}" aria-label="${buyLabel}" ${!canAfford || locked ? 'disabled' : ''}>${b.level===0?'OPEN':'UPGRADE'}<small>${fmt(cost)}</small></button>
         </div>
         ${b.level > 0 ? `<div class="upgrade-panel${isOpen?' open':''}"><div class="upgrade-row">${upgradeChips}</div></div>` : ''}
       `;
       bizPanel.appendChild(card);
 
-      const cache = { buyBtn: card.querySelector('[data-action="buy"]'), managerBtn: card.querySelector('[data-action="manager"]'), upgradeChips: {} };
+      const cache = { buyBtn: card.querySelector('[data-action="buy"]'), managerBtn: card.querySelector('[data-action="manager"],[data-action="train"]'), upgradeChips: {} };
       if(b.level > 0){
         Object.keys(UPGRADE_TYPES).forEach(type => {
           cache.upgradeChips[type] = card.querySelector(`[data-action="upgrade"][data-type="${type}"]`);
@@ -1069,7 +1200,15 @@
       const locked = idx > 0 && b.level === 0 && (!prevDef || bizState[prevDef.id].level < def.unlockAt) && def.unlockAt > 0;
       const cost = businessCost(def, b.level);
       if(cache.buyBtn) cache.buyBtn.disabled = state.cash < cost || locked;
-      if(cache.managerBtn) cache.managerBtn.disabled = state.cash < managerCost(def);
+      if(cache.managerBtn){
+        if(b.manager){
+          const ml = b.managerLevel || 1;
+          if(ml >= CONFIG.MANAGER_MAX_LEVEL) cache.managerBtn.disabled = true;
+          else cache.managerBtn.disabled = state.cash < managerTrainCost(def, ml);
+        } else {
+          cache.managerBtn.disabled = state.cash < managerCost(def);
+        }
+      }
       if(b.level > 0){
         Object.keys(UPGRADE_TYPES).forEach(type => {
           const chip = cache.upgradeChips[type];
@@ -1083,10 +1222,188 @@
     });
   }
 
+  // ---------- story chapters ----------
+  function isChapterComplete(s, chapterId){
+    const ch = STORY_CHAPTERS.find(c => c.id === chapterId);
+    if(!ch) return false;
+    const claimed = (s.storyClaimed) || {};
+    return ch.quests.every(q => claimed[q.id]);
+  }
+  function isChapterUnlocked(ch){
+    if(ch.country === 'japan') return true;
+    return isUnlocked(ch.country);
+  }
+  function storyQuestRewardCash(q){
+    const rate = Math.max(totalRatePerSec(), 1);
+    return rate * (q.reward.cashSec || 30);
+  }
+  function claimStoryQuest(questId){
+    if(state.storyClaimed[questId]) return;
+    let found = null;
+    STORY_CHAPTERS.forEach(ch => {
+      const q = ch.quests.find(x => x.id === questId);
+      if(q) found = q;
+    });
+    if(!found || !found.cond(state)) return;
+    state.storyClaimed[questId] = true;
+    const cash = storyQuestRewardCash(found);
+    state.cash += cash;
+    addEarned(cash);
+    if(found.reward.miso) state.prestigePoints += found.reward.miso;
+    save();
+    renderAchievements();
+    renderStats();
+    checkAchievements();
+  }
+  function renderStorySection(){
+    let html = '<div class="chal-section-label" style="margin-top:14px;">Story</div>';
+    STORY_CHAPTERS.forEach(ch => {
+      const unlocked = isChapterUnlocked(ch);
+      const done = isChapterComplete(state, ch.id);
+      html += `<div class="story-chapter${unlocked?'':' locked'}">
+        <div class="story-chapter-head">
+          <span class="story-chapter-icon">${ch.icon}</span>
+          <div>
+            <div class="story-chapter-title">${ch.title}${done ? ' ✓' : ''}</div>
+            <div class="story-chapter-blurb">${unlocked ? ch.blurb : 'Unlock this country on the World map to begin.'}</div>
+          </div>
+        </div>`;
+      if(unlocked){
+        let priorDone = true;
+        ch.quests.forEach(q => {
+          const claimed = !!state.storyClaimed[q.id];
+          const ready = priorDone && q.cond(state);
+          const lockedQ = !priorDone;
+          const cash = storyQuestRewardCash(q);
+          let rewardTxt = fmt(cash);
+          if(q.reward.miso) rewardTxt += ` + ${q.reward.miso} Miso`;
+          html += `<div class="ach-card${claimed?' claimed':''}${lockedQ?' locked':''}">
+            <div class="ach-icon${ready||claimed?' done':''}" aria-hidden="true">${q.icon}</div>
+            <div class="ach-info">
+              <div class="ach-name">${q.name}</div>
+              <div class="ach-desc">${q.desc}</div>
+              <div class="ach-reward">+${rewardTxt}</div>
+            </div>
+            <button class="claim-btn${claimed?' done':''}" data-action="claim-story" data-id="${q.id}" ${claimed||!ready?'disabled':''}>${claimed?'✓ Done':(ready?'Claim':'Locked')}</button>
+          </div>`;
+          if(!claimed) priorDone = false;
+        });
+      }
+      html += `</div>`;
+    });
+    return html;
+  }
+
+  // ---------- seasonal events ----------
+  function getActiveSeasonalEvent(){
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    const day = now.getDate();
+    return SEASONAL_EVENTS.find(ev => ev.month === month && day >= ev.startDay && day <= ev.endDay) || null;
+  }
+  function seasonalDaysLeft(ev){
+    const now = new Date();
+    const end = new Date(now.getFullYear(), ev.month - 1, ev.endDay, 23, 59, 59);
+    return Math.max(0, Math.ceil((end - now) / 86400000));
+  }
+  function ensureSeasonalState(){
+    const ev = getActiveSeasonalEvent();
+    if(!ev){
+      if(state.seasonal && state.seasonal.eventId){
+        state.seasonal.eventId = null;
+        state.seasonal.progress = 0;
+        state.seasonal.claimed = false;
+      }
+      return null;
+    }
+    if(!state.seasonal) state.seasonal = { eventId: null, progress: 0, claimed: false, skinUnlocked: {} };
+    if(state.seasonal.eventId !== ev.id){
+      state.seasonal.eventId = ev.id;
+      state.seasonal.progress = 0;
+      state.seasonal.claimed = false;
+    }
+    return ev;
+  }
+  function seasonalTarget(ev){
+    if(ev.challengeType === 'earn'){
+      const rate = Math.max(totalRatePerSec(), 1);
+      return Math.round(rate * 180 * CONFIG.SEASONAL_CHALLENGE_SCALE);
+    }
+    return Math.round(ev.challengeTarget || 100);
+  }
+  function addSeasonalProgress(type, amount){
+    const ev = ensureSeasonalState();
+    if(!ev || state.seasonal.claimed) return;
+    if(ev.challengeType !== type) return;
+    const target = seasonalTarget(ev);
+    state.seasonal.progress = Math.min(target, (state.seasonal.progress || 0) + amount);
+  }
+  function claimSeasonal(){
+    const ev = ensureSeasonalState();
+    if(!ev || state.seasonal.claimed) return;
+    const target = seasonalTarget(ev);
+    if((state.seasonal.progress || 0) < target) return;
+    state.seasonal.claimed = true;
+    if(ev.skinId){
+      if(!state.seasonal.skinUnlocked) state.seasonal.skinUnlocked = {};
+      state.seasonal.skinUnlocked[ev.skinId] = true;
+    }
+    if(ev.rewardMiso) state.prestigePoints += ev.rewardMiso;
+    const cash = Math.max(totalRatePerSec(), 1) * 60;
+    state.cash += cash;
+    addEarned(cash);
+    save();
+    renderAchievements();
+    renderStats();
+    checkCollectionNotif();
+  }
+  function renderSeasonalSection(){
+    const ev = ensureSeasonalState();
+    if(!ev) return '';
+    const target = seasonalTarget(ev);
+    const progress = state.seasonal.progress || 0;
+    const pct = Math.min(100, Math.round((progress / target) * 100));
+    const claimed = !!state.seasonal.claimed;
+    const ready = progress >= target;
+    const days = seasonalDaysLeft(ev);
+    const typeLabel = {taps:'Tap the bowl', earn:'Earn cash', buy:'Buy shop levels / upgrades'}[ev.challengeType] || 'Progress';
+    const fmtVal = ev.challengeType === 'earn' ? fmt : Math.round;
+    return `<div class="chal-section-label">Seasonal Event</div>
+      <div class="seasonal-card">
+        <div class="seasonal-head">
+          <span class="seasonal-icon">${ev.icon}</span>
+          <div>
+            <div class="seasonal-name">${ev.name}</div>
+            <div class="seasonal-blurb">${ev.blurb}</div>
+            <div class="seasonal-countdown">${days === 0 ? 'Ends today!' : days + ' day' + (days===1?'':'s') + ' left'}</div>
+          </div>
+        </div>
+        <div class="ach-desc" style="margin-top:8px;">${typeLabel}: ${fmtVal(progress)} / ${fmtVal(target)}</div>
+        <div class="chal-progress"><div class="chal-progress-fill" style="width:${pct}%"></div></div>
+        <div class="ach-reward" style="margin-top:6px;">Reward: ${ev.skinId ? '🎁 Seasonal skin + ' : ''}${ev.rewardMiso || 0} Miso + cash</div>
+        <button class="claim-btn${claimed?' done':''}" data-action="claim-seasonal" style="margin-top:10px; width:100%;" ${claimed||!ready?'disabled':''}>${claimed?'✓ Claimed':(ready?'Claim Reward':'In Progress')}</button>
+      </div>`;
+  }
+  function renderSeasonalBanner(){
+    const banner = document.getElementById('seasonalBanner');
+    if(!banner) return;
+    const ev = ensureSeasonalState();
+    if(!ev){
+      banner.classList.remove('show');
+      return;
+    }
+    banner.classList.add('show');
+    document.getElementById('seasonalBannerIcon').textContent = ev.icon;
+    document.getElementById('seasonalBannerText').textContent = ev.name;
+    document.getElementById('seasonalBannerTime').textContent = seasonalDaysLeft(ev) + 'd left';
+  }
+
   function renderAchievements(){
     const panel = document.getElementById('achPanel');
-    panel.innerHTML = '<div class="chal-section-label">Challenges</div>' +
+    panel.innerHTML = renderSeasonalSection() +
+      '<div class="chal-section-label"' + (getActiveSeasonalEvent() ? ' style="margin-top:14px;"' : '') + '>Challenges</div>' +
       renderChallengeCard('daily', 'Daily') + renderChallengeCard('weekly', 'Weekly') +
+      renderStorySection() +
       '<div class="chal-section-label" style="margin-top:14px;">Achievements</div>';
     let anyUnclaimed = false;
     ACHIEVEMENTS.forEach(ach => {
@@ -1110,7 +1427,23 @@
       const c = state.challenges[w];
       return c && !c.claimed && c.progress >= c.target;
     });
-    document.getElementById('achDot').classList.toggle('show', anyUnclaimed || challengeReady);
+    const storyReady = STORY_CHAPTERS.some(ch => {
+      if(!isChapterUnlocked(ch)) return false;
+      let prior = true;
+      for(const q of ch.quests){
+        if(!prior) break;
+        if(state.storyClaimed[q.id]) continue;
+        if(q.cond(state)) return true;
+        prior = false;
+      }
+      return false;
+    });
+    const seasonalReady = (() => {
+      const ev = ensureSeasonalState();
+      if(!ev || state.seasonal.claimed) return false;
+      return (state.seasonal.progress || 0) >= seasonalTarget(ev);
+    })();
+    document.getElementById('achDot').classList.toggle('show', anyUnclaimed || challengeReady || storyReady || seasonalReady);
   }
 
   function renderWorld(){
@@ -1209,7 +1542,10 @@
   // from state.milestoneIdx (never stored separately), so it can't drift out
   // of sync with the milestone popups that grant it.
   function activeCosmetic(){ return COSMETICS.find(c => c.id === state.equippedSkin) || COSMETICS[0]; }
-  function isCosmeticUnlocked(c){ return c.milestoneReq < 0 || state.milestoneIdx >= c.milestoneReq; }
+  function isCosmeticUnlocked(c){
+    if(c.seasonal) return !!(state.seasonal && state.seasonal.skinUnlocked && state.seasonal.skinUnlocked[c.id]);
+    return c.milestoneReq < 0 || state.milestoneIdx >= c.milestoneReq;
+  }
   function applyCosmeticTheme(){
     const bowl = document.getElementById('bowlEl');
     if(!bowl) return;
@@ -1371,7 +1707,22 @@
     if(state.cash < cost) return;
     state.cash -= cost;
     b.manager = true;
-    renderBusinesses(); renderStats();
+    b.managerLevel = 1;
+    renderBusinesses(); renderStats(); checkAchievements();
+  }
+  function trainManager(id){
+    const country = activeCountryDef();
+    const def = country.businesses.find(d => d.id === id);
+    const b = state.countries[country.id][id];
+    if(!b.manager) return;
+    const lvl = b.managerLevel || 1;
+    if(lvl >= CONFIG.MANAGER_MAX_LEVEL) return;
+    const cost = managerTrainCost(def, lvl);
+    if(state.cash < cost) return;
+    state.cash -= cost;
+    b.managerLevel = lvl + 1;
+    addChallengeProgress('buy', 1);
+    renderBusinesses(); renderStats(); checkAchievements();
   }
   function buyUpgrade(id, type){
     const country = activeCountryDef();
@@ -1578,6 +1929,7 @@
     const action = btn.dataset.action;
     if(action === 'buy') buyBusiness(id);
     else if(action === 'manager') hireManager(id);
+    else if(action === 'train') trainManager(id);
     else if(action === 'upgrade') buyUpgrade(id, btn.dataset.type);
     else if(action === 'toggle'){
       if(state.countries[state.activeCountry][id].level === 0) return;
@@ -1599,6 +1951,10 @@
     if(claimBtn){ claimAchievement(claimBtn.dataset.id); return; }
     const chalBtn = e.target.closest('[data-action="claim-challenge"]');
     if(chalBtn){ claimChallenge(chalBtn.dataset.which); return; }
+    const storyBtn = e.target.closest('[data-action="claim-story"]');
+    if(storyBtn){ claimStoryQuest(storyBtn.dataset.id); return; }
+    const seasBtn = e.target.closest('[data-action="claim-seasonal"]');
+    if(seasBtn){ claimSeasonal(); return; }
   });
   function closeAchModal(){ closeModal(document.getElementById('achModal')); }
   document.getElementById('achModalClose').addEventListener('click', closeAchModal);
@@ -2138,7 +2494,7 @@
     if(elapsedSec < CONFIG.OFFLINE_MIN_SEC) return false;
     const rate = totalRatePerSec();
     if(rate <= 0) return false;
-    pendingOfflineGain = rate * elapsedSec * CONFIG.OFFLINE_EARN_MULT * (1 + metaBonus('offline'));
+    pendingOfflineGain = rate * elapsedSec * CONFIG.OFFLINE_EARN_MULT * (1 + metaBonus('offline') + totalManagerOfflineBoost());
     if(pendingOfflineGain < CONFIG.OFFLINE_MIN_GAIN) return false;
     document.getElementById('offlineText').textContent =
       `While you were away for ${Math.round(elapsedSec/60)} min, your shops earned ${fmt(pendingOfflineGain)}.`;
@@ -2212,12 +2568,14 @@
     gameStarted = true;
     ensureChallenges();
     ensureWeeklyPeriod();
+    ensureSeasonalState();
     const offlineModalShown = checkOfflineEarnings();
     if(!offlineModalShown) maybeShowDailyStreak();
     renderBusinesses();
     renderAchievements();
     renderWorld();
     renderStats();
+    renderSeasonalBanner();
     applyCosmeticTheme();
     checkCollectionNotif();
     requestAnimationFrame(tick);

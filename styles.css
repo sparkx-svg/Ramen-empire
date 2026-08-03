@@ -382,3 +382,42 @@
   .recipe-cost{font-size:11px; margin-top:4px; display:flex; flex-wrap:wrap; gap:6px;}
   .recipe-cost .have{color:var(--jade-light);}
   .recipe-cost .need{color:var(--crit); opacity:0.9;}
+
+  /* SEASONAL BANNER */
+  .seasonal-banner{
+    display:none; align-items:center; gap:8px; margin:6px 12px 0;
+    background:linear-gradient(90deg, rgba(212,160,23,0.2), rgba(122,79,176,0.15));
+    border:1px solid rgba(212,160,23,0.35); border-radius:12px; padding:8px 12px;
+    font-size:12px; font-weight:700;
+  }
+  .seasonal-banner.show{display:flex;}
+  .seasonal-banner-icon{font-size:18px;}
+  .seasonal-banner-text{flex:1;}
+  .seasonal-banner-time{font-family:'JetBrains Mono',monospace; color:var(--gold); font-size:11px;}
+
+  .seasonal-card{
+    background:var(--panel); border-radius:14px; padding:14px; margin-bottom:10px;
+    border:1px solid rgba(212,160,23,0.35);
+  }
+  .seasonal-head{display:flex; gap:12px; align-items:flex-start;}
+  .seasonal-icon{font-size:28px;}
+  .seasonal-name{font-weight:800; font-size:15px;}
+  .seasonal-blurb{font-size:11px; opacity:0.75; margin-top:2px;}
+  .seasonal-countdown{font-size:11px; color:var(--gold); font-weight:700; margin-top:4px;}
+
+  /* STORY CHAPTERS */
+  .story-chapter{
+    background:var(--panel); border-radius:14px; padding:12px; margin-bottom:12px;
+    border:1px solid rgba(255,255,255,0.05);
+  }
+  .story-chapter.locked{opacity:0.5;}
+  .story-chapter-head{display:flex; gap:10px; align-items:flex-start; margin-bottom:10px;}
+  .story-chapter-icon{font-size:24px;}
+  .story-chapter-title{font-weight:800; font-size:13.5px;}
+  .story-chapter-blurb{font-size:10.5px; opacity:0.7; margin-top:2px; line-height:1.4;}
+  .ach-card.locked{opacity:0.4;}
+
+  /* Manager train button nuance */
+  .train-btn{background:linear-gradient(180deg, var(--jade-light), var(--jade)) !important;}
+
+  .bowl.theme-newyear{background:radial-gradient(circle at 35% 30%, #fff6d8, #c1272d 45%, #1a1a4a 100%); box-shadow:0 8px 24px rgba(193,39,45,0.55), inset 0 -6px 12px rgba(0,0,0,0.3);}
