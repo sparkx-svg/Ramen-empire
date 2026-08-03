@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "io.github.sparkx_svg.twa",
+        "sha256_cert_fingerprints": ["C9:2F:BF:7F:42:3F:65:27:D5:C5:CD:6E:05:E6:C7:F1:58:0E:F9:65:A3:D2:35:10:0E:AC:0E:4D:F2:B7:FF:41"]
+      }
+    }]
