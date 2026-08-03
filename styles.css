@@ -263,6 +263,11 @@
   .lb-rank{width:26px; font-weight:800; color:var(--gold); font-family:'JetBrains Mono',monospace;}
   .lb-name{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .lb-cash{font-family:'JetBrains Mono',monospace; font-weight:700;}
+  .lb-trophy{margin-left:4px;}
+  .lb-filter-tabs{display:flex; gap:6px; margin-bottom:12px;}
+  .lb-filter-btn{flex:1; background:var(--panel); border:1px solid transparent; border-radius:10px; padding:9px 6px; font-size:12px; font-weight:700; color:inherit; opacity:0.65;}
+  .lb-filter-btn.active{opacity:1; border-color:var(--gold); color:var(--gold);}
+  .lb-champion-banner{background:linear-gradient(90deg, rgba(255,215,0,0.15), transparent); border:1px solid var(--gold); border-radius:12px; padding:10px 14px; margin-bottom:10px; font-size:12px;}
 
   /* ACHIEVEMENTS */
   .ach-card{

@@ -212,8 +212,20 @@
     profile: { name: '', age: null, provider: null }, // set once onboarding completes
     onboarded: false,
     daily: { streak: 0, lastClaimDate: null },
-    challenges: { daily: null, weekly: null }
+    challenges: { daily: null, weekly: null },
+    weeklyEarned: 0,   // earnings so far in the current leaderboard week (see weekId)
+    weekId: null,      // ISO week id ('2026-W31') this weeklyEarned total belongs to
+    seasonWins: 0       // number of past weeks this player finished #1 on the Weekly board
   };
+
+  // Every source of cash gain (tap, tick, offline, milestone, challenge/daily
+  // reward) should route through here instead of touching totalEarned
+  // directly, so the Weekly leaderboard counter always stays in sync with
+  // lifetime earnings without duplicating this line at every call site.
+  function addEarned(amount){
+    state.totalEarned += amount;
+    state.weeklyEarned = (state.weeklyEarned || 0) + amount;
+  }
 
   function freshBusiness(){ return {level:0, manager:false, speed:0, capacity:0, quality:0}; }
   function initCountryState(country){
@@ -434,7 +446,7 @@
   function collectDailyStreak(){
     if(!pendingDailyReward) return;
     state.cash += pendingDailyReward.cash;
-    state.totalEarned += pendingDailyReward.cash;
+    addEarned(pendingDailyReward.cash);
     state.prestigePoints += pendingDailyReward.miso;
     pendingDailyReward = null;
     closeModal(document.getElementById('dailyStreakModal'));
@@ -495,7 +507,7 @@
     const c = state.challenges[which];
     if(!c || c.claimed || c.progress < c.target) return;
     state.cash += c.reward.cash || 0;
-    state.totalEarned += c.reward.cash || 0;
+    addEarned(c.reward.cash || 0);
     state.prestigePoints += c.reward.miso || 0;
     c.claimed = true;
     save(); renderAchievements(); renderStats();
@@ -1068,7 +1080,7 @@
       state.milestoneIdx++;
       const bonus = totalRatePerSec() * CONFIG.MILESTONE_BONUS_SECONDS;
       state.cash += bonus;
-      state.totalEarned += bonus;
+      addEarned(bonus);
       milestoneQueue.push({ threshold: MILESTONES[state.milestoneIdx], bonus });
     }
     maybeShowNextMilestone();
@@ -1328,10 +1340,96 @@
   // Firebase auth session, so firebaseUser stays null for them and
   // submitScore()/renderLeaderboard() below simply skip writing for them.
   let firebaseUser = null;
-  auth.onAuthStateChanged(user => { firebaseUser = user; });
+  auth.onAuthStateChanged(user => {
+    firebaseUser = user;
+    myFriends = []; // stale for a new session/account — reloaded on next Friends tab open
+  });
 
   function escapeHtml(str){
     return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // ---- weekly leaderboard period (ISO week, e.g. "2026-W31") ----
+  function getWeekId(date){
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = (d.getUTCDay() + 6) % 7; // Mon=0 .. Sun=6
+    d.setUTCDate(d.getUTCDate() - dayNum + 3); // nearest Thursday defines the ISO week/year
+    const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+    const weekNum = 1 + Math.round(((d - firstThursday) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
+    return `${d.getUTCFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+  }
+  function currentWeekId(){ return getWeekId(new Date()); }
+  function previousWeekId(){ const d = new Date(); d.setDate(d.getDate() - 7); return getWeekId(d); }
+
+  // Checked frequently (see the AFFORDABILITY_REFRESH_MS interval below) but
+  // only does anything the moment the ISO week actually rolls over. When it
+  // does, it best-effort snapshots the week that just ended into
+  // leaderboardSeasons/{weekId} so the "last week's champion" banner and
+  // trophy badges have something to read — see the doc-exists check below,
+  // which keeps this idempotent no matter which online client's clock fires
+  // first.
+  function ensureWeeklyPeriod(){
+    const wid = currentWeekId();
+    if(state.weekId === wid) return;
+    const endedWeekId = state.weekId;
+    state.weekId = wid;
+    state.weeklyEarned = 0;
+    if(!endedWeekId || !firebaseUser) return;
+    db.collection('leaderboard').where('weekId', '==', endedWeekId)
+      .orderBy('weeklyEarned', 'desc').limit(1).get().then(snap => {
+        if(snap.empty) return;
+        const top = snap.docs[0];
+        const seasonRef = db.collection('leaderboardSeasons').doc(endedWeekId);
+        seasonRef.get().then(doc => {
+          if(doc.exists) return; // another client already recorded this week
+          seasonRef.set({
+            uid: top.id,
+            name: top.data().name || 'Anonymous',
+            weeklyEarned: top.data().weeklyEarned || 0
+          }).catch(err => console.warn('Season snapshot failed', err));
+          if(top.id === firebaseUser.uid) state.seasonWins = (state.seasonWins || 0) + 1;
+        });
+      }).catch(err => console.warn('Weekly champion lookup failed', err));
+  }
+
+  // ---- friends ----
+  // A player's "code" is just a slice of their own uid, so it needs no extra
+  // write to generate or look up — anyone can find a uid from its code via
+  // the leaderboard collection (see addFriendByCode) without new security
+  // rules beyond read access already required for the leaderboard itself.
+  function myFriendCode(){ return firebaseUser ? firebaseUser.uid.slice(0, 6).toUpperCase() : null; }
+  let myFriends = []; // cached uids this player follows; refreshed each time the Friends tab opens
+  function loadFriends(){
+    if(!firebaseUser) return Promise.resolve([]);
+    return db.collection('friends').doc(firebaseUser.uid).get().then(doc => {
+      myFriends = (doc.exists && doc.data().list) || [];
+      return myFriends;
+    }).catch(err => { console.warn('Load friends failed', err); return myFriends; });
+  }
+  // One-directional "follow" model: adding a friend only ever writes to your
+  // own friends/{uid} doc, so no permission to write another player's data
+  // is ever needed — you can see anyone whose code you have, whether or not
+  // they've added you back.
+  function addFriendByCode(rawCode){
+    const statusEl = document.getElementById('addFriendStatus');
+    if(!firebaseUser){ statusEl.textContent = 'Sign in with Google to add friends.'; return; }
+    const code = (rawCode || '').trim().toUpperCase();
+    if(!code) return;
+    if(code === myFriendCode()){ statusEl.textContent = "That's your own code!"; return; }
+    statusEl.textContent = 'Looking up player…';
+    db.collection('leaderboard').where('code', '==', code).limit(1).get().then(snap => {
+      if(snap.empty){ statusEl.textContent = 'No player found with that code.'; return; }
+      const found = snap.docs[0];
+      if(myFriends.includes(found.id)){ statusEl.textContent = 'Already on your friends list.'; return; }
+      return db.collection('friends').doc(firebaseUser.uid).set({
+        list: firebase.firestore.FieldValue.arrayUnion(found.id)
+      }, { merge: true }).then(() => {
+        myFriends.push(found.id);
+        statusEl.textContent = `Added ${found.data().name || 'player'}!`;
+        document.getElementById('friendCodeInput').value = '';
+        if(currentLbMode === 'friends') renderLeaderboard();
+      });
+    }).catch(err => { console.warn('Add friend failed', err); statusEl.textContent = 'Something went wrong — try again.'; });
   }
 
   let lastLeaderboardSubmit = 0;
@@ -1342,38 +1440,117 @@
     lastLeaderboardSubmit = now;
     db.collection('leaderboard').doc(firebaseUser.uid).set({
       name: state.profile.name || firebaseUser.displayName || 'Anonymous',
+      code: myFriendCode(),
       cash: state.cash,
       totalEarned: state.totalEarned,
+      weeklyEarned: state.weeklyEarned || 0,
+      weekId: state.weekId,
+      seasonWins: state.seasonWins || 0,
       prestigePoints: state.prestigePoints,
       prestigeCount: state.prestigeCount,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true }).catch(err => console.warn('Leaderboard submit failed', err));
   }
 
+  function lbSplitIntoChunks(arr, size){
+    const out = [];
+    for(let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+    return out;
+  }
+
+  function renderChampionBanner(){
+    const banner = document.getElementById('lbChampionBanner');
+    db.collection('leaderboardSeasons').doc(previousWeekId()).get().then(doc => {
+      if(!doc.exists){ banner.style.display = 'none'; return; }
+      banner.style.display = 'block';
+      banner.textContent = `🏆 Last week's champion: ${escapeHtml(doc.data().name || 'Anonymous')}`;
+    }).catch(() => { banner.style.display = 'none'; });
+  }
+
+  let currentLbMode = 'global'; // 'global' | 'weekly' | 'friends'
+  function renderLbRows(rows, cashField){
+    const statusEl = document.getElementById('leaderboardStatus');
+    const listEl = document.getElementById('leaderboardList');
+    statusEl.style.display = 'none';
+    if(!rows.length){
+      listEl.innerHTML = `<div class="settings-item"><span>${currentLbMode === 'friends' ? 'Add a friend\u2019s code above to see them here.' : 'No scores yet — be the first!'}</span></div>`;
+      return;
+    }
+    listEl.innerHTML = rows.map((d, i) => {
+      const isMe = firebaseUser && d.__id === firebaseUser.uid;
+      const wins = d.seasonWins || 0;
+      const trophy = wins ? ` <span class="lb-trophy" title="${wins} weekly win(s)">🏆${wins > 1 ? '×' + wins : ''}</span>` : '';
+      return `<div class="lb-row${isMe ? ' me' : ''}"><span class="lb-rank">#${i + 1}</span><span class="lb-name">${escapeHtml(d.name || 'Anonymous')}${trophy}</span><span class="lb-cash">¥${fmt(d[cashField] || 0)}</span></div>`;
+    }).join('');
+  }
+
   function renderLeaderboard(){
     const statusEl = document.getElementById('leaderboardStatus');
     const listEl = document.getElementById('leaderboardList');
+    const friendsBox = document.getElementById('lbFriendsBox');
+    friendsBox.style.display = currentLbMode === 'friends' ? 'flex' : 'none';
+    if(currentLbMode === 'friends'){
+      document.getElementById('myFriendCode').textContent = myFriendCode() || 'Sign in to get a code';
+    }
+    renderChampionBanner();
     statusEl.style.display = 'flex';
     statusEl.querySelector('span').textContent = 'Loading leaderboard…';
     listEl.innerHTML = '';
-    db.collection('leaderboard').orderBy('totalEarned', 'desc').limit(50).get().then(snap => {
-      statusEl.style.display = 'none';
-      if(snap.empty){
-        listEl.innerHTML = '<div class="settings-item"><span>No scores yet — be the first!</span></div>';
-        return;
-      }
-      let rank = 0;
-      listEl.innerHTML = snap.docs.map(doc => {
-        rank++;
-        const d = doc.data();
-        const isMe = firebaseUser && doc.id === firebaseUser.uid;
-        return `<div class="lb-row${isMe ? ' me' : ''}"><span class="lb-rank">#${rank}</span><span class="lb-name">${escapeHtml(d.name || 'Anonymous')}</span><span class="lb-cash">¥${fmt(d.totalEarned || 0)}</span></div>`;
-      }).join('');
-    }).catch(err => {
-      console.warn('Leaderboard load failed', err);
-      statusEl.querySelector('span').textContent = 'Could not load leaderboard.';
-    });
+
+    if(currentLbMode === 'global'){
+      db.collection('leaderboard').orderBy('totalEarned', 'desc').limit(50).get().then(snap => {
+        renderLbRows(snap.docs.map(doc => Object.assign({ __id: doc.id }, doc.data())), 'totalEarned');
+      }).catch(err => {
+        console.warn('Leaderboard load failed', err);
+        statusEl.querySelector('span').textContent = 'Could not load leaderboard.';
+      });
+    } else if(currentLbMode === 'weekly'){
+      // NOTE: this composite query (weekId == X, ordered by weeklyEarned)
+      // needs a Firestore index — the console link in the error the first
+      // time this runs against a fresh project will create it for you.
+      db.collection('leaderboard').where('weekId', '==', currentWeekId())
+        .orderBy('weeklyEarned', 'desc').limit(50).get().then(snap => {
+          renderLbRows(snap.docs.map(doc => Object.assign({ __id: doc.id }, doc.data())), 'weeklyEarned');
+        }).catch(err => {
+          console.warn('Weekly leaderboard load failed', err);
+          statusEl.querySelector('span').textContent = 'Could not load weekly leaderboard.';
+        });
+    } else { // friends
+      loadFriends().then(friendUids => {
+        const ids = firebaseUser ? Array.from(new Set([firebaseUser.uid, ...friendUids])) : friendUids;
+        if(!ids.length){ renderLbRows([], 'totalEarned'); return; }
+        Promise.all(lbSplitIntoChunks(ids, 10).map(group =>
+          db.collection('leaderboard').where(firebase.firestore.FieldPath.documentId(), 'in', group).get()
+        )).then(snaps => {
+          const docs = [];
+          snaps.forEach(snap => snap.forEach(doc => docs.push(Object.assign({ __id: doc.id }, doc.data()))));
+          docs.sort((a, b) => (b.totalEarned || 0) - (a.totalEarned || 0));
+          renderLbRows(docs, 'totalEarned');
+        }).catch(err => {
+          console.warn('Friends leaderboard load failed', err);
+          statusEl.querySelector('span').textContent = 'Could not load friends leaderboard.';
+        });
+      });
+    }
   }
+
+  document.querySelectorAll('.lb-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentLbMode = btn.dataset.mode;
+      document.querySelectorAll('.lb-filter-btn').forEach(b => {
+        const on = b === btn;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      renderLeaderboard();
+    });
+  });
+  document.getElementById('addFriendBtn').addEventListener('click', () => {
+    addFriendByCode(document.getElementById('friendCodeInput').value);
+  });
+  document.getElementById('friendCodeInput').addEventListener('keydown', e => {
+    if(e.key === 'Enter') addFriendByCode(e.target.value);
+  });
 
   // ---------- tap to earn ----------
   const bowlWrap = document.getElementById('bowlWrap');
@@ -1391,7 +1568,7 @@
     } else {
       const gain = nextTapGain();
       state.cash += gain;
-      state.totalEarned += gain;
+      addEarned(gain);
       addChallengeProgress('earn', gain);
       spawnFloatingGain(gain);
     }
@@ -1466,7 +1643,7 @@
   function collectOffline(multiplier){
     const amount = pendingOfflineGain * multiplier;
     state.cash += amount;
-    state.totalEarned += amount;
+    addEarned(amount);
     closeModal(document.getElementById('offlineModal'));
     renderStats(); checkAchievements();
     maybeShowDailyStreak();
@@ -1500,7 +1677,7 @@
     const gain = totalRatePerSec() * dt;
     if(gain > 0){
       state.cash += gain;
-      state.totalEarned += gain;
+      addEarned(gain);
       addChallengeProgress('earn', gain);
     }
     maybeTriggerEvent();
@@ -1512,7 +1689,7 @@
     requestAnimationFrame(tick);
   }
 
-  setInterval(() => { refreshBusinessAffordability(); checkAchievements(); checkMilestones(); checkCollectionNotif(); ensureChallenges(); }, CONFIG.AFFORDABILITY_REFRESH_MS);
+  setInterval(() => { refreshBusinessAffordability(); checkAchievements(); checkMilestones(); checkCollectionNotif(); ensureChallenges(); ensureWeeklyPeriod(); }, CONFIG.AFFORDABILITY_REFRESH_MS);
   setInterval(save, CONFIG.AUTOSAVE_INTERVAL_MS);
 
   // ---------- init ----------
@@ -1525,6 +1702,7 @@
     if(gameStarted) return;
     gameStarted = true;
     ensureChallenges();
+    ensureWeeklyPeriod();
     const offlineModalShown = checkOfflineEarnings();
     if(!offlineModalShown) maybeShowDailyStreak();
     renderBusinesses();
