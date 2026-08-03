@@ -16,6 +16,19 @@
   html,body{margin:0; padding:0; height:100%; overflow:hidden; background:var(--bg); font-family:'Noto Sans JP',sans-serif; color:var(--cream);}
   #app{display:flex; flex-direction:column; height:100vh; height:100dvh; max-width:520px; margin:0 auto; position:relative;}
 
+  /* ACCESSIBILITY */
+  button:focus-visible,
+  [tabindex]:focus-visible,
+  a:focus-visible{
+    outline:2px solid var(--gold);
+    outline-offset:2px;
+    border-radius:4px;
+  }
+  .sr-only{
+    position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+    overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
+  }
+
   /* HEADER */
   header{
     background:linear-gradient(180deg, var(--red-dark), var(--red));

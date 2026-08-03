@@ -248,9 +248,10 @@
           const uc = upgradeCost(def, type, lvl);
           const maxed = lvl >= t.max;
           const canBuy = state.cash >= uc && !maxed;
+          const upgLabel = `${t.label} upgrade for ${def.name}, level ${lvl}${maxed ? ', maxed out' : ', cost ' + fmt(uc)}`;
           upgradeChips += `
-            <button class="upgrade-chip" data-action="upgrade" data-id="${def.id}" data-type="${type}" ${!canBuy ? 'disabled':''}>
-              <div class="u-icon">${t.icon}</div>
+            <button class="upgrade-chip" data-action="upgrade" data-id="${def.id}" data-type="${type}" aria-label="${upgLabel}" ${!canBuy ? 'disabled':''}>
+              <div class="u-icon" aria-hidden="true">${t.icon}</div>
               <div class="u-name">${t.label}</div>
               <div class="u-lvl">Lv ${lvl}${maxed ? ' MAX':''}</div>
               <div class="u-cost">${maxed ? '—' : fmt(uc)}</div>
@@ -258,16 +259,21 @@
         });
       }
 
+      const toggleAttrs = b.level > 0
+        ? `role="button" tabindex="0" aria-expanded="${isOpen}" aria-label="${def.name}, level ${b.level}, ${isOpen ? 'collapse' : 'expand'} upgrades"`
+        : '';
+      const buyLabel = `${b.level === 0 ? 'Open' : 'Upgrade'} ${def.name} for ${fmt(cost)}`;
+
       card.innerHTML = `
-        <div class="biz-main" data-action="toggle" data-id="${def.id}">
-          <div class="biz-icon">${def.icon}</div>
+        <div class="biz-main" data-action="toggle" data-id="${def.id}" ${toggleAttrs}>
+          <div class="biz-icon" aria-hidden="true">${def.icon}</div>
           <div class="biz-info">
-            <div class="biz-name">${def.name} ${b.manager ? '<span class="manager-badge">+50%</span>' : ''}${b.level>0 ? '<span class="expand-caret'+(isOpen?' open':'')+'">▶</span>':''}</div>
+            <div class="biz-name">${def.name} ${b.manager ? '<span class="manager-badge">+50%</span>' : ''}${b.level>0 ? '<span class="expand-caret'+(isOpen?' open':'')+'" aria-hidden="true">▶</span>':''}</div>
             <div class="biz-level">Level ${b.level}</div>
             <div class="biz-income">${b.level>0 ? fmt(income)+'/s' : 'Not opened yet'}</div>
           </div>
-          ${!b.manager && b.level >= 5 ? `<button class="buy-btn manager-btn" data-action="manager" data-id="${def.id}" ${state.cash < mCost ? 'disabled' : ''}>+50%<small>${fmt(mCost)}</small></button>` : ''}
-          <button class="buy-btn" data-action="buy" data-id="${def.id}" ${!canAfford || locked ? 'disabled' : ''}>${b.level===0?'OPEN':'UPGRADE'}<small>${fmt(cost)}</small></button>
+          ${!b.manager && b.level >= 5 ? `<button class="buy-btn manager-btn" data-action="manager" data-id="${def.id}" aria-label="Hire manager for ${def.name}, cost ${fmt(mCost)}" ${state.cash < mCost ? 'disabled' : ''}>+50%<small>${fmt(mCost)}</small></button>` : ''}
+          <button class="buy-btn" data-action="buy" data-id="${def.id}" aria-label="${buyLabel}" ${!canAfford || locked ? 'disabled' : ''}>${b.level===0?'OPEN':'UPGRADE'}<small>${fmt(cost)}</small></button>
         </div>
         ${b.level > 0 ? `<div class="upgrade-panel${isOpen?' open':''}"><div class="upgrade-row">${upgradeChips}</div></div>` : ''}
       `;
@@ -286,13 +292,13 @@
       const card = document.createElement('div');
       card.className = 'ach-card' + (claimed ? ' claimed':'');
       card.innerHTML = `
-        <div class="ach-icon${unlocked?' done':''}">${ach.icon}</div>
+        <div class="ach-icon${unlocked?' done':''}" aria-hidden="true">${ach.icon}</div>
         <div class="ach-info">
           <div class="ach-name">${ach.name}</div>
           <div class="ach-desc">${ach.desc}</div>
           <div class="ach-reward">+${Math.round(ach.reward*100)}% permanent income</div>
         </div>
-        <button class="claim-btn${claimed?' done':''}" data-action="claim" data-id="${ach.id}" ${!unlocked || claimed ? 'disabled':''}>${claimed?'✓ Done':(unlocked?'Claim':'Locked')}</button>
+        <button class="claim-btn${claimed?' done':''}" data-action="claim" data-id="${ach.id}" aria-label="${ach.name}: ${claimed?'already claimed':(unlocked?'claim reward':'locked')}" ${!unlocked || claimed ? 'disabled':''}>${claimed?'✓ Done':(unlocked?'Claim':'Locked')}</button>
       `;
       panel.appendChild(card);
     });
@@ -380,6 +386,14 @@
       renderBusinesses();
     }
   });
+  bizPanel.addEventListener('keydown', e => {
+    const toggle = e.target.closest('[data-action="toggle"]');
+    if(!toggle) return;
+    if(e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar'){
+      e.preventDefault();
+      toggle.click();
+    }
+  });
 
   document.getElementById('achPanel').addEventListener('click', e => {
     const btn = e.target.closest('[data-action="claim"]');
@@ -393,7 +407,7 @@
   // ---------- tap to earn ----------
   const bowlWrap = document.getElementById('bowlWrap');
   const tapZone = document.getElementById('tapZone');
-  bowlWrap.addEventListener('click', () => {
+  function handleTap(){
     state.totalTaps++;
     if(activeEvent.type === 'inspector'){
       activeEvent.tapsDone++;
@@ -410,6 +424,13 @@
     }
     renderStats();
     checkAchievements();
+  }
+  bowlWrap.addEventListener('click', handleTap);
+  bowlWrap.addEventListener('keydown', e => {
+    if(e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar'){
+      e.preventDefault(); // stop the page from scrolling on Space
+      handleTap();
+    }
   });
   function spawnFloatingGain(gain, mode){
     const el = document.createElement('div');
@@ -428,9 +449,10 @@
   // ---------- nav ----------
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(b => { b.classList.remove('active'); b.setAttribute('aria-selected', 'false'); });
       document.querySelectorAll('.panel-view').forEach(p => p.classList.remove('active'));
       btn.classList.add('active');
+      btn.setAttribute('aria-selected', 'true');
       document.getElementById(btn.dataset.panel).classList.add('active');
       if(btn.dataset.panel === 'achPanel') renderAchievements();
     });
