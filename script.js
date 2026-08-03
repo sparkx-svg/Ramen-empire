@@ -81,6 +81,7 @@
     // Prestige
     PRESTIGE_BONUS_PER_POINT: 0.02, // each Miso Point adds 2% to the global income multiplier
     PRESTIGE_EARNINGS_DIVISOR: 1e6, // totalEarned is divided by this before sqrt to get potential prestige points
+    SHARDS_PER_PRESTIGE_POINT: 10,  // potential Miso Points are divided by this (then floored) to get Umami Shards earned on that same prestige
 
     // Tapping
     TAP_SCALING_FACTOR: 0.00001,    // how much lifetime earnings boost each tap's base cash gain
@@ -88,12 +89,18 @@
     // Random events
     EVENT_CHECK_INTERVAL_MS: 15000, // how often we roll for a new event
     EVENT_TRIGGER_CHANCE: 0.12,     // chance a check actually starts an event
-    CRITIC_EVENT_SHARE: 0.7,        // of triggered events, this fraction are Food Critic (rest are Health Inspector)
+    LUCKY_EVENT_SHARE: 0.15,        // of triggered events, this fraction are Lucky Customer (rest split between Critic/Inspector below)
+    LUCKY_DURATION_MS: 8000,
+    LUCKY_TAP_MULT: 8,              // taps pay this many times their normal cash gain during the event
+    CRITIC_EVENT_SHARE: 0.7,        // of the NON-lucky remainder, this fraction are Food Critic (rest are Health Inspector)
     CRITIC_DURATION_MS: 60000,
     CRITIC_INCOME_MULT: 2.5,
     INSPECTOR_DURATION_MS: 20000,
     INSPECTOR_TAPS_NEEDED: 15,
     INSPECTOR_INCOME_MULT: 0.4,
+
+    // Cash milestones (short celebratory popups, separate from Achievements)
+    MILESTONE_BONUS_SECONDS: 15,    // milestone bonus = this many seconds of current income/sec
 
     // Offline earnings
     OFFLINE_MIN_SEC: 30,            // don't show the modal for very short absences
@@ -125,6 +132,20 @@
     quality:  {icon:'✨', label:'Quality',  boost:0.25, costMult:6,   costGrowth:1.22, max:20},
   };
 
+  // Second prestige layer. Umami Shards are earned alongside Miso Points on
+  // every Prestige, but trickle in far more slowly (see SHARDS_PER_PRESTIGE_POINT),
+  // and are NEVER reset by anything — not even Prestige itself. Unlike Miso
+  // Points (a flat +2%/point multiplier), each Shard upgrade does something
+  // qualitatively different, so late-game players who've prestiged dozens of
+  // times still have fresh things to choose between instead of just "more %".
+  const META_UPGRADES = [
+    {id:'umami',   icon:'🍥', name:'Umami Mastery',    desc:'+3% global income per level',        boost:0.03, baseCost:1, costGrowth:1.35, max:30},
+    {id:'tap',     icon:'👆', name:'Tap Mastery',      desc:'+10% tap gain per level',             boost:0.10, baseCost:1, costGrowth:1.30, max:20},
+    {id:'manager', icon:'🧑‍🍳', name:'Manager Training', desc:'-3% manager hiring cost per level',   boost:0.03, baseCost:2, costGrowth:1.40, max:10},
+    {id:'offline', icon:'🌙', name:'Night Shift',      desc:'+8% offline earning rate per level',  boost:0.08, baseCost:2, costGrowth:1.35, max:10},
+    {id:'luck',    icon:'🍀', name:"Fortune's Favor",  desc:'+1% random event chance per level',   boost:0.01, baseCost:3, costGrowth:1.50, max:8},
+  ];
+
   const ACHIEVEMENTS = [
     {id:'first_bowl',  icon:'🥢', name:'First Bowl',       desc:'Tap the bowl once',              reward:0.01, cond: s => s.totalTaps >= 1},
     {id:'open_shop',   icon:'🏮', name:'Open For Business', desc:'Open your first business',       reward:0.01, cond: s => allBusinessStates(s).some(b=>b.level>0)},
@@ -138,7 +159,26 @@
     {id:'ten_prestige', icon:'🌟', name:'Serial Retiree',   desc:'Prestige 10 times',               reward:0.05, cond: s => s.prestigeCount >= 10},
     {id:'critic_5',     icon:'📰', name:"Critic's Choice",  desc:'Experience 5 Food Critic events',  reward:0.02, cond: s => s.criticEventsSeen >= 5},
     {id:'inspector_pass',icon:'🕵️', name:'Inspection Passed', desc:'Clear a Health Inspector event by tapping', reward:0.02, cond: s => s.inspectorsPassed >= 1},
+    {id:'lucky_break', icon:'🍀', name:'Lucky Break',       desc:'Catch a Lucky Customer event',    reward:0.02, cond: s => (s.luckyEventsSeen||0) >= 1},
     {id:'world_tour',  icon:'🌍', name:'World Tour',        desc:'Expand your empire to every country', reward:0.05, cond: s => s.unlockedCountries.length >= COUNTRIES.length},
+  ];
+  // Cash-earned thresholds that trigger a celebratory milestone popup (confetti
+  // + chime + a small bonus). Independent of ACHIEVEMENTS above: these are
+  // meant to fire often and just be a quick dopamine hit, not a strategic goal.
+  const MILESTONES = [1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15];
+
+  // Pure-cosmetic bowl skins, unlocked as milestoneIdx (see MILESTONES above)
+  // climbs. No stat effect whatsoever — just something to collect and show
+  // off, which is why milestoneReq points at specific MILESTONES indices
+  // rather than needing its own separate threshold system.
+  const COSMETICS = [
+    {id:'classic',   name:'Classic Bowl',   icon:'🍜', theme:'classic',   milestoneReq:-1, desc:'Where it all began.'},
+    {id:'golden',    name:'Golden Bowl',    icon:'🥣', theme:'golden',    milestoneReq:1,  desc:'A gilded bowl for a rising empire.'},
+    {id:'jade',      name:'Jade Bowl',      icon:'🍵', theme:'jade',      milestoneReq:3,  desc:'Cool jade glaze, calm and steady.'},
+    {id:'sakura',    name:'Sakura Bowl',    icon:'🌸', theme:'sakura',    milestoneReq:5,  desc:'Petals swirl in the broth.'},
+    {id:'fire',      name:'Fire Wok',       icon:'🔥', theme:'fire',      milestoneReq:7,  desc:'Serving up pure heat.'},
+    {id:'cosmic',    name:'Cosmic Bowl',    icon:'🌌', theme:'cosmic',    milestoneReq:9,  desc:'Noodles from beyond the stars.'},
+    {id:'legendary', name:'Legendary Bowl', icon:'👑', theme:'legendary', milestoneReq:11, desc:'The stuff of ramen legend.'},
   ];
   // Flattens every business-state object across all UNLOCKED countries, so
   // achievement conditions (and anything else that wants "any shop anywhere")
@@ -154,6 +194,9 @@
     totalEarned: 0,
     prestigePoints: 0,
     prestigeCount: 0,
+    shards: 0,           // Umami Shards — second prestige currency, never reset
+    metaUpgrades: {},    // meta-upgrade id -> level, never reset by Prestige
+    equippedSkin: 'classic',
     countries: {}, // countryId -> { businessId -> {level, manager, speed, capacity, quality} }
     unlockedCountries: ['japan'],
     activeCountry: 'japan',
@@ -161,6 +204,8 @@
     totalTaps: 0,
     criticEventsSeen: 0,
     inspectorsPassed: 0,
+    luckyEventsSeen: 0,
+    milestoneIdx: -1, // index into MILESTONES of the highest one already shown
     achievementsClaimed: {},
     achievementBonus: 0,
     integrityFlag: false,
@@ -249,13 +294,28 @@
       if(state.totalTaps === undefined) state.totalTaps = 0;
       if(state.criticEventsSeen === undefined) state.criticEventsSeen = 0;
       if(state.inspectorsPassed === undefined) state.inspectorsPassed = 0;
+      if(state.luckyEventsSeen === undefined) state.luckyEventsSeen = 0;
+      if(state.milestoneIdx === undefined) state.milestoneIdx = -1;
+      if(state.shards === undefined) state.shards = 0;
+      if(!state.metaUpgrades) state.metaUpgrades = {};
+      META_UPGRADES.forEach(m => { if(state.metaUpgrades[m.id] === undefined) state.metaUpgrades[m.id] = 0; });
+      if(!state.equippedSkin || !COSMETICS.some(c => c.id === state.equippedSkin)) state.equippedSkin = 'classic';
       if(state.prestigeCount === undefined) state.prestigeCount = 0;
     }catch(e){ console.warn('save corrupt, starting fresh'); }
   }
 
   // ---------- math ----------
+  // ---------- meta upgrades (Umami Shards — never reset, see META_UPGRADES) ----------
+  function metaLevel(id){ return (state.metaUpgrades && state.metaUpgrades[id]) || 0; }
+  function metaUpgradeCost(def){ return def.baseCost * Math.pow(def.costGrowth, metaLevel(def.id)); }
+  function metaBonus(id){
+    const def = META_UPGRADES.find(m => m.id === id);
+    return def ? metaLevel(id) * def.boost : 0;
+  }
+  function potentialShards(){ return Math.floor(potentialPrestigePoints() / CONFIG.SHARDS_PER_PRESTIGE_POINT); }
+
   function prestigeMultiplier(){ return 1 + state.prestigePoints * CONFIG.PRESTIGE_BONUS_PER_POINT; }
-  function globalMultiplier(){ return prestigeMultiplier() * (1 + state.achievementBonus); }
+  function globalMultiplier(){ return prestigeMultiplier() * (1 + state.achievementBonus) * (1 + metaBonus('umami')); }
   function businessCost(def, level){ return def.baseCost * Math.pow(CONFIG.COST_GROWTH, level); }
   function upgradeCost(def, type, level){
     const t = UPGRADE_TYPES[type];
@@ -270,7 +330,9 @@
   function businessIncomeWithManager(def, b){
     return businessIncome(def, b) * (b.manager ? CONFIG.MANAGER_INCOME_MULT : 1);
   }
-  function managerCost(def){ return def.baseCost * CONFIG.MANAGER_COST_MULT; }
+  // Manager Training (Shards) discounts hiring cost, capped so a maxed line
+  // can never make managers free.
+  function managerCost(def){ return def.baseCost * CONFIG.MANAGER_COST_MULT * (1 - Math.min(0.8, metaBonus('manager'))); }
 
   function eventMultiplier(){
     if(activeEvent.type === 'critic') return CONFIG.CRITIC_INCOME_MULT;
@@ -296,7 +358,8 @@
     return total * globalMultiplier() * eventMultiplier();
   }
   function nextTapGain(){
-    return (1 + state.totalEarned * CONFIG.TAP_SCALING_FACTOR) * globalMultiplier();
+    const luckyMult = activeEvent.type === 'lucky' ? CONFIG.LUCKY_TAP_MULT : 1;
+    return (1 + state.totalEarned * CONFIG.TAP_SCALING_FACTOR) * globalMultiplier() * luckyMult * (1 + metaBonus('tap'));
   }
   function potentialPrestigePoints(){
     return Math.floor(Math.sqrt(state.totalEarned / CONFIG.PRESTIGE_EARNINGS_DIVISOR));
@@ -375,7 +438,7 @@
     state.prestigePoints += pendingDailyReward.miso;
     pendingDailyReward = null;
     closeModal(document.getElementById('dailyStreakModal'));
-    save(); renderStats();
+    save(); renderStats(); checkMilestones();
     maybeShowChallengesReadyNotification();
   }
   document.getElementById('dailyStreakCollectBtn').addEventListener('click', collectDailyStreak);
@@ -504,8 +567,10 @@
     if(activeEvent.type) return;
     if(Date.now() < nextEventCheck) return;
     nextEventCheck = Date.now() + CONFIG.EVENT_CHECK_INTERVAL_MS;
-    if(Math.random() < CONFIG.EVENT_TRIGGER_CHANCE){
-      if(Math.random() < CONFIG.CRITIC_EVENT_SHARE) startCriticEvent();
+    if(Math.random() < CONFIG.EVENT_TRIGGER_CHANCE + metaBonus('luck')){
+      const roll = Math.random();
+      if(roll < CONFIG.LUCKY_EVENT_SHARE) startLuckyEvent();
+      else if(roll < CONFIG.LUCKY_EVENT_SHARE + (1 - CONFIG.LUCKY_EVENT_SHARE) * CONFIG.CRITIC_EVENT_SHARE) startCriticEvent();
       else startInspectorEvent();
     }
   }
@@ -517,6 +582,15 @@
   function startInspectorEvent(){
     activeEvent = {type:'inspector', endsAt: Date.now() + CONFIG.INSPECTOR_DURATION_MS, tapsNeeded:CONFIG.INSPECTOR_TAPS_NEEDED, tapsDone:0};
     renderEventBanner();
+  }
+  // Rare, short-lived tap bonus — reuses the same activeEvent/banner plumbing
+  // as Critic/Inspector above. Doesn't touch passive income (eventMultiplier())
+  // since it's meant to reward active tapping specifically; see nextTapGain().
+  function startLuckyEvent(){
+    activeEvent = {type:'lucky', endsAt: Date.now() + CONFIG.LUCKY_DURATION_MS, tapsNeeded:0, tapsDone:0};
+    state.luckyEventsSeen = (state.luckyEventsSeen||0) + 1;
+    renderEventBanner();
+    checkAchievements();
   }
   function clearEvent(passed){
     if(activeEvent.type === 'inspector' && passed) state.inspectorsPassed++;
@@ -539,6 +613,12 @@
       document.getElementById('eventText').textContent = 'Health Inspector! Tap fast to pass';
       bowl.classList.add('inspector-mode');
       inspProg.classList.add('show');
+    } else if(activeEvent.type === 'lucky'){
+      banner.className = 'event-banner show lucky';
+      document.getElementById('eventIcon').textContent = '🍀';
+      document.getElementById('eventText').textContent = `Lucky Customer! Taps pay x${CONFIG.LUCKY_TAP_MULT}`;
+      bowl.classList.remove('inspector-mode');
+      inspProg.classList.remove('show');
     } else {
       banner.className = 'event-banner';
       bowl.classList.remove('inspector-mode');
@@ -745,6 +825,104 @@
     else if(btn.dataset.action === 'select') selectCountry(btn.dataset.id);
   });
 
+  // ---------- meta upgrades (Umami Shards shop, in the Prestige panel) ----------
+  function renderPrestige(){
+    document.getElementById('shardBalance').textContent = Math.floor(state.shards);
+    const shardsNext = potentialShards();
+    const line = document.getElementById('shardPreviewLine');
+    line.textContent = shardsNext > 0
+      ? `Next Prestige also earns +${shardsNext} 🍥 Umami Shard${shardsNext === 1 ? '' : 's'}`
+      : `Earn more before Prestiging to also gain Umami Shards`;
+    const list = document.getElementById('metaUpgradesList');
+    list.innerHTML = '';
+    META_UPGRADES.forEach(def => {
+      const lvl = metaLevel(def.id);
+      const maxed = lvl >= def.max;
+      const cost = metaUpgradeCost(def);
+      const canBuy = !maxed && state.shards >= cost;
+      const card = document.createElement('div');
+      card.className = 'ach-card' + (maxed ? ' claimed' : '');
+      card.innerHTML = `
+        <div class="ach-icon${lvl > 0 ? ' done' : ''}" aria-hidden="true">${def.icon}</div>
+        <div class="ach-info">
+          <div class="ach-name">${def.name}</div>
+          <div class="ach-desc">${def.desc}</div>
+          <div class="ach-reward">Lv ${lvl}${maxed ? ' (MAX)' : ' / ' + def.max}</div>
+        </div>
+        <button class="claim-btn" data-action="buy-meta" data-id="${def.id}" aria-label="${def.name}: ${maxed ? 'maxed out' : 'costs ' + fmt(cost) + ' Umami Shards'}" ${maxed || !canBuy ? 'disabled' : ''}>${maxed ? '✓ Max' : fmt(cost) + ' 🍥'}</button>
+      `;
+      list.appendChild(card);
+    });
+  }
+  function buyMetaUpgrade(id){
+    const def = META_UPGRADES.find(m => m.id === id);
+    if(!def) return;
+    const lvl = metaLevel(id);
+    if(lvl >= def.max) return;
+    const cost = metaUpgradeCost(def);
+    if(state.shards < cost) return;
+    state.shards -= cost;
+    state.metaUpgrades[id] = lvl + 1;
+    renderPrestige(); renderStats(); refreshBusinessAffordability();
+  }
+  document.getElementById('prestigePanel').addEventListener('click', e => {
+    const btn = e.target.closest('[data-action="buy-meta"]');
+    if(btn) buyMetaUpgrade(btn.dataset.id);
+  });
+
+  // ---------- collection (cosmetic bowl skins) ----------
+  // Purely visual — see COSMETICS above. Unlock state is derived entirely
+  // from state.milestoneIdx (never stored separately), so it can't drift out
+  // of sync with the milestone popups that grant it.
+  function activeCosmetic(){ return COSMETICS.find(c => c.id === state.equippedSkin) || COSMETICS[0]; }
+  function isCosmeticUnlocked(c){ return c.milestoneReq < 0 || state.milestoneIdx >= c.milestoneReq; }
+  function applyCosmeticTheme(){
+    const bowl = document.getElementById('bowlEl');
+    if(!bowl) return;
+    const c = activeCosmetic();
+    bowl.className = bowl.className.split(' ').filter(cls => !cls.startsWith('theme-')).join(' ').trim();
+    if(c.theme !== 'classic') bowl.classList.add('theme-' + c.theme);
+    bowl.textContent = c.icon;
+  }
+  function equipSkin(id){
+    const c = COSMETICS.find(c => c.id === id);
+    if(!c || !isCosmeticUnlocked(c)) return;
+    state.equippedSkin = id;
+    applyCosmeticTheme();
+    renderCollection();
+  }
+  function renderCollection(){
+    const panel = document.getElementById('collectionPanel');
+    const unlockedCount = COSMETICS.filter(isCosmeticUnlocked).length;
+    panel.innerHTML = `<div class="chal-section-label">Bowl Skins — ${unlockedCount}/${COSMETICS.length} collected</div>`;
+    COSMETICS.forEach(c => {
+      const unlocked = isCosmeticUnlocked(c);
+      const equipped = state.equippedSkin === c.id;
+      const card = document.createElement('div');
+      card.className = 'ach-card' + (!unlocked ? ' claimed' : '');
+      const desc = unlocked ? c.desc : `Unlocks at ${fmt(MILESTONES[c.milestoneReq])} total earned`;
+      card.innerHTML = `
+        <div class="ach-icon${unlocked ? ' done' : ''}" aria-hidden="true">${unlocked ? c.icon : '🔒'}</div>
+        <div class="ach-info">
+          <div class="ach-name">${c.name}</div>
+          <div class="ach-desc">${desc}</div>
+        </div>
+        <button class="claim-btn${equipped ? ' done' : ''}" data-action="equip" data-id="${c.id}" aria-label="${c.name}: ${equipped ? 'currently equipped' : (unlocked ? 'equip' : 'locked')}" ${!unlocked || equipped ? 'disabled' : ''}>${equipped ? '✓ Equipped' : (unlocked ? 'Equip' : 'Locked')}</button>
+      `;
+      panel.appendChild(card);
+    });
+  }
+  document.getElementById('collectionPanel').addEventListener('click', e => {
+    const btn = e.target.closest('[data-action="equip"]');
+    if(btn) equipSkin(btn.dataset.id);
+  });
+  // Small nav-dot nudge when a skin has newly unlocked but isn't equipped yet
+  // — checked on the same cadence as achievements/milestones.
+  function checkCollectionNotif(){
+    const anyNew = COSMETICS.some(c => c.id !== 'classic' && isCosmeticUnlocked(c) && state.equippedSkin !== c.id);
+    document.getElementById('collectionDot').classList.toggle('show', anyNew);
+  }
+
   function renderStats(){
     document.getElementById('cashDisplay').textContent = fmt(state.cash);
     document.getElementById('rateDisplay').textContent = fmt(totalRatePerSec()) + '/s';
@@ -753,6 +931,56 @@
     const potential = potentialPrestigePoints();
     document.getElementById('prestigePreview').textContent = '+' + potential;
     document.getElementById('prestigeBtn').disabled = potential <= 0;
+    renderNextUnlock();
+  }
+
+  // ---------- "next unlock" progress bar ----------
+  // Always points at whatever's closest, in priority order: a business in the
+  // active country that's gated behind leveling up an earlier one, then a
+  // business that's unlocked but not yet bought, then the next country. Keeps
+  // there being "always something close" regardless of where the player is.
+  function nextUnlockTarget(){
+    const country = activeCountryDef();
+    const bizState = state.countries[country.id];
+    for(let i = 1; i < country.businesses.length; i++){
+      const def = country.businesses[i];
+      const prevDef = country.businesses[i-1];
+      const b = bizState[def.id];
+      if(def.unlockAt > 0 && b.level === 0 && bizState[prevDef.id].level < def.unlockAt){
+        return {
+          icon: def.icon, name: def.name,
+          detail: `Level up ${prevDef.name} to Lv ${def.unlockAt}`,
+          progress: bizState[prevDef.id].level / def.unlockAt
+        };
+      }
+    }
+    for(const def of country.businesses){
+      const b = bizState[def.id];
+      if(b.level === 0){
+        const cost = businessCost(def, 0);
+        return { icon: def.icon, name: def.name, detail: `Save up ${fmt(cost)}`, progress: state.cash / cost };
+      }
+    }
+    const nextCountry = COUNTRIES.find(c => !isUnlocked(c.id));
+    if(nextCountry){
+      return {
+        icon: nextCountry.icon, name: nextCountry.name,
+        detail: `Unlock for ${fmt(nextCountry.unlockCost)}`, progress: state.cash / nextCountry.unlockCost
+      };
+    }
+    return null;
+  }
+  function renderNextUnlock(){
+    const bar = document.getElementById('nextUnlockBar');
+    const target = nextUnlockTarget();
+    if(!target){ bar.style.display = 'none'; return; }
+    bar.style.display = 'flex';
+    const pct = Math.max(0, Math.min(100, target.progress * 100));
+    document.getElementById('nuIcon').textContent = target.icon;
+    document.getElementById('nuLabel').textContent = `Next: ${target.name}`;
+    document.getElementById('nuDetail').textContent = target.detail;
+    document.getElementById('nuFill').style.width = pct + '%';
+    document.getElementById('nuPct').textContent = Math.floor(pct) + '%';
   }
 
   // ---------- actions ----------
@@ -796,15 +1024,20 @@
   function doPrestige(){
     const potential = potentialPrestigePoints();
     if(potential <= 0) return;
+    const shardsGained = potentialShards();
     state.prestigePoints += potential;
+    state.shards += shardsGained;
     state.prestigeCount++;
     state.cash = 0;
     state.totalEarned = 0;
     // Retiring resets every country's shops — unlocked countries stay
     // unlocked, only their business levels/upgrades/managers reset.
+    // Umami Shards and metaUpgrades are untouched: that's the whole point of
+    // the second currency, a grind that survives every retirement.
     COUNTRIES.forEach(c => state.countries[c.id] = initCountryState(c));
     save();
     renderBusinesses(); renderWorld(); renderStats(); checkAchievements();
+    if(document.getElementById('prestigePanel').classList.contains('active')) renderPrestige();
   }
 
   // Called on every tap/purchase plus once a second — cheap by default
@@ -821,6 +1054,86 @@
     });
     document.getElementById('achDot').classList.toggle('show', anyUnclaimed || challengeReady);
     if(document.getElementById('achPanel').classList.contains('active')) renderAchievements();
+  }
+
+  // ---------- cash milestones (confetti + chime popup) ----------
+  // Separate from ACHIEVEMENTS: fires automatically the moment a threshold is
+  // crossed, no claim button, just a quick celebratory hit plus a small cash
+  // bonus. Queued so a big offline/challenge payout that jumps several
+  // thresholds at once still shows them one at a time instead of stacking.
+  let milestoneQueue = [];
+  let milestoneModalOpen = false;
+  function checkMilestones(){
+    while(state.milestoneIdx + 1 < MILESTONES.length && state.totalEarned >= MILESTONES[state.milestoneIdx + 1]){
+      state.milestoneIdx++;
+      const bonus = totalRatePerSec() * CONFIG.MILESTONE_BONUS_SECONDS;
+      state.cash += bonus;
+      state.totalEarned += bonus;
+      milestoneQueue.push({ threshold: MILESTONES[state.milestoneIdx], bonus });
+    }
+    maybeShowNextMilestone();
+  }
+  function maybeShowNextMilestone(){
+    if(milestoneModalOpen || milestoneQueue.length === 0) return;
+    const m = milestoneQueue.shift();
+    milestoneModalOpen = true;
+    document.getElementById('milestoneModalText').textContent = `Total earnings passed ${fmt(m.threshold)}!`;
+    document.getElementById('milestoneBonus').textContent = m.bonus > 0 ? '+' + fmt(m.bonus) + ' bonus' : '';
+    openModal(document.getElementById('milestoneModal'));
+    fireConfetti();
+    playMilestoneChime();
+    renderStats();
+  }
+  function closeMilestoneModal(){
+    closeModal(document.getElementById('milestoneModal'));
+    milestoneModalOpen = false;
+    checkCollectionNotif();
+    setTimeout(maybeShowNextMilestone, 250); // let the close animation settle before stacking the next one
+  }
+  document.getElementById('milestoneModalClose').addEventListener('click', closeMilestoneModal);
+  document.getElementById('milestoneModal').addEventListener('modal-dismiss', closeMilestoneModal);
+  document.getElementById('milestoneModal').addEventListener('click', e => {
+    if(e.target === e.currentTarget) e.currentTarget.dispatchEvent(new CustomEvent('modal-dismiss'));
+  });
+
+  function fireConfetti(){
+    const layer = document.getElementById('confettiLayer');
+    const colors = ['#d4a017', '#c1272d', '#4a7856', '#6a9e77', '#f5ede0', '#7a4fb0'];
+    for(let i = 0; i < 36; i++){
+      const piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+      piece.style.left = Math.random() * 100 + '%';
+      piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+      piece.style.animationDelay = (Math.random() * 0.3) + 's';
+      piece.style.animationDuration = (1.6 + Math.random() * 0.9) + 's';
+      piece.style.setProperty('--drift', (Math.random() * 80 - 40) + 'px');
+      layer.appendChild(piece);
+      setTimeout(() => piece.remove(), 3000);
+    }
+  }
+  // Synthesizes a quick ascending chime with the Web Audio API rather than
+  // shipping an audio asset — keeps the milestone reward feeling instant
+  // without adding anything for the service worker to cache/fetch.
+  let milestoneAudioCtx = null;
+  function playMilestoneChime(){
+    try{
+      milestoneAudioCtx = milestoneAudioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const ctx = milestoneAudioCtx;
+      const now = ctx.currentTime;
+      [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+        const t0 = now + i * 0.09;
+        gain.gain.setValueAtTime(0, t0);
+        gain.gain.linearRampToValueAtTime(0.18, t0 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.35);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(t0);
+        osc.stop(t0 + 0.4);
+      });
+    }catch(e){ /* Web Audio unavailable/blocked — milestone popup still shows visually */ }
   }
 
   // ---------- modal focus management ----------
@@ -1084,6 +1397,7 @@
     }
     renderStats();
     checkAchievements();
+    checkMilestones();
   }
   bowlWrap.addEventListener('click', handleTap);
   bowlWrap.addEventListener('keydown', e => {
@@ -1117,6 +1431,8 @@
     if(panelId === 'achPanel') renderAchievements();
     if(panelId === 'worldPanel') renderWorld();
     if(panelId === 'leaderboardPanel') renderLeaderboard();
+    if(panelId === 'prestigePanel') renderPrestige();
+    if(panelId === 'collectionPanel') renderCollection();
   }
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => activatePanel(btn.dataset.panel));
@@ -1140,7 +1456,7 @@
     if(elapsedSec < CONFIG.OFFLINE_MIN_SEC) return false;
     const rate = totalRatePerSec();
     if(rate <= 0) return false;
-    pendingOfflineGain = rate * elapsedSec * CONFIG.OFFLINE_EARN_MULT;
+    pendingOfflineGain = rate * elapsedSec * CONFIG.OFFLINE_EARN_MULT * (1 + metaBonus('offline'));
     if(pendingOfflineGain < CONFIG.OFFLINE_MIN_GAIN) return false;
     document.getElementById('offlineText').textContent =
       `While you were away for ${Math.round(elapsedSec/60)} min, your shops earned ${fmt(pendingOfflineGain)}.`;
@@ -1196,7 +1512,7 @@
     requestAnimationFrame(tick);
   }
 
-  setInterval(() => { refreshBusinessAffordability(); checkAchievements(); ensureChallenges(); }, CONFIG.AFFORDABILITY_REFRESH_MS);
+  setInterval(() => { refreshBusinessAffordability(); checkAchievements(); checkMilestones(); checkCollectionNotif(); ensureChallenges(); }, CONFIG.AFFORDABILITY_REFRESH_MS);
   setInterval(save, CONFIG.AUTOSAVE_INTERVAL_MS);
 
   // ---------- init ----------
@@ -1215,6 +1531,8 @@
     renderAchievements();
     renderWorld();
     renderStats();
+    applyCosmeticTheme();
+    checkCollectionNotif();
     requestAnimationFrame(tick);
   }
 

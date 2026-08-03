@@ -49,6 +49,17 @@
   .stat-value{font-family:'JetBrains Mono',monospace; font-weight:600; font-size:16px; color:var(--gold);}
   .stat-value.jade{color:var(--jade-light);}
 
+  /* NEXT UNLOCK BAR */
+  .next-unlock-bar{display:flex; align-items:center; gap:10px; background:rgba(0,0,0,0.22); border-radius:10px; padding:7px 10px; margin-top:8px;}
+  .next-unlock-bar .nu-icon{font-size:18px; flex-shrink:0;}
+  .next-unlock-bar .nu-info{flex:1; min-width:0;}
+  .nu-top{display:flex; justify-content:space-between; align-items:baseline; gap:6px;}
+  .nu-label{font-size:11px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .nu-pct{font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--gold); font-weight:700; flex-shrink:0;}
+  .nu-track{background:rgba(255,255,255,0.15); border-radius:4px; height:5px; margin-top:4px; overflow:hidden;}
+  .nu-fill{background:linear-gradient(90deg, var(--gold), var(--jade-light)); height:100%; border-radius:4px; transition:width 0.3s ease;}
+  .nu-detail{font-size:9.5px; opacity:0.65; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+
   /* EVENT BANNER */
   .event-banner{
     display:none; align-items:center; gap:10px; padding:10px 14px; margin:0 12px; margin-top:-4px;
@@ -58,6 +69,8 @@
   .event-banner.show{display:flex;}
   .event-banner.critic{background:linear-gradient(90deg, var(--crit), #b8391c); color:var(--cream);}
   .event-banner.inspector{background:linear-gradient(90deg, var(--insp), #4f2f78); color:var(--cream);}
+  .event-banner.lucky{background:linear-gradient(90deg, var(--gold), var(--jade)); color:#241a04; animation:pulseIn 0.3s ease, sparkle 1.1s ease-in-out infinite;}
+  @keyframes sparkle{0%,100%{filter:brightness(1);} 50%{filter:brightness(1.18);}}
   .event-banner .ev-icon{font-size:20px;}
   .event-banner .ev-text{flex:1; line-height:1.3;}
   .event-banner .ev-time{font-family:'JetBrains Mono',monospace; font-size:11px; opacity:0.9;}
@@ -79,6 +92,14 @@
   .bowl-wrap:active .bowl{transform:scale(0.92);}
   .bowl.inspector-mode{box-shadow:0 8px 24px rgba(122,79,176,0.6), inset 0 -6px 12px rgba(0,0,0,0.3); animation:shake 0.4s infinite;}
   @keyframes shake{0%,100%{transform:translateX(0);} 25%{transform:translateX(-2px);} 75%{transform:translateX(2px);}}
+
+  /* COLLECTION: cosmetic bowl skins — purely visual, no gameplay effect */
+  .bowl.theme-golden{background:radial-gradient(circle at 35% 30%, #fff6d8, #d4a017 55%, #8f6a0c 100%); box-shadow:0 8px 24px rgba(212,160,23,0.55), inset 0 -6px 12px rgba(0,0,0,0.3);}
+  .bowl.theme-jade{background:radial-gradient(circle at 35% 30%, #dff2e4, #4a7856 55%, #24402c 100%); box-shadow:0 8px 24px rgba(74,120,86,0.55), inset 0 -6px 12px rgba(0,0,0,0.3);}
+  .bowl.theme-sakura{background:radial-gradient(circle at 35% 30%, #ffe9f2, #f2a6c6 55%, #b5537d 100%); box-shadow:0 8px 24px rgba(242,166,198,0.5), inset 0 -6px 12px rgba(0,0,0,0.3);}
+  .bowl.theme-fire{background:radial-gradient(circle at 35% 30%, #ffe2b8, #e2542f 55%, #8f2410 100%); box-shadow:0 8px 24px rgba(226,84,47,0.55), inset 0 -6px 12px rgba(0,0,0,0.3);}
+  .bowl.theme-cosmic{background:radial-gradient(circle at 35% 30%, #cfd8ff, #4b3f8f 55%, #1c1440 100%); box-shadow:0 8px 24px rgba(75,63,143,0.55), inset 0 -6px 12px rgba(0,0,0,0.3);}
+  .bowl.theme-legendary{background:radial-gradient(circle at 35% 30%, #fffbe8, #d4a017 45%, #7a4fb0 100%); box-shadow:0 8px 24px rgba(212,160,23,0.6), inset 0 -6px 12px rgba(0,0,0,0.3);}
   .steam{position:absolute; top:-10px; left:50%; width:6px; height:30px; background:var(--steam); border-radius:50%; filter:blur(4px); animation:rise 2.5s ease-in infinite; pointer-events:none;}
   .steam:nth-child(2){left:40%; animation-delay:0.6s;}
   .steam:nth-child(3){left:60%; animation-delay:1.2s;}
@@ -174,16 +195,16 @@
   /* BOTTOM NAV */
   .bottom-bar{
     position:absolute; bottom:0; left:0; right:0; background:var(--panel);
-    border-top:1px solid rgba(255,255,255,0.08); display:flex; padding:8px 6px calc(8px + env(safe-area-inset-bottom));
-    gap:4px; z-index:3;
+    border-top:1px solid rgba(255,255,255,0.08); display:flex; padding:8px 4px calc(8px + env(safe-area-inset-bottom));
+    gap:2px; z-index:3;
   }
   .nav-btn{
     flex:1; background:transparent; border:none; color:var(--cream); opacity:0.6;
-    display:flex; flex-direction:column; align-items:center; gap:2px; padding:6px 0; font-size:9.5px; font-weight:600; border-radius:10px;
+    display:flex; flex-direction:column; align-items:center; gap:2px; padding:6px 0; font-size:8.8px; font-weight:600; border-radius:10px;
     position:relative;
   }
   .nav-btn.active{opacity:1; background:rgba(212,160,23,0.12); color:var(--gold);}
-  .nav-icon{font-size:19px;}
+  .nav-icon{font-size:17px;}
   .nav-dot{position:absolute; top:2px; right:22%; width:8px; height:8px; border-radius:50%; background:var(--gold); display:none;}
   .nav-dot.show{display:block;}
 
@@ -214,6 +235,19 @@
   .modal-btn{background:var(--gold); color:#2a1c04; border:none; border-radius:12px; padding:13px; font-weight:700; font-size:14px; width:100%; margin-bottom:8px;}
   .modal-btn.secondary{background:transparent; color:var(--cream); opacity:0.7; box-shadow:none;}
   .modal-btn.ad{background:var(--jade); color:#0e1a12;}
+  .modal .big{font-family:'Bebas Neue',sans-serif; font-size:32px; color:var(--gold); letter-spacing:1px; margin:0 0 16px;}
+
+  /* MILESTONE POPUP */
+  .milestone-icon{font-size:48px; margin-bottom:4px; animation:milestoneBounce 0.6s ease;}
+  @keyframes milestoneBounce{0%{transform:scale(0.4) rotate(-8deg); opacity:0;} 60%{transform:scale(1.15) rotate(5deg); opacity:1;} 100%{transform:scale(1) rotate(0deg); opacity:1;}}
+
+  /* CONFETTI */
+  .confetti-layer{position:fixed; inset:0; pointer-events:none; z-index:20; overflow:hidden;}
+  .confetti-piece{position:absolute; top:-12px; width:8px; height:14px; opacity:0.95; animation-name:confettiFall; animation-timing-function:ease-in; animation-fill-mode:forwards;}
+  @keyframes confettiFall{
+    0%{transform:translate(0,0) rotate(0deg); opacity:1;}
+    100%{transform:translate(var(--drift), 110vh) rotate(540deg); opacity:0.25;}
+  }
 
   /* PRESTIGE PANEL */
   .panel-view{display:none; flex:1; overflow-y:auto; padding:16px 12px 90px;}

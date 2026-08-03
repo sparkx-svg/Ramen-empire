@@ -18,6 +18,8 @@
 <body>
 <div id="app">
 
+  <div class="confetti-layer" id="confettiLayer" aria-hidden="true"></div>
+
   <header>
     <div class="noren">
       <div class="brand">らーめん <span>RAMEN EMPIRE</span></div>
@@ -26,6 +28,14 @@
       <div class="stat-pill"><div class="stat-label">Cash</div><div class="stat-value" id="cashDisplay">¥0</div></div>
       <div class="stat-pill"><div class="stat-label">Per Second</div><div class="stat-value jade" id="rateDisplay">¥0/s</div></div>
       <div class="stat-pill"><div class="stat-label">Miso Points</div><div class="stat-value" id="prestigeDisplay">0</div></div>
+    </div>
+    <div class="next-unlock-bar" id="nextUnlockBar" style="display:none;">
+      <span class="nu-icon" id="nuIcon" aria-hidden="true">🏮</span>
+      <div class="nu-info">
+        <div class="nu-top"><span class="nu-label" id="nuLabel">Next: —</span><span class="nu-pct" id="nuPct">0%</span></div>
+        <div class="nu-track"><div class="nu-fill" id="nuFill"></div></div>
+        <div class="nu-detail" id="nuDetail"></div>
+      </div>
     </div>
   </header>
 
@@ -66,7 +76,14 @@
     </div>
     <button class="prestige-btn" id="prestigeBtn">Retire & Reopen (Prestige)</button>
     <div class="settings-item" style="margin-top:16px;"><span>Current multiplier</span><strong id="multiplierDisplay">x1.00</strong></div>
+
+    <div class="chal-section-label" style="margin-top:18px;">Umami Shards</div>
+    <div class="settings-item"><span>🍥 Umami Shards</span><strong id="shardBalance">0</strong></div>
+    <p style="font-size:11px; opacity:0.7; margin:6px 2px 12px; line-height:1.5;" id="shardPreviewLine">Prestige to earn Umami Shards</p>
+    <div id="metaUpgradesList"></div>
   </div>
+
+  <div class="panel-view" id="collectionPanel" role="tabpanel" aria-labelledby="navCollection"></div>
 
   <div class="panel-view" id="leaderboardPanel" role="tabpanel" aria-labelledby="navLeaderboard">
     <div id="leaderboardStatus" class="settings-item"><span>Loading leaderboard…</span></div>
@@ -87,6 +104,7 @@
     <button class="nav-btn" id="navWorld" role="tab" aria-selected="false" aria-controls="worldPanel" data-panel="worldPanel"><span class="nav-icon" aria-hidden="true">🌍</span>World</button>
     <button class="nav-btn" id="navAch" role="tab" aria-selected="false" aria-controls="achPanel" data-panel="achPanel"><span class="nav-icon" aria-hidden="true">🏆</span>Goals<span class="nav-dot" id="achDot"><span class="sr-only">New achievement available</span></span></button>
     <button class="nav-btn" id="navPrestige" role="tab" aria-selected="false" aria-controls="prestigePanel" data-panel="prestigePanel"><span class="nav-icon" aria-hidden="true">⭐</span>Prestige</button>
+    <button class="nav-btn" id="navCollection" role="tab" aria-selected="false" aria-controls="collectionPanel" data-panel="collectionPanel"><span class="nav-icon" aria-hidden="true">🎀</span>Skins<span class="nav-dot" id="collectionDot"><span class="sr-only">New bowl skin available</span></span></button>
     <button class="nav-btn" id="navLeaderboard" role="tab" aria-selected="false" aria-controls="leaderboardPanel" data-panel="leaderboardPanel"><span class="nav-icon" aria-hidden="true">🥇</span>Rank</button>
     <button class="nav-btn" id="navSettings" role="tab" aria-selected="false" aria-controls="settingsPanel" data-panel="settingsPanel"><span class="nav-icon" aria-hidden="true">⚙️</span>Settings</button>
   </div>
@@ -114,6 +132,16 @@
       <h2 id="achModalTitle">Achievement Unlocked!</h2>
       <p id="achModalText"></p>
       <button class="modal-btn" id="achModalClose">Nice</button>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="milestoneModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="milestoneModalTitle" tabindex="-1">
+      <div class="milestone-icon" id="milestoneIcon" aria-hidden="true">🎉</div>
+      <h2 id="milestoneModalTitle">Milestone!</h2>
+      <p id="milestoneModalText"></p>
+      <div class="big" id="milestoneBonus">+¥0</div>
+      <button class="modal-btn" id="milestoneModalClose">Nice!</button>
     </div>
   </div>
 
