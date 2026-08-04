@@ -421,3 +421,20 @@
   .train-btn{background:linear-gradient(180deg, var(--jade-light), var(--jade)) !important;}
 
   .bowl.theme-newyear{background:radial-gradient(circle at 35% 30%, #fff6d8, #c1272d 45%, #1a1a4a 100%); box-shadow:0 8px 24px rgba(193,39,45,0.55), inset 0 -6px 12px rgba(0,0,0,0.3);}
+
+  /* GUILDS & GIFTING */
+  .gift-btn{
+    background:transparent; border:1px solid rgba(212,160,23,0.4); border-radius:8px;
+    padding:4px 8px; font-size:14px; line-height:1; flex-shrink:0; color:inherit;
+  }
+  .gift-btn:disabled{opacity:0.35;}
+  .lb-guild-tag{
+    font-size:9px; background:rgba(122,79,176,0.35); color:var(--cream);
+    padding:1px 5px; border-radius:5px; margin-left:4px; font-weight:700;
+  }
+  .guild-goal-card{
+    background:var(--panel); border-radius:14px; padding:12px 14px; margin-bottom:10px;
+    border:1px solid rgba(212,160,23,0.35);
+  }
+  .guild-goal-title{font-weight:800; font-size:13.5px; margin-bottom:8px;}
+  .lb-filter-btn{font-size:11px; padding:8px 4px;}

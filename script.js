@@ -402,6 +402,10 @@
     storyClaimed: {},     // questId -> true once reward claimed
     seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
     // seasonal.skinUnlocked[skinId] = true after completing that event's challenge
+    // Social (v1.8)
+    guildId: null,        // Firestore guild doc id, if joined
+    guildName: null,
+    gifts: { lastGiftDate: null, giftedToday: {}, pendingClaimed: {} }
   };
 
   // Every source of cash gain (tap, tick, offline, milestone, challenge/daily
@@ -508,6 +512,11 @@
       if(!state.storyClaimed) state.storyClaimed = {};
       if(!state.seasonal) state.seasonal = { eventId: null, progress: 0, claimed: false, skinUnlocked: {} };
       if(!state.seasonal.skinUnlocked) state.seasonal.skinUnlocked = {};
+      if(state.guildId === undefined) state.guildId = null;
+      if(state.guildName === undefined) state.guildName = null;
+      if(!state.gifts) state.gifts = { lastGiftDate: null, giftedToday: {}, pendingClaimed: {} };
+      if(!state.gifts.giftedToday) state.gifts.giftedToday = {};
+      if(!state.gifts.pendingClaimed) state.gifts.pendingClaimed = {};
       // Migrate managerLevel on existing businesses
       COUNTRIES.forEach(country => {
         const bizState = state.countries[country.id];
@@ -547,7 +556,8 @@
       * (1 + state.achievementBonus)
       * (1 + metaBonus('umami'))
       * reputationMultiplier()
-      * (1 + activeRecipeBoost('income'));
+      * (1 + activeRecipeBoost('income'))
+      * (typeof giftBoostMultiplier === 'function' ? giftBoostMultiplier() : 1);
   }
   function businessCost(def, level){ return def.baseCost * Math.pow(CONFIG.COST_GROWTH, level); }
   function upgradeCost(def, type, level){
@@ -2223,8 +2233,255 @@
       seasonWins: state.seasonWins || 0,
       prestigePoints: state.prestigePoints,
       prestigeCount: state.prestigeCount,
+      guildId: state.guildId || null,
+      guildName: state.guildName || null,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true }).catch(err => console.warn('Leaderboard submit failed', err));
+    // Push this week's earnings into the guild shared total (best-effort)
+    if(state.guildId){
+      contributeToGuild(state.weeklyEarned || 0);
+    }
+  }
+
+  // ---- guilds / clans ----
+  // Guild docs live at guilds/{guildId}. Members are stored as an array of
+  // uids. weeklyContrib tracks shared progress toward the weekly goal; it
+  // resets when weekId rolls. Same integrity caveats as the rest of the
+  // client-side social layer — security rules must allow authenticated
+  // create/join/contribute writes.
+  const GUILD_MAX_MEMBERS = 10;
+  const GUILD_WEEKLY_GOAL_BASE = 1e6; // base shared goal; scales mildly with member count at display time
+  let myGuildCache = null; // last fetched guild doc data
+  let lastGuildContribute = 0;
+  let lastGuildContribValue = 0;
+
+  function makeGuildCode(){
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for(let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    return code;
+  }
+  function guildWeeklyGoal(memberCount){
+    return GUILD_WEEKLY_GOAL_BASE * Math.max(1, memberCount || 1);
+  }
+  function createGuild(rawName){
+    const statusEl = document.getElementById('guildStatus');
+    if(!firebaseUser){ statusEl.textContent = 'Sign in with Google to create a guild.'; return; }
+    if(state.guildId){ statusEl.textContent = 'Leave your current guild first.'; return; }
+    const name = (rawName || '').trim().slice(0, 20);
+    if(name.length < 2){ statusEl.textContent = 'Name must be at least 2 characters.'; return; }
+    statusEl.textContent = 'Creating…';
+    const code = makeGuildCode();
+    const ref = db.collection('guilds').doc();
+    const wid = currentWeekId();
+    ref.set({
+      name,
+      code,
+      ownerUid: firebaseUser.uid,
+      members: [firebaseUser.uid],
+      memberNames: { [firebaseUser.uid]: state.profile.name || firebaseUser.displayName || 'Anonymous' },
+      weeklyContrib: 0,
+      weekId: wid,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(() => {
+      state.guildId = ref.id;
+      state.guildName = name;
+      myGuildCache = null;
+      statusEl.textContent = `Created "${name}" — code ${code}`;
+      document.getElementById('guildNameInput').value = '';
+      save();
+      submitScore();
+      if(currentLbMode === 'guilds') renderLeaderboard();
+    }).catch(err => {
+      console.warn('Create guild failed', err);
+      statusEl.textContent = 'Could not create guild — check Firestore rules.';
+    });
+  }
+  function joinGuildByCode(rawCode){
+    const statusEl = document.getElementById('guildStatus');
+    if(!firebaseUser){ statusEl.textContent = 'Sign in with Google to join a guild.'; return; }
+    if(state.guildId){ statusEl.textContent = 'Leave your current guild first.'; return; }
+    const code = (rawCode || '').trim().toUpperCase();
+    if(!code) return;
+    statusEl.textContent = 'Looking up guild…';
+    db.collection('guilds').where('code', '==', code).limit(1).get().then(snap => {
+      if(snap.empty){ statusEl.textContent = 'No guild found with that code.'; return; }
+      const doc = snap.docs[0];
+      const data = doc.data();
+      const members = data.members || [];
+      if(members.includes(firebaseUser.uid)){ statusEl.textContent = 'Already a member.'; return; }
+      if(members.length >= GUILD_MAX_MEMBERS){ statusEl.textContent = 'Guild is full (max ' + GUILD_MAX_MEMBERS + ').'; return; }
+      const nameField = 'memberNames.' + firebaseUser.uid;
+      return doc.ref.update({
+        members: firebase.firestore.FieldValue.arrayUnion(firebaseUser.uid),
+        [nameField]: state.profile.name || firebaseUser.displayName || 'Anonymous'
+      }).then(() => {
+        state.guildId = doc.id;
+        state.guildName = data.name || 'Guild';
+        myGuildCache = null;
+        statusEl.textContent = `Joined "${state.guildName}"!`;
+        document.getElementById('guildCodeInput').value = '';
+        save();
+        submitScore();
+        if(currentLbMode === 'guilds') renderLeaderboard();
+      });
+    }).catch(err => {
+      console.warn('Join guild failed', err);
+      statusEl.textContent = 'Could not join — check Firestore rules.';
+    });
+  }
+  function leaveGuild(){
+    const statusEl = document.getElementById('guildStatus');
+    if(!firebaseUser || !state.guildId) return;
+    const gid = state.guildId;
+    statusEl.textContent = 'Leaving…';
+    const ref = db.collection('guilds').doc(gid);
+    ref.get().then(doc => {
+      if(!doc.exists){
+        state.guildId = null; state.guildName = null; myGuildCache = null; save();
+        statusEl.textContent = 'Left guild.';
+        if(currentLbMode === 'guilds') renderLeaderboard();
+        return;
+      }
+      const data = doc.data();
+      const updates = {
+        members: firebase.firestore.FieldValue.arrayRemove(firebaseUser.uid)
+      };
+      // Owner leaving: transfer ownership to next member if any
+      if(data.ownerUid === firebaseUser.uid){
+        const rest = (data.members || []).filter(u => u !== firebaseUser.uid);
+        updates.ownerUid = rest[0] || null;
+      }
+      return ref.update(updates).then(() => {
+        state.guildId = null;
+        state.guildName = null;
+        myGuildCache = null;
+        save();
+        submitScore();
+        statusEl.textContent = 'Left guild.';
+        if(currentLbMode === 'guilds') renderLeaderboard();
+      });
+    }).catch(err => {
+      console.warn('Leave guild failed', err);
+      statusEl.textContent = 'Could not leave guild.';
+    });
+  }
+  function contributeToGuild(weeklyEarned){
+    if(!firebaseUser || !state.guildId) return;
+    const now = Date.now();
+    // Throttle and only push the delta since last contribution write
+    if(now - lastGuildContribute < 60000) return;
+    const delta = Math.max(0, (weeklyEarned || 0) - lastGuildContribValue);
+    if(delta < 1) return;
+    lastGuildContribute = now;
+    lastGuildContribValue = weeklyEarned || 0;
+    const ref = db.collection('guilds').doc(state.guildId);
+    const wid = currentWeekId();
+    ref.get().then(doc => {
+      if(!doc.exists) return;
+      const data = doc.data();
+      if(data.weekId !== wid){
+        // New week — reset shared counter
+        return ref.update({ weekId: wid, weeklyContrib: delta });
+      }
+      return ref.update({
+        weeklyContrib: firebase.firestore.FieldValue.increment(delta)
+      });
+    }).catch(err => console.warn('Guild contribute failed', err));
+  }
+  function loadMyGuild(){
+    if(!state.guildId) return Promise.resolve(null);
+    return db.collection('guilds').doc(state.guildId).get().then(doc => {
+      if(!doc.exists){
+        state.guildId = null; state.guildName = null; myGuildCache = null; save();
+        return null;
+      }
+      myGuildCache = Object.assign({ __id: doc.id }, doc.data());
+      // Ensure week is current for display
+      if(myGuildCache.weekId !== currentWeekId()){
+        myGuildCache.weeklyContrib = 0;
+        myGuildCache.weekId = currentWeekId();
+      }
+      state.guildName = myGuildCache.name || state.guildName;
+      return myGuildCache;
+    }).catch(err => { console.warn('Load guild failed', err); return myGuildCache; });
+  }
+
+  // ---- gifting ----
+  // Gifts are written to gifts/{toUid}/inbox/{fromUid_date} so each sender
+  // can only leave one gift per recipient per day (doc id enforces it).
+  // Recipients claim by reading their inbox and deleting claimed docs.
+  function giftAmount(){
+    return Math.max(50, Math.round(Math.max(totalRatePerSec(), 1) * 25));
+  }
+  function resetGiftDayIfNeeded(){
+    const today = todayKey();
+    if(state.gifts.lastGiftDate !== today){
+      state.gifts.lastGiftDate = today;
+      state.gifts.giftedToday = {};
+    }
+  }
+  function canGiftFriend(uid){
+    resetGiftDayIfNeeded();
+    return !state.gifts.giftedToday[uid];
+  }
+  function sendGift(toUid, toName){
+    if(!firebaseUser) return Promise.reject(new Error('Not signed in'));
+    if(toUid === firebaseUser.uid) return Promise.reject(new Error('Cannot gift yourself'));
+    resetGiftDayIfNeeded();
+    if(state.gifts.giftedToday[toUid]) return Promise.reject(new Error('Already gifted today'));
+    const amount = giftAmount();
+    const today = todayKey();
+    const giftId = firebaseUser.uid + '_' + today;
+    return db.collection('gifts').doc(toUid).collection('inbox').doc(giftId).set({
+      fromUid: firebaseUser.uid,
+      fromName: state.profile.name || firebaseUser.displayName || 'Anonymous',
+      amount,
+      boost: 0.05, // +5% income for 10 minutes when claimed
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      dateKey: today
+    }).then(() => {
+      state.gifts.giftedToday[toUid] = true;
+      save();
+      return { amount, toName };
+    });
+  }
+  function claimPendingGifts(){
+    if(!firebaseUser) return Promise.resolve([]);
+    return db.collection('gifts').doc(firebaseUser.uid).collection('inbox').get().then(snap => {
+      if(snap.empty) return [];
+      const claimed = [];
+      const batch = db.batch();
+      snap.forEach(doc => {
+        const data = doc.data();
+        if(state.gifts.pendingClaimed[doc.id]) return;
+        state.cash += data.amount || 0;
+        addEarned(data.amount || 0);
+        if(data.boost){
+          // Short income boost via activeRecipe-like temporary state
+          applyGiftBoost(data.boost);
+        }
+        state.gifts.pendingClaimed[doc.id] = true;
+        claimed.push(data);
+        batch.delete(doc.ref);
+      });
+      if(claimed.length){
+        save();
+        renderStats();
+        return batch.commit().then(() => claimed).catch(() => claimed);
+      }
+      return claimed;
+    }).catch(err => { console.warn('Claim gifts failed', err); return []; });
+  }
+  let giftBoostEndsAt = 0;
+  let giftBoostAmount = 0;
+  function applyGiftBoost(boost){
+    giftBoostAmount = Math.max(giftBoostAmount, boost || 0.05);
+    giftBoostEndsAt = Date.now() + 10 * 60 * 1000;
+  }
+  function giftBoostMultiplier(){
+    if(Date.now() >= giftBoostEndsAt) return 1;
+    return 1 + giftBoostAmount;
   }
 
   function lbSplitIntoChunks(arr, size){
@@ -2242,21 +2499,69 @@
     }).catch(() => { banner.style.display = 'none'; });
   }
 
-  let currentLbMode = 'global'; // 'global' | 'weekly' | 'friends'
-  function renderLbRows(rows, cashField){
+  let currentLbMode = 'global'; // 'global' | 'weekly' | 'friends' | 'guilds'
+  function renderLbRows(rows, cashField, opts){
+    opts = opts || {};
     const statusEl = document.getElementById('leaderboardStatus');
     const listEl = document.getElementById('leaderboardList');
     statusEl.style.display = 'none';
     if(!rows.length){
-      listEl.innerHTML = `<div class="settings-item"><span>${currentLbMode === 'friends' ? 'Add a friend\u2019s code above to see them here.' : 'No scores yet — be the first!'}</span></div>`;
+      const emptyMsg = currentLbMode === 'friends'
+        ? 'Add a friend\u2019s code above to see them here.'
+        : currentLbMode === 'guilds'
+          ? 'Create or join a guild above to compete.'
+          : 'No scores yet — be the first!';
+      listEl.innerHTML = `<div class="settings-item"><span>${emptyMsg}</span></div>`;
       return;
     }
     listEl.innerHTML = rows.map((d, i) => {
       const isMe = firebaseUser && d.__id === firebaseUser.uid;
       const wins = d.seasonWins || 0;
       const trophy = wins ? ` <span class="lb-trophy" title="${wins} weekly win(s)">🏆${wins > 1 ? '×' + wins : ''}</span>` : '';
-      return `<div class="lb-row${isMe ? ' me' : ''}"><span class="lb-rank">#${i + 1}</span><span class="lb-name">${escapeHtml(d.name || 'Anonymous')}${trophy}</span><span class="lb-cash">¥${fmt(d[cashField] || 0)}</span></div>`;
+      let giftBtn = '';
+      if(opts.showGift && firebaseUser && d.__id !== firebaseUser.uid){
+        const can = canGiftFriend(d.__id);
+        giftBtn = `<button class="gift-btn" data-action="gift" data-uid="${d.__id}" data-name="${escapeHtml(d.name || 'player')}" ${can ? '' : 'disabled'} title="${can ? 'Send a daily gift' : 'Already gifted today'}">🎁</button>`;
+      }
+      const gTag = d.guildName ? ` <span class="lb-guild-tag">${escapeHtml(d.guildName)}</span>` : '';
+      return `<div class="lb-row${isMe ? ' me' : ''}"><span class="lb-rank">#${i + 1}</span><span class="lb-name">${escapeHtml(d.name || 'Anonymous')}${trophy}${gTag}</span>${giftBtn}<span class="lb-cash">¥${fmt(d[cashField] || 0)}</span></div>`;
     }).join('');
+  }
+
+  function renderGuildPanel(){
+    const box = document.getElementById('lbGuildBox');
+    if(!box) return;
+    box.style.display = currentLbMode === 'guilds' ? 'flex' : 'none';
+    if(currentLbMode !== 'guilds') return;
+    const statusEl = document.getElementById('guildStatus');
+    if(!firebaseUser){
+      box.querySelector('.guild-joined') && (box.querySelector('.guild-joined').style.display = 'none');
+      box.querySelector('.guild-create') && (box.querySelector('.guild-create').style.display = 'none');
+      statusEl.textContent = 'Sign in with Google to use guilds.';
+      return;
+    }
+    loadMyGuild().then(g => {
+      const joined = box.querySelector('.guild-joined');
+      const create = box.querySelector('.guild-create');
+      if(g){
+        joined.style.display = 'block';
+        create.style.display = 'none';
+        const members = g.members || [];
+        const goal = guildWeeklyGoal(members.length);
+        const contrib = g.weeklyContrib || 0;
+        const pct = Math.min(100, Math.round((contrib / goal) * 100));
+        document.getElementById('myGuildName').textContent = g.name || 'Guild';
+        document.getElementById('myGuildCode').textContent = g.code || '—';
+        document.getElementById('myGuildMembers').textContent = members.length + ' / ' + GUILD_MAX_MEMBERS;
+        document.getElementById('guildGoalFill').style.width = pct + '%';
+        document.getElementById('guildGoalText').textContent = fmt(contrib) + ' / ' + fmt(goal) + ' this week';
+        statusEl.textContent = '';
+      } else {
+        joined.style.display = 'none';
+        create.style.display = 'block';
+        statusEl.textContent = '';
+      }
+    });
   }
 
   function renderLeaderboard(){
@@ -2267,10 +2572,24 @@
     if(currentLbMode === 'friends'){
       document.getElementById('myFriendCode').textContent = myFriendCode() || 'Sign in to get a code';
     }
+    renderGuildPanel();
     renderChampionBanner();
     statusEl.style.display = 'flex';
     statusEl.querySelector('span').textContent = 'Loading leaderboard…';
     listEl.innerHTML = '';
+
+    // Claim any pending gifts when opening Rank tab
+    if(firebaseUser){
+      claimPendingGifts().then(claimed => {
+        if(claimed && claimed.length){
+          const total = claimed.reduce((s, g) => s + (g.amount || 0), 0);
+          const status = document.getElementById('addFriendStatus');
+          if(status && currentLbMode === 'friends'){
+            status.textContent = `Received ${claimed.length} gift(s) totaling ${fmt(total)}!`;
+          }
+        }
+      });
+    }
 
     if(currentLbMode === 'global'){
       db.collection('leaderboard').orderBy('totalEarned', 'desc').limit(50).get().then(snap => {
@@ -2280,9 +2599,6 @@
         statusEl.querySelector('span').textContent = 'Could not load leaderboard.';
       });
     } else if(currentLbMode === 'weekly'){
-      // NOTE: this composite query (weekId == X, ordered by weeklyEarned)
-      // needs a Firestore index — the console link in the error the first
-      // time this runs against a fresh project will create it for you.
       db.collection('leaderboard').where('weekId', '==', currentWeekId())
         .orderBy('weeklyEarned', 'desc').limit(50).get().then(snap => {
           renderLbRows(snap.docs.map(doc => Object.assign({ __id: doc.id }, doc.data())), 'weeklyEarned');
@@ -2290,23 +2606,78 @@
           console.warn('Weekly leaderboard load failed', err);
           statusEl.querySelector('span').textContent = 'Could not load weekly leaderboard.';
         });
-    } else { // friends
+    } else if(currentLbMode === 'friends'){
       loadFriends().then(friendUids => {
         const ids = firebaseUser ? Array.from(new Set([firebaseUser.uid, ...friendUids])) : friendUids;
-        if(!ids.length){ renderLbRows([], 'totalEarned'); return; }
+        if(!ids.length){ renderLbRows([], 'totalEarned', { showGift: true }); return; }
         Promise.all(lbSplitIntoChunks(ids, 10).map(group =>
           db.collection('leaderboard').where(firebase.firestore.FieldPath.documentId(), 'in', group).get()
         )).then(snaps => {
           const docs = [];
           snaps.forEach(snap => snap.forEach(doc => docs.push(Object.assign({ __id: doc.id }, doc.data()))));
           docs.sort((a, b) => (b.totalEarned || 0) - (a.totalEarned || 0));
-          renderLbRows(docs, 'totalEarned');
+          renderLbRows(docs, 'totalEarned', { showGift: true });
         }).catch(err => {
           console.warn('Friends leaderboard load failed', err);
           statusEl.querySelector('span').textContent = 'Could not load friends leaderboard.';
         });
       });
+    } else { // guilds — top guilds by weekly contribution + your guild roster
+      loadMyGuild().then(myG => {
+        db.collection('guilds').orderBy('weeklyContrib', 'desc').limit(30).get().then(snap => {
+          statusEl.style.display = 'none';
+          let html = '';
+          if(myG){
+            const members = myG.members || [];
+            const goal = guildWeeklyGoal(members.length);
+            const contrib = myG.weeklyContrib || 0;
+            const pct = Math.min(100, Math.round((contrib / goal) * 100));
+            html += `<div class="guild-goal-card">
+              <div class="guild-goal-title">🏯 ${escapeHtml(myG.name || 'Your Guild')} — weekly goal</div>
+              <div class="chal-progress"><div class="chal-progress-fill" style="width:${pct}%"></div></div>
+              <div class="ach-reward" style="margin-top:6px;">${fmt(contrib)} / ${fmt(goal)} · ${members.length} members</div>
+            </div>`;
+            // Member roster from leaderboard docs
+            if(members.length){
+              Promise.all(lbSplitIntoChunks(members, 10).map(group =>
+                db.collection('leaderboard').where(firebase.firestore.FieldPath.documentId(), 'in', group).get()
+              )).then(snaps => {
+                const docs = [];
+                snaps.forEach(s => s.forEach(doc => docs.push(Object.assign({ __id: doc.id }, doc.data()))));
+                docs.sort((a, b) => (b.weeklyEarned || 0) - (a.weeklyEarned || 0));
+                html += `<div class="chal-section-label">Your roster (this week)</div>`;
+                html += docs.map((d, i) => {
+                  const isMe = firebaseUser && d.__id === firebaseUser.uid;
+                  return `<div class="lb-row${isMe?' me':''}"><span class="lb-rank">#${i+1}</span><span class="lb-name">${escapeHtml(d.name||'Anonymous')}</span><span class="lb-cash">¥${fmt(d.weeklyEarned||0)}</span></div>`;
+                }).join('');
+                html += `<div class="chal-section-label" style="margin-top:12px;">Top guilds</div>`;
+                html += renderGuildRowsHtml(snap);
+                listEl.innerHTML = html;
+              }).catch(() => {
+                html += renderGuildRowsHtml(snap);
+                listEl.innerHTML = html;
+              });
+              return;
+            }
+          }
+          html += `<div class="chal-section-label">Top guilds</div>`;
+          html += renderGuildRowsHtml(snap);
+          listEl.innerHTML = html || `<div class="settings-item"><span>No guilds yet — create one!</span></div>`;
+        }).catch(err => {
+          console.warn('Guild leaderboard failed', err);
+          statusEl.querySelector('span').textContent = 'Could not load guilds (index or rules may be needed).';
+        });
+      });
     }
+  }
+  function renderGuildRowsHtml(snap){
+    if(!snap || snap.empty) return `<div class="settings-item"><span>No guilds yet — create one!</span></div>`;
+    return snap.docs.map((doc, i) => {
+      const d = doc.data();
+      const isMine = state.guildId === doc.id;
+      const members = (d.members || []).length;
+      return `<div class="lb-row${isMine?' me':''}"><span class="lb-rank">#${i+1}</span><span class="lb-name">${escapeHtml(d.name||'Guild')} <span class="lb-guild-tag">${members}p</span></span><span class="lb-cash">¥${fmt(d.weeklyContrib||0)}</span></div>`;
+    }).join('');
   }
 
   document.querySelectorAll('.lb-filter-btn').forEach(btn => {
@@ -2325,6 +2696,45 @@
   });
   document.getElementById('friendCodeInput').addEventListener('keydown', e => {
     if(e.key === 'Enter') addFriendByCode(e.target.value);
+  });
+  // Guild UI buttons (delegated from panel that may be toggled)
+  document.getElementById('leaderboardPanel').addEventListener('click', e => {
+    const createBtn = e.target.closest('#createGuildBtn');
+    if(createBtn){
+      createGuild(document.getElementById('guildNameInput').value);
+      return;
+    }
+    const joinBtn = e.target.closest('#joinGuildBtn');
+    if(joinBtn){
+      joinGuildByCode(document.getElementById('guildCodeInput').value);
+      return;
+    }
+    const leaveBtn = e.target.closest('#leaveGuildBtn');
+    if(leaveBtn){
+      if(confirm('Leave your guild?')) leaveGuild();
+      return;
+    }
+    const giftBtn = e.target.closest('[data-action="gift"]');
+    if(giftBtn){
+      const uid = giftBtn.dataset.uid;
+      const name = giftBtn.dataset.name || 'friend';
+      giftBtn.disabled = true;
+      sendGift(uid, name).then(res => {
+        const status = document.getElementById('addFriendStatus');
+        if(status) status.textContent = `Sent ${fmt(res.amount)} to ${name}!`;
+        giftBtn.title = 'Already gifted today';
+      }).catch(err => {
+        giftBtn.disabled = false;
+        const status = document.getElementById('addFriendStatus');
+        if(status) status.textContent = err.message || 'Gift failed.';
+      });
+    }
+  });
+  document.getElementById('guildNameInput') && document.getElementById('guildNameInput').addEventListener('keydown', e => {
+    if(e.key === 'Enter') createGuild(e.target.value);
+  });
+  document.getElementById('guildCodeInput') && document.getElementById('guildCodeInput').addEventListener('keydown', e => {
+    if(e.key === 'Enter') joinGuildByCode(e.target.value);
   });
 
   // ---------- tap to earn ----------
