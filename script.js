@@ -22,7 +22,7 @@
       ]
     },
     {
-      id:'italy', name:'Italy', icon:'🇮🇹', tagline:'Pasta, pizza & espresso', unlockCost:75000,
+      id:'italy', name:'Italy', icon:'🇮🇹', tagline:'Pasta, pizza & espresso', unlockCost:350000,
       businesses:[
         {id:'cart',   name:'Panini Cart',        icon:'🥖', baseCost:10,      baseIncome:0.5,   unlockAt:0},
         {id:'stall',  name:'Pizza Stall',        icon:'🍕', baseCost:100,     baseIncome:4,     unlockAt:0},
@@ -35,7 +35,7 @@
       ]
     },
     {
-      id:'mexico', name:'Mexico', icon:'🇲🇽', tagline:'Tacos, salsa & fire', unlockCost:6000000,
+      id:'mexico', name:'Mexico', icon:'🇲🇽', tagline:'Tacos, salsa & fire', unlockCost:45000000,
       businesses:[
         {id:'cart',   name:'Taco Cart',         icon:'🌮', baseCost:10,      baseIncome:0.5,   unlockAt:0},
         {id:'stall',  name:'Salsa Stall',       icon:'🌶️', baseCost:100,     baseIncome:4,     unlockAt:0},
@@ -48,7 +48,7 @@
       ]
     },
     {
-      id:'india', name:'India', icon:'🇮🇳', tagline:'Curry, spice & chai', unlockCost:600000000,
+      id:'india', name:'India', icon:'🇮🇳', tagline:'Curry, spice & chai', unlockCost:9000000000,
       businesses:[
         {id:'cart',   name:'Chai Cart',         icon:'🍵', baseCost:10,      baseIncome:0.5,   unlockAt:0},
         {id:'stall',  name:'Samosa Stall',      icon:'🥟', baseCost:100,     baseIncome:4,     unlockAt:0},
@@ -72,19 +72,23 @@
   // thresholds) are left where they are since they're not balance knobs.
   const CONFIG = {
     // Business economy
-    COST_GROWTH: 1.15,              // cost multiplier per business level purchased
-    MANAGER_COST_MULT: 80,          // manager costs this many times the business's base cost
+    // Tuned for a much slower, grindier climb: costs escalate faster per
+    // level than income does, so brute-force leveling stops paying for
+    // itself sooner and players have to lean harder on managers, upgrades,
+    // reputation, and prestige to keep progressing.
+    COST_GROWTH: 1.19,              // cost multiplier per business level purchased (was 1.15)
+    MANAGER_COST_MULT: 130,         // manager costs this many times the business's base cost (was 80)
     MANAGER_UNLOCK_LEVEL: 5,        // business must reach this level before a manager can be hired
     MANAGER_INCOME_MULT: 1.5,       // +50% income once a manager is hired
-    LEVEL_INCOME_SCALING: 0.01,     // each business level adds this fraction of extra income on top of linear scaling
+    LEVEL_INCOME_SCALING: 0.006,    // each business level adds this fraction of extra income on top of linear scaling (was 0.01)
 
     // Prestige
-    PRESTIGE_BONUS_PER_POINT: 0.02, // each Miso Point adds 2% to the global income multiplier
-    PRESTIGE_EARNINGS_DIVISOR: 1e6, // totalEarned is divided by this before sqrt to get potential prestige points
+    PRESTIGE_BONUS_PER_POINT: 0.015, // each Miso Point adds 1.5% to the global income multiplier (was 2%)
+    PRESTIGE_EARNINGS_DIVISOR: 8e6, // totalEarned is divided by this before sqrt to get potential prestige points (was 1e6 — fewer points per run)
     SHARDS_PER_PRESTIGE_POINT: 10,  // potential Miso Points are divided by this (then floored) to get Umami Shards earned on that same prestige
 
     // Tapping
-    TAP_SCALING_FACTOR: 0.00001,    // how much lifetime earnings boost each tap's base cash gain
+    TAP_SCALING_FACTOR: 0.000004,   // how much lifetime earnings boost each tap's base cash gain (was 0.00001 — tapping matters less late-game, forcing real investment)
 
     // Random events
     EVENT_CHECK_INTERVAL_MS: 15000, // how often we roll for a new event
@@ -112,7 +116,7 @@
     // UI / performance timing
     STATS_RENDER_INTERVAL_MS: 100,  // throttle stats DOM writes to ~10fps
     AFFORDABILITY_REFRESH_MS: 1000, // how often buy/manager/upgrade buttons re-check affordability
-    AUTOSAVE_INTERVAL_MS: 10000,
+    AUTOSAVE_INTERVAL_MS: 5000,
     FLOAT_GAIN_LIFETIME_MS: 900,    // how long the "+¥X" tap popup stays before removal
     FLOAT_GAIN_SPREAD_MIN_PCT: 45,  // horizontal placement range for the tap popup (min%)
     FLOAT_GAIN_SPREAD_RANGE_PCT: 10, // ...plus a random amount up to this many percentage points
@@ -2125,6 +2129,12 @@
   // Firebase auth session, so firebaseUser stays null for them and
   // submitScore()/renderLeaderboard() below simply skip writing for them.
   let firebaseUser = null;
+  // cached uids this player follows; refreshed each time the Friends tab
+  // opens. Declared here (rather than down by loadFriends()) because
+  // onAuthStateChanged below can in principle fire before that later
+  // declaration is reached, which would otherwise throw a "Cannot access
+  // 'myFriends' before initialization" error.
+  let myFriends = [];
   auth.onAuthStateChanged(user => {
     firebaseUser = user;
     myFriends = []; // stale for a new session/account — reloaded on next Friends tab open
@@ -2183,7 +2193,6 @@
   // the leaderboard collection (see addFriendByCode) without new security
   // rules beyond read access already required for the leaderboard itself.
   function myFriendCode(){ return firebaseUser ? firebaseUser.uid.slice(0, 6).toUpperCase() : null; }
-  let myFriends = []; // cached uids this player follows; refreshed each time the Friends tab opens
   function loadFriends(){
     if(!firebaseUser) return Promise.resolve([]);
     return db.collection('friends').doc(firebaseUser.uid).get().then(doc => {

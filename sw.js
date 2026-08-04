@@ -60,7 +60,12 @@ self.addEventListener('fetch', event => {
       // For navigations, prefer the preloaded response over starting a
       // second fetch — the preload request was already in flight before
       // this handler even ran, so reusing it avoids a redundant request.
-      const networkFetch = (event.request.mode === 'navigate'
+      // event.preloadResponse only exists on browsers that support the
+      // Navigation Preload API (older Safari doesn't). Calling .then() on
+      // it unconditionally throws a TypeError there and breaks every
+      // navigation in that browser, so only use it when it's actually
+      // present.
+      const networkFetch = (event.request.mode === 'navigate' && event.preloadResponse
         ? event.preloadResponse.then(r => r || fetch(event.request))
         : fetch(event.request))
         .then(response => {

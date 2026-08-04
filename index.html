@@ -20,15 +20,19 @@
 
   <div class="confetti-layer" id="confettiLayer" aria-hidden="true"></div>
 
+  <!-- Compact corner HUD: cash/rate pinned top-left, Miso Points pinned
+       top-right. Deliberately small and out of the way instead of a big
+       branded header bar. -->
+  <div class="corner-hud corner-hud-left" id="cashCorner" aria-label="Cash and income rate">
+    <div class="corner-hud-value" id="cashDisplay">¥0</div>
+    <div class="corner-hud-sub jade" id="rateDisplay">¥0/s</div>
+  </div>
+  <div class="corner-hud corner-hud-right" id="misoCorner" aria-label="Miso Points">
+    <div class="corner-hud-icon" aria-hidden="true">🍥</div>
+    <div class="corner-hud-value" id="prestigeDisplay">0</div>
+  </div>
+
   <header>
-    <div class="noren">
-      <div class="brand">らーめん <span>RAMEN EMPIRE</span></div>
-    </div>
-    <div class="stats-row">
-      <div class="stat-pill"><div class="stat-label">Cash</div><div class="stat-value" id="cashDisplay">¥0</div></div>
-      <div class="stat-pill"><div class="stat-label">Per Second</div><div class="stat-value jade" id="rateDisplay">¥0/s</div></div>
-      <div class="stat-pill"><div class="stat-label">Miso Points</div><div class="stat-value" id="prestigeDisplay">0</div></div>
-    </div>
     <div class="next-unlock-bar" id="nextUnlockBar" style="display:none;">
       <span class="nu-icon" id="nuIcon" aria-hidden="true">🏮</span>
       <div class="nu-info">
