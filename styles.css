@@ -32,7 +32,7 @@
   /* HEADER — no branding, just the functional bars (next-unlock, reputation) */
   header{
     background:linear-gradient(180deg, var(--red-dark), var(--red));
-    padding:10px 16px 14px;
+    padding:46px 16px 14px;
     position:relative;
     box-shadow:0 4px 12px rgba(0,0,0,0.4);
     z-index:2;
