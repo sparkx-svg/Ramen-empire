@@ -450,7 +450,11 @@
   }
   function computeChecksum(s){
     const { __checksum, ...rest } = s;
-    return hashString(SAVE_SALT + JSON.stringify(rest));
+    let payload = SAVE_SALT + JSON.stringify(rest);
+    let h = hashString(payload);
+    // three rounds + include prestigeCount so a pure cash edit is more likely to fail
+    for(let i = 0; i < 3; i++) h = hashString(h + SAVE_SALT + (s.prestigeCount || 0));
+    return h;
   }
   function save(){
     state.lastSeen = Date.now();
@@ -2232,26 +2236,42 @@
   let lastLeaderboardSubmit = 0;
   function submitScore(){
     if(!firebaseUser) return;
+
+    // Refuse to submit if the local save looks tampered with
+    if(state.integrityFlag){
+      console.warn('Ramen Empire: integrity flag set — skipping leaderboard submit');
+      return;
+    }
+
+    // Client-side rate limit
     const now = Date.now();
-    if(now - lastLeaderboardSubmit < 30000) return; // avoid excessive writes
+    if(now - lastLeaderboardSubmit < 30000) return;
     lastLeaderboardSubmit = now;
+
+    // Extra client-side bounds (belt + suspenders with the rules)
+    const cash = Math.max(0, Math.min(state.cash || 0, 1e18 - 1));
+    const totalEarned = Math.max(0, Math.min(state.totalEarned || 0, 1e18 - 1));
+    const weeklyEarned = Math.max(0, Math.min(state.weeklyEarned || 0, 1e16 - 1));
+    const prestigePoints = Math.max(0, Math.min(state.prestigePoints || 0, 99999));
+
     db.collection('leaderboard').doc(firebaseUser.uid).set({
-      name: state.profile.name || firebaseUser.displayName || 'Anonymous',
+      name: (state.profile.name || firebaseUser.displayName || 'Anonymous').slice(0, 32),
       code: myFriendCode(),
-      cash: state.cash,
-      totalEarned: state.totalEarned,
-      weeklyEarned: state.weeklyEarned || 0,
-      weekId: state.weekId,
-      seasonWins: state.seasonWins || 0,
-      prestigePoints: state.prestigePoints,
-      prestigeCount: state.prestigeCount,
+      cash,
+      totalEarned,
+      weeklyEarned,
+      weekId: state.weekId || null,
+      prestigePoints,
+      prestigeCount: state.prestigeCount || 0,
       guildId: state.guildId || null,
       guildName: state.guildName || null,
+      seasonWins: state.seasonWins || 0,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true }).catch(err => console.warn('Leaderboard submit failed', err));
-    // Push this week's earnings into the guild shared total (best-effort)
+
+    // Guild contribution (best-effort)
     if(state.guildId){
-      contributeToGuild(state.weeklyEarned || 0);
+      contributeToGuild(weeklyEarned);
     }
   }
 
