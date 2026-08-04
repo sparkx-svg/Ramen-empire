@@ -250,13 +250,26 @@
   }
   .nav-btn{
     flex:1; background:transparent; border:none; color:var(--cream); opacity:0.6;
-    display:flex; flex-direction:column; align-items:center; gap:1px; padding:5px 0; font-size:7.8px; font-weight:600; border-radius:10px;
+    display:flex; flex-direction:column; align-items:center; gap:2px; padding:7px 0; font-size:10px; font-weight:600; border-radius:10px;
     position:relative; min-width:0;
   }
   .nav-btn.active{opacity:1; background:rgba(212,160,23,0.12); color:var(--gold);}
-  .nav-icon{font-size:16px;}
+  .nav-icon{font-size:19px;}
   .nav-dot{position:absolute; top:2px; right:22%; width:8px; height:8px; border-radius:50%; background:var(--gold); display:none;}
   .nav-dot.show{display:block;}
+
+  /* "MORE" SHEET — Kitchen/Goals/Skins/Rank/Settings, one tap away from
+     the "More" button instead of crowding the bottom bar. Reuses the
+     standard .modal-overlay/.modal look used by the game's other popups. */
+  .more-sheet{max-width:360px;}
+  .more-grid{display:grid; grid-template-columns:repeat(3, 1fr); gap:10px;}
+  .more-grid .nav-btn{
+    flex:none; background:rgba(0,0,0,0.22); border:1px solid rgba(255,255,255,0.08);
+    border-radius:12px; padding:14px 4px; font-size:11px; gap:6px; opacity:0.9;
+  }
+  .more-grid .nav-btn .nav-icon{font-size:22px;}
+  .more-grid .nav-btn.active{background:rgba(212,160,23,0.18);}
+  .more-grid .nav-dot{top:6px; right:10px;}
 
   /* AUTH / LOGIN OVERLAY */
   .auth-modal{max-width:340px;}

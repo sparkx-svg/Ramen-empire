@@ -180,12 +180,25 @@
   <div class="bottom-bar" role="tablist" aria-label="Sections">
     <button class="nav-btn active" id="navBiz" role="tab" aria-selected="true" aria-controls="bizPanel" data-panel="bizPanel"><span class="nav-icon" aria-hidden="true">🏮</span>Shops</button>
     <button class="nav-btn" id="navWorld" role="tab" aria-selected="false" aria-controls="worldPanel" data-panel="worldPanel"><span class="nav-icon" aria-hidden="true">🌍</span>World</button>
-    <button class="nav-btn" id="navKitchen" role="tab" aria-selected="false" aria-controls="kitchenPanel" data-panel="kitchenPanel"><span class="nav-icon" aria-hidden="true">🧪</span>Kitchen</button>
-    <button class="nav-btn" id="navAch" role="tab" aria-selected="false" aria-controls="achPanel" data-panel="achPanel"><span class="nav-icon" aria-hidden="true">🏆</span>Goals<span class="nav-dot" id="achDot"><span class="sr-only">New achievement available</span></span></button>
     <button class="nav-btn" id="navPrestige" role="tab" aria-selected="false" aria-controls="prestigePanel" data-panel="prestigePanel"><span class="nav-icon" aria-hidden="true">⭐</span>Prestige</button>
-    <button class="nav-btn" id="navCollection" role="tab" aria-selected="false" aria-controls="collectionPanel" data-panel="collectionPanel"><span class="nav-icon" aria-hidden="true">🎀</span>Skins<span class="nav-dot" id="collectionDot"><span class="sr-only">New bowl skin available</span></span></button>
-    <button class="nav-btn" id="navLeaderboard" role="tab" aria-selected="false" aria-controls="leaderboardPanel" data-panel="leaderboardPanel"><span class="nav-icon" aria-hidden="true">🥇</span>Rank</button>
-    <button class="nav-btn" id="navSettings" role="tab" aria-selected="false" aria-controls="settingsPanel" data-panel="settingsPanel"><span class="nav-icon" aria-hidden="true">⚙️</span>Settings</button>
+    <button class="nav-btn nav-more-btn" id="navMoreBtn" aria-haspopup="dialog" aria-controls="moreSheetOverlay"><span class="nav-icon" aria-hidden="true">☰</span>More<span class="nav-dot" id="moreDot"><span class="sr-only">New item available</span></span></button>
+  </div>
+
+  <!-- "More" sheet: everything that used to crowd the bottom bar
+       (Kitchen, Goals, Skins, Rank, Settings) now lives one tap away here
+       instead of on screen all the time. -->
+  <div class="modal-overlay" id="moreSheetOverlay">
+    <div class="modal more-sheet" role="dialog" aria-modal="true" aria-labelledby="moreSheetTitle" tabindex="-1">
+      <h2 id="moreSheetTitle">More</h2>
+      <div class="more-grid">
+        <button class="nav-btn" id="navKitchen" aria-controls="kitchenPanel" data-panel="kitchenPanel"><span class="nav-icon" aria-hidden="true">🧪</span>Kitchen</button>
+        <button class="nav-btn" id="navAch" aria-controls="achPanel" data-panel="achPanel"><span class="nav-icon" aria-hidden="true">🏆</span>Goals<span class="nav-dot" id="achDot"><span class="sr-only">New achievement available</span></span></button>
+        <button class="nav-btn" id="navCollection" aria-controls="collectionPanel" data-panel="collectionPanel"><span class="nav-icon" aria-hidden="true">🎀</span>Skins<span class="nav-dot" id="collectionDot"><span class="sr-only">New bowl skin available</span></span></button>
+        <button class="nav-btn" id="navLeaderboard" aria-controls="leaderboardPanel" data-panel="leaderboardPanel"><span class="nav-icon" aria-hidden="true">🥇</span>Rank</button>
+        <button class="nav-btn" id="navSettings" aria-controls="settingsPanel" data-panel="settingsPanel"><span class="nav-icon" aria-hidden="true">⚙️</span>Settings</button>
+      </div>
+      <button class="modal-btn secondary" id="moreSheetCloseBtn" style="margin-top:16px;">Close</button>
+    </div>
   </div>
 
   <div class="modal-overlay" id="offlineModal">

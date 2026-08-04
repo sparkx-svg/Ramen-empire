@@ -1458,6 +1458,7 @@
       return (state.seasonal.progress || 0) >= seasonalTarget(ev);
     })();
     document.getElementById('achDot').classList.toggle('show', anyUnclaimed || challengeReady || storyReady || seasonalReady);
+    syncMoreDot();
   }
 
   function renderWorld(){
@@ -1605,6 +1606,7 @@
   function checkCollectionNotif(){
     const anyNew = COSMETICS.some(c => c.id !== 'classic' && isCosmeticUnlocked(c) && state.equippedSkin !== c.id);
     document.getElementById('collectionDot').classList.toggle('show', anyNew);
+    syncMoreDot();
   }
 
   function renderStats(){
@@ -1788,6 +1790,7 @@
       return c && !c.claimed && c.progress >= c.target;
     });
     document.getElementById('achDot').classList.toggle('show', anyUnclaimed || challengeReady);
+    syncMoreDot();
     if(document.getElementById('achPanel').classList.contains('active')) renderAchievements();
   }
 
@@ -2870,6 +2873,7 @@
 
   // ---------- nav ----------
   function activatePanel(panelId){
+    if(!panelId) return; // e.g. the "More" nav button, which opens a sheet instead of a panel
     document.querySelectorAll('.nav-btn').forEach(b => {
       const on = b.dataset.panel === panelId;
       b.classList.toggle('active', on);
@@ -2887,6 +2891,30 @@
     btn.addEventListener('click', () => activatePanel(btn.dataset.panel));
   });
   document.getElementById('countrySwitchBtn').addEventListener('click', () => activatePanel('worldPanel'));
+
+  // ---- "More" sheet: Kitchen, Goals, Skins, Rank, and Settings used to
+  // crowd the bottom bar as eight buttons; they now live in this overlay,
+  // opened from a single "More" button, reusing the same modal open/close/
+  // focus-trap plumbing as the other overlays in the game.
+  const moreSheetOverlay = document.getElementById('moreSheetOverlay');
+  document.getElementById('navMoreBtn').addEventListener('click', () => openModal(moreSheetOverlay));
+  document.getElementById('moreSheetCloseBtn').addEventListener('click', () => closeModal(moreSheetOverlay));
+  moreSheetOverlay.addEventListener('click', e => { if(e.target === moreSheetOverlay) closeModal(moreSheetOverlay); });
+  moreSheetOverlay.addEventListener('modal-dismiss', () => closeModal(moreSheetOverlay));
+  // Picking a section inside the sheet already switches panels via the
+  // generic .nav-btn listener above (attached to every .nav-btn, wherever
+  // it lives); this just also closes the sheet once that's done.
+  moreSheetOverlay.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => closeModal(moreSheetOverlay));
+  });
+  // Badge on the "More" button itself so a new achievement/skin notification
+  // is still visible even though Goals/Skins are now tucked away in the sheet.
+  function syncMoreDot(){
+    const achOn = document.getElementById('achDot').classList.contains('show');
+    const collOn = document.getElementById('collectionDot').classList.contains('show');
+    const dot = document.getElementById('moreDot');
+    if(dot) dot.classList.toggle('show', achOn || collOn);
+  }
   // Kitchen craft buttons (delegated — panel is rebuilt on each open)
   document.getElementById('kitchenPanel').addEventListener('click', e => {
     const btn = e.target.closest('[data-action="craft"]');
