@@ -559,7 +559,22 @@
   }
 
   // ---------- persistence ----------
-  const SAVE_KEY = 'ramenEmpireSave_v2';
+  // Saves are isolated per account so logging out / switching Google accounts
+  // never leaks progress between players on the same browser.
+  //   guest  → ramenEmpireSave_v2_guest
+  //   Google → ramenEmpireSave_v2_u_<uid>
+  // Legacy single key ramenEmpireSave_v2 is migrated once into the guest slot.
+  const SAVE_KEY_BASE = 'ramenEmpireSave_v2';
+  const SAVE_KEY_LEGACY = SAVE_KEY_BASE; // pre-1.9.1 shared key
+  let activeAccountId = 'guest'; // 'guest' | firebase uid
+
+  function saveKeyFor(accountId){
+    if(!accountId || accountId === 'guest') return SAVE_KEY_BASE + '_guest';
+    return SAVE_KEY_BASE + '_u_' + accountId;
+  }
+  function currentSaveKey(){
+    return saveKeyFor(activeAccountId);
+  }
 
   // NOTE on integrity: this is tamper-EVIDENCE, not tamper-PROOF. The salt below
   // ships in plain client JS, so anyone who opens devtools can read it and forge
@@ -585,104 +600,289 @@
     for(let i = 0; i < 3; i++) h = hashString(h + SAVE_SALT + (s.prestigeCount || 0));
     return h;
   }
+
+  function createFreshState(){
+    const s = {
+      cash: 0,
+      countryCash: {},
+      diamonds: 0,
+      activePowerups: {},
+      totalEarned: 0,
+      prestigePoints: 0,
+      prestigeCount: 0,
+      shards: 0,
+      metaUpgrades: {},
+      equippedSkin: 'classic',
+      countries: {},
+      unlockedCountries: ['japan'],
+      activeCountry: 'japan',
+      lastSeen: Date.now(),
+      totalTaps: 0,
+      criticEventsSeen: 0,
+      inspectorsPassed: 0,
+      luckyEventsSeen: 0,
+      milestoneIdx: -1,
+      achievementsClaimed: {},
+      achievementBonus: 0,
+      integrityFlag: false,
+      profile: { name: '', age: null, provider: null },
+      onboarded: false,
+      daily: { streak: 0, lastClaimDate: null },
+      challenges: { daily: null, weekly: null },
+      weeklyEarned: 0,
+      weekId: null,
+      seasonWins: 0,
+      tapFxEnabled: true,
+      musicEnabled: true,
+      sfxEnabled: true,
+      reputation: CONFIG.REP_START,
+      ingredients: {},
+      activeRecipe: null,
+      ordersFulfilled: 0,
+      recipesCrafted: 0,
+      storyClaimed: {},
+      seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
+      guildId: null,
+      guildName: null,
+      gifts: { lastGiftDate: null, giftedToday: {}, pendingClaimed: {} }
+    };
+    COUNTRIES.forEach(c => {
+      s.countries[c.id] = initCountryState(c);
+      s.countryCash[c.id] = 0;
+    });
+    META_UPGRADES.forEach(m => { s.metaUpgrades[m.id] = 0; });
+    return s;
+  }
+
+  function normalizeLoadedState(loaded){
+    // Pre-1.2.0 saves kept a single flat `businesses` map
+    if(loaded.businesses && !loaded.countries){
+      loaded.countries = { japan: loaded.businesses };
+      loaded.unlockedCountries = ['japan'];
+      loaded.activeCountry = 'japan';
+      delete loaded.businesses;
+    }
+    const base = createFreshState();
+    // Preserve settings prefs from current session when loading empty? No — full replace
+    state = Object.assign(base, loaded);
+    // Re-apply nested defaults that Object.assign may have partially overwritten
+    if(!state.countryCash) state.countryCash = {};
+    COUNTRIES.forEach(c => {
+      if(state.countryCash[c.id] === undefined) state.countryCash[c.id] = 0;
+      if(!state.countries[c.id]) state.countries[c.id] = initCountryState(c);
+      const bizState = state.countries[c.id];
+      c.businesses.forEach(def => {
+        if(!bizState[def.id]) bizState[def.id] = freshBusiness();
+        const biz = bizState[def.id];
+        if(biz.speed === undefined) biz.speed = 0;
+        if(biz.capacity === undefined) biz.capacity = 0;
+        if(biz.quality === undefined) biz.quality = 0;
+        if(biz.managerLevel === undefined) biz.managerLevel = biz.manager ? 1 : 0;
+      });
+    });
+    if(typeof loaded.cash === 'number' && loaded.cash > 0 && !loaded.countryCash){
+      state.countryCash.japan = (state.countryCash.japan || 0) + loaded.cash;
+    }
+    if(state.diamonds === undefined) state.diamonds = 0;
+    if(!state.activePowerups) state.activePowerups = {};
+    if(!state.unlockedCountries) state.unlockedCountries = ['japan'];
+    if(!state.unlockedCountries.includes('japan')) state.unlockedCountries.unshift('japan');
+    if(!state.activeCountry || !isUnlocked(state.activeCountry)) state.activeCountry = 'japan';
+    if(!state.achievementsClaimed) state.achievementsClaimed = {};
+    if(!state.profile) state.profile = { name: '', age: null, provider: null };
+    if(state.onboarded === undefined) state.onboarded = false;
+    if(!state.daily) state.daily = { streak: 0, lastClaimDate: null };
+    if(!state.challenges) state.challenges = { daily: null, weekly: null };
+    if(state.achievementBonus === undefined) state.achievementBonus = 0;
+    if(state.totalTaps === undefined) state.totalTaps = 0;
+    if(state.criticEventsSeen === undefined) state.criticEventsSeen = 0;
+    if(state.inspectorsPassed === undefined) state.inspectorsPassed = 0;
+    if(state.luckyEventsSeen === undefined) state.luckyEventsSeen = 0;
+    if(state.milestoneIdx === undefined) state.milestoneIdx = -1;
+    if(state.shards === undefined) state.shards = 0;
+    if(!state.metaUpgrades) state.metaUpgrades = {};
+    META_UPGRADES.forEach(m => { if(state.metaUpgrades[m.id] === undefined) state.metaUpgrades[m.id] = 0; });
+    if(!state.equippedSkin || !COSMETICS.some(c => c.id === state.equippedSkin)) state.equippedSkin = 'classic';
+    if(state.prestigeCount === undefined) state.prestigeCount = 0;
+    if(state.reputation === undefined) state.reputation = CONFIG.REP_START;
+    if(!state.ingredients) state.ingredients = {};
+    if(state.activeRecipe && state.activeRecipe.endsAt < Date.now()) state.activeRecipe = null;
+    if(state.ordersFulfilled === undefined) state.ordersFulfilled = 0;
+    if(state.recipesCrafted === undefined) state.recipesCrafted = 0;
+    if(state.tapFxEnabled === undefined) state.tapFxEnabled = true;
+    if(state.musicEnabled === undefined) state.musicEnabled = true;
+    if(state.sfxEnabled === undefined) state.sfxEnabled = true;
+    if(!state.storyClaimed) state.storyClaimed = {};
+    if(!state.seasonal) state.seasonal = { eventId: null, progress: 0, claimed: false, skinUnlocked: {} };
+    if(!state.seasonal.skinUnlocked) state.seasonal.skinUnlocked = {};
+    if(state.guildId === undefined) state.guildId = null;
+    if(state.guildName === undefined) state.guildName = null;
+    if(!state.gifts) state.gifts = { lastGiftDate: null, giftedToday: {}, pendingClaimed: {} };
+    if(!state.gifts.giftedToday) state.gifts.giftedToday = {};
+    if(!state.gifts.pendingClaimed) state.gifts.pendingClaimed = {};
+  }
+
+  function clearRuntimeSession(){
+    // Wipe transient UI/session state that must not carry across accounts
+    if(typeof activeEvent !== 'undefined'){
+      activeEvent = {type:null, endsAt:0, tapsNeeded:0, tapsDone:0};
+    }
+    if(typeof activeOrder !== 'undefined') activeOrder = null;
+    if(typeof pendingDailyReward !== 'undefined') pendingDailyReward = null;
+    if(typeof pendingOfflineGain !== 'undefined') pendingOfflineGain = 0;
+    if(typeof lastLeaderboardSubmit !== 'undefined') lastLeaderboardSubmit = 0;
+    if(typeof lastGuildContribute !== 'undefined') lastGuildContribute = 0;
+    if(typeof myGuildCache !== 'undefined') myGuildCache = null;
+    if(typeof myFriends !== 'undefined') myFriends = [];
+    if(typeof giftBoostEndsAt !== 'undefined'){ giftBoostEndsAt = 0; giftBoostAmount = 0; }
+    if(typeof bizElCache !== 'undefined') bizElCache = {};
+  }
+
+  function migrateLegacySaveOnce(){
+    try{
+      const legacy = localStorage.getItem(SAVE_KEY_LEGACY);
+      if(!legacy) return;
+      // Only migrate if neither guest nor any obvious account key was written yet
+      if(!localStorage.getItem(saveKeyFor('guest'))){
+        localStorage.setItem(saveKeyFor('guest'), legacy);
+      }
+      localStorage.removeItem(SAVE_KEY_LEGACY);
+    }catch(e){ console.warn('Legacy save migration failed', e); }
+  }
+
   function save(){
     state.lastSeen = Date.now();
     // Keep legacy cash field = sum for checksums / any remaining readers
     state.cash = totalCash();
     state.__checksum = computeChecksum(state);
-    localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+    try{
+      localStorage.setItem(currentSaveKey(), JSON.stringify(state));
+    }catch(e){ console.warn('Save failed', e); }
     submitScore();
   }
-  function load(){
-    const raw = localStorage.getItem(SAVE_KEY);
-    if(!raw) return;
+
+  function loadFromKey(key){
+    const raw = localStorage.getItem(key);
+    if(!raw){
+      state = createFreshState();
+      state.integrityFlag = false;
+      return false;
+    }
     try{
       const loaded = JSON.parse(raw);
       const savedChecksum = loaded.__checksum;
       const valid = savedChecksum !== undefined && savedChecksum === computeChecksum(loaded);
-      // Pre-1.2.0 saves kept a single flat `businesses` map (Japan only, no
-      // country concept). Detect that shape before merging and fold it into
-      // countries.japan so existing players don't lose progress.
-      if(loaded.businesses && !loaded.countries){
-        loaded.countries = { japan: loaded.businesses };
-        loaded.unlockedCountries = ['japan'];
-        loaded.activeCountry = 'japan';
-        delete loaded.businesses;
-      }
-      state = Object.assign(state, loaded);
+      normalizeLoadedState(loaded);
       state.integrityFlag = !valid;
-      // Migrate legacy single cash pool → per-country cash
-      if(!state.countryCash) state.countryCash = {};
-      COUNTRIES.forEach(c => {
-        if(state.countryCash[c.id] === undefined) state.countryCash[c.id] = 0;
-      });
-      if(typeof loaded.cash === 'number' && loaded.cash > 0 && !loaded.countryCash){
-        // Put legacy cash into Japan (home base)
-        state.countryCash.japan = (state.countryCash.japan || 0) + loaded.cash;
-      }
-      if(state.diamonds === undefined) state.diamonds = 0;
-      if(!state.activePowerups) state.activePowerups = {};
       if(!valid) console.warn('Ramen Empire: save checksum mismatch — state may have been edited outside the game.');
-      if(!state.unlockedCountries) state.unlockedCountries = ['japan'];
-      if(!state.unlockedCountries.includes('japan')) state.unlockedCountries.unshift('japan');
-      if(!state.activeCountry || !isUnlocked(state.activeCountry)) state.activeCountry = 'japan';
-      COUNTRIES.forEach(country => {
-        if(!state.countries[country.id]) state.countries[country.id] = initCountryState(country);
-        const bizState = state.countries[country.id];
-        country.businesses.forEach(def => {
-          if(!bizState[def.id]) bizState[def.id] = freshBusiness();
-          const biz = bizState[def.id];
-          if(biz.speed === undefined) biz.speed = 0;
-          if(biz.capacity === undefined) biz.capacity = 0;
-          if(biz.quality === undefined) biz.quality = 0;
-        });
-      });
-      if(!state.achievementsClaimed) state.achievementsClaimed = {};
-      if(!state.profile) state.profile = { name: '', age: null, provider: null };
-      if(state.onboarded === undefined) state.onboarded = false;
-      if(!state.daily) state.daily = { streak: 0, lastClaimDate: null };
-      if(!state.challenges) state.challenges = { daily: null, weekly: null };
-      if(state.achievementBonus === undefined) state.achievementBonus = 0;
-      if(state.totalTaps === undefined) state.totalTaps = 0;
-      if(state.criticEventsSeen === undefined) state.criticEventsSeen = 0;
-      if(state.inspectorsPassed === undefined) state.inspectorsPassed = 0;
-      if(state.luckyEventsSeen === undefined) state.luckyEventsSeen = 0;
-      if(state.milestoneIdx === undefined) state.milestoneIdx = -1;
-      if(state.shards === undefined) state.shards = 0;
-      if(!state.metaUpgrades) state.metaUpgrades = {};
-      META_UPGRADES.forEach(m => { if(state.metaUpgrades[m.id] === undefined) state.metaUpgrades[m.id] = 0; });
-      if(!state.equippedSkin || !COSMETICS.some(c => c.id === state.equippedSkin)) state.equippedSkin = 'classic';
-      if(state.prestigeCount === undefined) state.prestigeCount = 0;
-      if(state.reputation === undefined) state.reputation = CONFIG.REP_START;
-      if(!state.ingredients) state.ingredients = {};
-      if(state.activeRecipe && state.activeRecipe.endsAt < Date.now()) state.activeRecipe = null;
-      if(state.ordersFulfilled === undefined) state.ordersFulfilled = 0;
-      if(state.recipesCrafted === undefined) state.recipesCrafted = 0;
-      if(state.tapFxEnabled === undefined) state.tapFxEnabled = true;
-      if(state.musicEnabled === undefined) state.musicEnabled = true;
-      if(state.sfxEnabled === undefined) state.sfxEnabled = true;
-      if(!state.storyClaimed) state.storyClaimed = {};
-      if(!state.seasonal) state.seasonal = { eventId: null, progress: 0, claimed: false, skinUnlocked: {} };
-      if(!state.seasonal.skinUnlocked) state.seasonal.skinUnlocked = {};
-      if(state.guildId === undefined) state.guildId = null;
-      if(state.guildName === undefined) state.guildName = null;
-      if(!state.gifts) state.gifts = { lastGiftDate: null, giftedToday: {}, pendingClaimed: {} };
-      if(!state.gifts.giftedToday) state.gifts.giftedToday = {};
-      if(!state.gifts.pendingClaimed) state.gifts.pendingClaimed = {};
-      // Migrate managerLevel on existing businesses
-      COUNTRIES.forEach(country => {
-        const bizState = state.countries[country.id];
-        if(!bizState) return;
-        country.businesses.forEach(def => {
-          const biz = bizState[def.id];
-          if(!biz) return;
-          if(biz.managerLevel === undefined) biz.managerLevel = biz.manager ? 1 : 0;
-        });
-      });
-    }catch(e){ console.warn('save corrupt, starting fresh'); }
+      return true;
+    }catch(e){
+      console.warn('save corrupt, starting fresh', e);
+      state = createFreshState();
+      state.integrityFlag = false;
+      return false;
+    }
+  }
+
+  function load(){
+    loadFromKey(currentSaveKey());
+  }
+
+  // Switch the in-memory game to a different account's save. Saves the previous
+  // account first (if any progress existed), then loads the target (or a blank
+  // save). Used on login / logout / account change.
+  function switchAccount(nextAccountId, opts){
+    opts = opts || {};
+    const next = nextAccountId || 'guest';
+    if(next === activeAccountId && !opts.force) return;
+
+    // Persist current account before leaving it
+    try{
+      if(state && (state.onboarded || state.totalEarned > 0 || totalCash() > 0)){
+        save();
+      }
+    }catch(e){ console.warn('Pre-switch save failed', e); }
+
+    activeAccountId = next;
+    clearRuntimeSession();
+    loadFromKey(currentSaveKey());
+
+    // If this is a brand-new Google account and we are carrying guest progress
+    // forward (first-time link), opts.seedFromGuest can copy once.
+    if(opts.seedFromGuest && next !== 'guest'){
+      const hasOwn = !!localStorage.getItem(currentSaveKey());
+      // loadFromKey already ran; if the account key was empty we have fresh state.
+      // Only seed when the account truly had no prior save AND guest had progress.
+      if(!hasOwn){
+        const guestRaw = localStorage.getItem(saveKeyFor('guest'));
+        if(guestRaw){
+          try{
+            const guestLoaded = JSON.parse(guestRaw);
+            if(guestLoaded && (guestLoaded.onboarded || (guestLoaded.totalEarned||0) > 0)){
+              normalizeLoadedState(guestLoaded);
+              // Still bind profile to the Google identity after seed
+              if(opts.googleProfile){
+                state.profile = Object.assign({}, state.profile, opts.googleProfile);
+                state.onboarded = true;
+              }
+              save();
+            }
+          }catch(e){ /* ignore */ }
+        }
+      }
+    }
+
+    if(opts.googleProfile && state.onboarded){
+      // Keep name/age but ensure provider reflects Google
+      state.profile.provider = 'google';
+      if(opts.googleProfile.name && !state.profile.name){
+        state.profile.name = opts.googleProfile.name;
+      }
+    } else if(next === 'guest' && state.profile){
+      // Logged out: demote provider so UI shows Guest
+      if(state.profile.provider === 'google') state.profile.provider = 'guest';
+    }
+
+    // Refresh all UI tied to progress
+    try{
+      if(typeof renderEventBanner === 'function') renderEventBanner();
+      if(typeof renderOrderCard === 'function') renderOrderCard();
+      if(typeof renderProfileSettings === 'function') renderProfileSettings();
+      if(typeof renderTapFxBtn === 'function') renderTapFxBtn();
+      if(typeof renderMusicBtn === 'function') renderMusicBtn();
+      if(typeof renderSfxBtn === 'function') renderSfxBtn();
+      if(typeof renderBusinesses === 'function') renderBusinesses();
+      if(typeof renderWorld === 'function') renderWorld();
+      if(typeof renderStats === 'function') renderStats();
+      if(typeof renderAchievements === 'function') renderAchievements();
+      if(typeof applyCosmeticTheme === 'function') applyCosmeticTheme();
+      if(typeof renderSeasonalBanner === 'function') renderSeasonalBanner();
+      if(typeof ensureChallenges === 'function') ensureChallenges();
+      if(typeof ensureWeeklyPeriod === 'function') ensureWeeklyPeriod();
+    }catch(e){ console.warn('Post-switch render failed', e); }
+  }
+
+  function resetCurrentAccountProgress(){
+    // Wipe this account's save entirely and start a new blank run
+    try{ localStorage.removeItem(currentSaveKey()); }catch(e){}
+    clearRuntimeSession();
+    state = createFreshState();
+    // Keep audio/settings preferences if present in memory — actually fresh is fine
+    save();
+    try{
+      if(typeof renderEventBanner === 'function') renderEventBanner();
+      if(typeof renderOrderCard === 'function') renderOrderCard();
+      if(typeof renderProfileSettings === 'function') renderProfileSettings();
+      if(typeof renderBusinesses === 'function') renderBusinesses();
+      if(typeof renderWorld === 'function') renderWorld();
+      if(typeof renderStats === 'function') renderStats();
+      if(typeof renderAchievements === 'function') renderAchievements();
+      if(typeof applyCosmeticTheme === 'function') applyCosmeticTheme();
+    }catch(e){}
   }
 
   // ---------- math ----------
+
   // ---------- meta upgrades (Umami Shards — never reset, see META_UPGRADES) ----------
   function metaLevel(id){ return (state.metaUpgrades && state.metaUpgrades[id]) || 0; }
   function metaUpgradeCost(def){ return def.baseCost * Math.pow(def.costGrowth, metaLevel(def.id)); }
@@ -2317,11 +2517,16 @@
       alert("You're playing as a guest — there's no account to log out of.");
       return;
     }
+    // Save this Google account's progress under its own key, then sign out.
+    // onAuthStateChanged will switch the live game to the guest save so the
+    // next person on this device does not see this account's empire.
+    save();
     auth.signOut().then(() => {
-      state.profile.provider = 'guest';
-      save();
+      // switchAccount is also triggered by onAuthStateChanged(null); call
+      // defensively in case the stub auth path does not fire.
+      switchAccount('guest');
       renderProfileSettings();
-      alert('Logged out. Your local progress is unchanged.');
+      alert('Logged out. This account\'s progress is saved separately — guest mode will not show it.');
     }).catch(err => {
       console.warn('Sign out failed', err);
       alert('Log out failed — check your connection and try again.');
@@ -2339,9 +2544,49 @@
   // declaration is reached, which would otherwise throw a "Cannot access
   // 'myFriends' before initialization" error.
   let myFriends = [];
+  let authInitDone = false;
   auth.onAuthStateChanged(user => {
+    const prevId = activeAccountId;
     firebaseUser = user;
     myFriends = []; // stale for a new session/account — reloaded on next Friends tab open
+
+    const nextId = user ? user.uid : 'guest';
+
+    if(!authInitDone){
+      // First auth callback of this page load: migrate legacy shared save,
+      // then load the correct account slot. Do not "switch" from a phantom
+      // previous account (nothing was in memory yet).
+      authInitDone = true;
+      activeAccountId = nextId;
+      migrateLegacySaveOnce();
+      loadFromKey(currentSaveKey());
+      // If signed in with Google and this account has never onboarded, keep
+      // onboarded false so the profile gate still runs when needed.
+      if(user && state.profile){
+        if(state.onboarded) state.profile.provider = 'google';
+      }
+      renderProfileSettings();
+      if(state.onboarded){
+        startGame();
+      } else {
+        openAuthOverlay('onboard');
+      }
+      return;
+    }
+
+    // Subsequent auth changes: real login / logout / account switch
+    if(nextId === prevId) return;
+    switchAccount(nextId, {
+      googleProfile: user ? {
+        name: (user.displayName || '').slice(0, 24),
+        provider: 'google'
+      } : null
+    });
+    renderProfileSettings();
+    // If the newly loaded account has never finished onboarding, show the gate
+    if(!state.onboarded && typeof openAuthOverlay === 'function'){
+      openAuthOverlay('onboard');
+    }
   });
 
   function escapeHtml(str){
@@ -3359,8 +3604,10 @@
   document.getElementById('prestigeBtn').addEventListener('click', doPrestige);
   document.getElementById('saveBtn').addEventListener('click', () => { save(); alert('Saved!'); });
   document.getElementById('resetBtn').addEventListener('click', () => {
-    if(confirm('Reset ALL progress? This cannot be undone.')){
-      localStorage.removeItem(SAVE_KEY);
+    if(confirm('Reset ALL progress for this account? This cannot be undone.')){
+      try{ localStorage.removeItem(currentSaveKey()); }catch(e){}
+      // Also clear legacy key if present so it cannot resurrect old data
+      try{ localStorage.removeItem(SAVE_KEY_LEGACY); }catch(e){}
       location.reload();
     }
   });
@@ -3482,13 +3729,20 @@
     requestAnimationFrame(tick);
   }
 
-  load();
-  renderProfileSettings();
-  if(state.onboarded){
-    startGame();
-  } else {
-    openAuthOverlay('onboard');
-  }
+  // Auth drives the first load via onAuthStateChanged (see above).
+  // Firebase always fires that callback (async). If the stub/offline auth
+  // path is active it fires on the next tick with user=null → guest load.
+  // Fallback: if somehow auth never fires within 2s, load guest and start.
+  migrateLegacySaveOnce();
+  setTimeout(() => {
+    if(authInitDone) return;
+    authInitDone = true;
+    activeAccountId = 'guest';
+    loadFromKey(currentSaveKey());
+    renderProfileSettings();
+    if(state.onboarded) startGame();
+    else openAuthOverlay('onboard');
+  }, 2000);
 
   window.addEventListener('beforeunload', save);
   window.addEventListener('pagehide', save);
