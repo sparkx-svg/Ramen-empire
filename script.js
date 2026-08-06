@@ -11,53 +11,53 @@
     {
       id:'japan', name:'Japan', icon:'🇯🇵', tagline:'Where it all began', unlockCost:0,
       businesses:[
-        {id:'cart',   name:'Street Cart',       icon:'🛒', baseCost:10,      baseIncome:0.5,   unlockAt:0},
-        {id:'stall',  name:'Noodle Stall',      icon:'🏮', baseCost:100,     baseIncome:4,     unlockAt:0},
-        {id:'shop',   name:'Corner Shop',       icon:'🏠', baseCost:1100,    baseIncome:30,    unlockAt:0},
-        {id:'diner',  name:'Family Diner',      icon:'🍽️', baseCost:12000,   baseIncome:200,   unlockAt:5},
-        {id:'chain',  name:'City Chain',        icon:'🏢', baseCost:130000,  baseIncome:1400,  unlockAt:5},
-        {id:'factory',name:'Broth Factory',     icon:'🏭', baseCost:1400000, baseIncome:9000,  unlockAt:10},
-        {id:'mall',   name:'Mall Franchise',    icon:'🏬', baseCost:2e7,     baseIncome:55000, unlockAt:10},
-        {id:'global', name:'Global Empire HQ',  icon:'🌆', baseCost:3.3e8,   baseIncome:330000,unlockAt:15},
+        {id:'cart',   name:'Street Cart',       icon:'🛒', baseCost:15,      baseIncome:0.25,  unlockAt:0},
+        {id:'stall',  name:'Noodle Stall',      icon:'🏮', baseCost:180,     baseIncome:1.5,   unlockAt:0},
+        {id:'shop',   name:'Corner Shop',       icon:'🏠', baseCost:2500,    baseIncome:10,    unlockAt:0},
+        {id:'diner',  name:'Family Diner',      icon:'🍽️', baseCost:45000,   baseIncome:55,    unlockAt:8},
+        {id:'chain',  name:'City Chain',        icon:'🏢', baseCost:8e5,     baseIncome:320,   unlockAt:12},
+        {id:'factory',name:'Broth Factory',     icon:'🏭', baseCost:2e7,     baseIncome:1800,  unlockAt:18},
+        {id:'mall',   name:'Mall Franchise',    icon:'🏬', baseCost:8e8,     baseIncome:12000, unlockAt:25},
+        {id:'global', name:'Global Empire HQ',  icon:'🌆', baseCost:5e11,    baseIncome:80000, unlockAt:35},
       ]
     },
     {
-      id:'italy', name:'Italy', icon:'🇮🇹', tagline:'Pasta, pizza & espresso', unlockCost:350000,
+      id:'italy', name:'Italy', icon:'🇮🇹', tagline:'Pasta, pizza & espresso', unlockCost:5e6,
       businesses:[
-        {id:'cart',   name:'Panini Cart',        icon:'🥖', baseCost:10,      baseIncome:0.5,   unlockAt:0},
-        {id:'stall',  name:'Pizza Stall',        icon:'🍕', baseCost:100,     baseIncome:4,     unlockAt:0},
-        {id:'shop',   name:'Trattoria',          icon:'🍝', baseCost:1100,    baseIncome:30,    unlockAt:0},
-        {id:'diner',  name:'Family Ristorante',  icon:'🍷', baseCost:12000,   baseIncome:200,   unlockAt:5},
-        {id:'chain',  name:'City Pizzeria Chain',icon:'🏢', baseCost:130000,  baseIncome:1400,  unlockAt:5},
-        {id:'factory',name:'Pasta Factory',      icon:'🏭', baseCost:1400000, baseIncome:9000,  unlockAt:10},
-        {id:'mall',   name:'Piazza Franchise',   icon:'🏬', baseCost:2e7,     baseIncome:55000, unlockAt:10},
-        {id:'global', name:'Roman Empire HQ',    icon:'🏛️', baseCost:3.3e8,   baseIncome:330000,unlockAt:15},
+        {id:'cart',   name:'Panini Cart',        icon:'🥖', baseCost:15,      baseIncome:0.25,  unlockAt:0},
+        {id:'stall',  name:'Pizza Stall',        icon:'🍕', baseCost:180,     baseIncome:1.5,   unlockAt:0},
+        {id:'shop',   name:'Trattoria',          icon:'🍝', baseCost:2500,    baseIncome:10,    unlockAt:0},
+        {id:'diner',  name:'Family Ristorante',  icon:'🍷', baseCost:45000,   baseIncome:55,    unlockAt:8},
+        {id:'chain',  name:'City Pizzeria Chain',icon:'🏢', baseCost:8e5,     baseIncome:320,   unlockAt:12},
+        {id:'factory',name:'Pasta Factory',      icon:'🏭', baseCost:2e7,     baseIncome:1800,  unlockAt:18},
+        {id:'mall',   name:'Piazza Franchise',   icon:'🏬', baseCost:8e8,     baseIncome:12000, unlockAt:25},
+        {id:'global', name:'Roman Empire HQ',    icon:'🏛️', baseCost:5e11,    baseIncome:80000, unlockAt:35},
       ]
     },
     {
-      id:'mexico', name:'Mexico', icon:'🇲🇽', tagline:'Tacos, salsa & fire', unlockCost:45000000,
+      id:'mexico', name:'Mexico', icon:'🇲🇽', tagline:'Tacos, salsa & fire', unlockCost:2e12,
       businesses:[
-        {id:'cart',   name:'Taco Cart',         icon:'🌮', baseCost:10,      baseIncome:0.5,   unlockAt:0},
-        {id:'stall',  name:'Salsa Stall',       icon:'🌶️', baseCost:100,     baseIncome:4,     unlockAt:0},
-        {id:'shop',   name:'Taqueria',          icon:'🫔', baseCost:1100,    baseIncome:30,    unlockAt:0},
-        {id:'diner',  name:'Family Cantina',    icon:'🍹', baseCost:12000,   baseIncome:200,   unlockAt:5},
-        {id:'chain',  name:'City Taco Chain',   icon:'🏢', baseCost:130000,  baseIncome:1400,  unlockAt:5},
-        {id:'factory',name:'Tortilla Factory',  icon:'🏭', baseCost:1400000, baseIncome:9000,  unlockAt:10},
-        {id:'mall',   name:'Mercado Franchise', icon:'🏬', baseCost:2e7,     baseIncome:55000, unlockAt:10},
-        {id:'global', name:'Aztec Empire HQ',   icon:'🌆', baseCost:3.3e8,   baseIncome:330000,unlockAt:15},
+        {id:'cart',   name:'Taco Cart',         icon:'🌮', baseCost:15,      baseIncome:0.25,  unlockAt:0},
+        {id:'stall',  name:'Salsa Stall',       icon:'🌶️', baseCost:180,     baseIncome:1.5,   unlockAt:0},
+        {id:'shop',   name:'Taqueria',          icon:'🫔', baseCost:2500,    baseIncome:10,    unlockAt:0},
+        {id:'diner',  name:'Family Cantina',    icon:'🍹', baseCost:45000,   baseIncome:55,    unlockAt:8},
+        {id:'chain',  name:'City Taco Chain',   icon:'🏢', baseCost:8e5,     baseIncome:320,   unlockAt:12},
+        {id:'factory',name:'Tortilla Factory',  icon:'🏭', baseCost:2e7,     baseIncome:1800,  unlockAt:18},
+        {id:'mall',   name:'Mercado Franchise', icon:'🏬', baseCost:8e8,     baseIncome:12000, unlockAt:25},
+        {id:'global', name:'Aztec Empire HQ',   icon:'🌆', baseCost:5e11,    baseIncome:80000, unlockAt:35},
       ]
     },
     {
-      id:'india', name:'India', icon:'🇮🇳', tagline:'Curry, spice & chai', unlockCost:9000000000,
+      id:'india', name:'India', icon:'🇮🇳', tagline:'Curry, spice & chai', unlockCost:1e18,
       businesses:[
-        {id:'cart',   name:'Chai Cart',         icon:'🍵', baseCost:10,      baseIncome:0.5,   unlockAt:0},
-        {id:'stall',  name:'Samosa Stall',      icon:'🥟', baseCost:100,     baseIncome:4,     unlockAt:0},
-        {id:'shop',   name:'Curry House',       icon:'🍛', baseCost:1100,    baseIncome:30,    unlockAt:0},
-        {id:'diner',  name:'Family Dhaba',      icon:'🫓', baseCost:12000,   baseIncome:200,   unlockAt:5},
-        {id:'chain',  name:'City Curry Chain',  icon:'🏢', baseCost:130000,  baseIncome:1400,  unlockAt:5},
-        {id:'factory',name:'Spice Factory',     icon:'🏭', baseCost:1400000, baseIncome:9000,  unlockAt:10},
-        {id:'mall',   name:'Bazaar Franchise',  icon:'🏬', baseCost:2e7,     baseIncome:55000, unlockAt:10},
-        {id:'global', name:'Mughal Empire HQ',  icon:'🕌', baseCost:3.3e8,   baseIncome:330000,unlockAt:15},
+        {id:'cart',   name:'Chai Cart',         icon:'🍵', baseCost:15,      baseIncome:0.25,  unlockAt:0},
+        {id:'stall',  name:'Samosa Stall',      icon:'🥟', baseCost:180,     baseIncome:1.5,   unlockAt:0},
+        {id:'shop',   name:'Curry House',       icon:'🍛', baseCost:2500,    baseIncome:10,    unlockAt:0},
+        {id:'diner',  name:'Family Dhaba',      icon:'🫓', baseCost:45000,   baseIncome:55,    unlockAt:8},
+        {id:'chain',  name:'City Curry Chain',  icon:'🏢', baseCost:8e5,     baseIncome:320,   unlockAt:12},
+        {id:'factory',name:'Spice Factory',     icon:'🏭', baseCost:2e7,     baseIncome:1800,  unlockAt:18},
+        {id:'mall',   name:'Bazaar Franchise',  icon:'🏬', baseCost:8e8,     baseIncome:12000, unlockAt:25},
+        {id:'global', name:'Mughal Empire HQ',  icon:'🕌', baseCost:5e11,    baseIncome:80000, unlockAt:35},
       ]
     },
   ];
@@ -76,19 +76,21 @@
     // level than income does, so brute-force leveling stops paying for
     // itself sooner and players have to lean harder on managers, upgrades,
     // reputation, and prestige to keep progressing.
-    COST_GROWTH: 1.19,              // cost multiplier per business level purchased (was 1.15)
-    MANAGER_COST_MULT: 130,         // manager costs this many times the business's base cost (was 80)
-    MANAGER_UNLOCK_LEVEL: 5,        // business must reach this level before a manager can be hired
-    MANAGER_INCOME_MULT: 1.5,       // +50% income once a manager is hired
-    LEVEL_INCOME_SCALING: 0.006,    // each business level adds this fraction of extra income on top of linear scaling (was 0.01)
+    // Tuned for ~1 month of regular play to finish a full world tour + HQ max.
+    // Costs grow faster than income; prestige and diamonds are the long levers.
+    COST_GROWTH: 1.32,              // cost multiplier per business level (was 1.19)
+    MANAGER_COST_MULT: 220,         // manager costs this many times base cost (was 130)
+    MANAGER_UNLOCK_LEVEL: 8,        // business must reach this level before a manager can be hired
+    MANAGER_INCOME_MULT: 1.35,      // +35% income once a manager is hired (was 1.5)
+    LEVEL_INCOME_SCALING: 0.0025,   // tiny extra income per level (was 0.006)
 
     // Prestige
-    PRESTIGE_BONUS_PER_POINT: 0.015, // each Miso Point adds 1.5% to the global income multiplier (was 2%)
-    PRESTIGE_EARNINGS_DIVISOR: 8e6, // totalEarned is divided by this before sqrt to get potential prestige points (was 1e6 — fewer points per run)
-    SHARDS_PER_PRESTIGE_POINT: 10,  // potential Miso Points are divided by this (then floored) to get Umami Shards earned on that same prestige
+    PRESTIGE_BONUS_PER_POINT: 0.008, // each Miso Point adds 0.8% global income (was 1.5%)
+    PRESTIGE_EARNINGS_DIVISOR: 5e8, // harder prestige points (was 8e6)
+    SHARDS_PER_PRESTIGE_POINT: 12,  // fewer Umami Shards per prestige
 
     // Tapping
-    TAP_SCALING_FACTOR: 0.000004,   // how much lifetime earnings boost each tap's base cash gain (was 0.00001 — tapping matters less late-game, forcing real investment)
+    TAP_SCALING_FACTOR: 0.0000008,  // taps matter less late-game (was 0.000004)
 
     // Random events
     EVENT_CHECK_INTERVAL_MS: 15000, // how often we roll for a new event
@@ -108,8 +110,8 @@
 
     // Offline earnings
     OFFLINE_MIN_SEC: 30,            // don't show the modal for very short absences
-    OFFLINE_MAX_HOURS: 4,           // cap how much offline time counts toward the reward
-    OFFLINE_EARN_MULT: 0.5,         // offline earnings accrue at 50% of the live rate
+    OFFLINE_MAX_HOURS: 6,           // cap how much offline time counts toward the reward
+    OFFLINE_EARN_MULT: 0.3,         // offline earnings accrue at 30% of the live rate
     OFFLINE_MIN_GAIN: 1,            // don't show the modal for a negligible amount
     OFFLINE_AD_MULT: 2,             // "watch ad to double" multiplier
 
@@ -369,7 +371,10 @@
   }
 
   let state = {
-    cash: 0,
+    cash: 0, // legacy field — migrated into countryCash on load; kept for leaderboard sum
+    countryCash: {}, // per-country cash pools (japan/italy/mexico/india)
+    diamonds: 0,     // global premium currency for powerups (never reset by prestige)
+    activePowerups: {}, // powerupId -> endsAt timestamp (ms)
     totalEarned: 0,
     prestigePoints: 0,
     prestigeCount: 0,
@@ -429,7 +434,129 @@
     country.businesses.forEach(b => obj[b.id] = freshBusiness());
     return obj;
   }
-  COUNTRIES.forEach(c => state.countries[c.id] = initCountryState(c));
+  COUNTRIES.forEach(c => {
+    state.countries[c.id] = initCountryState(c);
+    state.countryCash[c.id] = 0;
+  });
+
+  // ---------- per-country cash + diamonds helpers ----------
+  function getCountryCash(id){
+    id = id || state.activeCountry;
+    if(!state.countryCash) state.countryCash = {};
+    if(state.countryCash[id] === undefined) state.countryCash[id] = 0;
+    return state.countryCash[id];
+  }
+  function setCountryCash(id, amount){
+    if(!state.countryCash) state.countryCash = {};
+    state.countryCash[id] = Math.max(0, amount);
+  }
+  function addCountryCash(id, amount){
+    if(amount <= 0) return;
+    setCountryCash(id, getCountryCash(id) + amount);
+  }
+  function spendCountryCash(id, amount){
+    if(getCountryCash(id) < amount) return false;
+    setCountryCash(id, getCountryCash(id) - amount);
+    return true;
+  }
+  function totalCash(){
+    let t = 0;
+    COUNTRIES.forEach(c => { t += getCountryCash(c.id); });
+    return t;
+  }
+  // Spend unlock costs from the richest unlocked country first
+  function spendFromRichest(amount){
+    const unlocked = COUNTRIES.filter(c => isUnlocked(c.id))
+      .sort((a, b) => getCountryCash(b.id) - getCountryCash(a.id));
+    let need = amount;
+    for(const c of unlocked){
+      const have = getCountryCash(c.id);
+      if(have <= 0) continue;
+      const take = Math.min(have, need);
+      setCountryCash(c.id, have - take);
+      need -= take;
+      if(need <= 0) return true;
+    }
+    return need <= 0;
+  }
+  function canAffordUnlock(cost){
+    return totalCash() >= cost;
+  }
+
+  // ---------- powerups (bought with global diamonds) ----------
+  const POWERUPS = [
+    {id:'double_income', icon:'💰', name:'Double Income',   desc:'2× passive income for 10 min', durationMs:10*60*1000, cost:25, effect:'income', mult:2},
+    {id:'tap_frenzy',    icon:'👆', name:'Tap Frenzy',      desc:'5× tap gain for 5 min',         durationMs:5*60*1000,  cost:20, effect:'tap',    mult:5},
+    {id:'night_owl',     icon:'🌙', name:'Night Owl',       desc:'3× offline rate for 30 min',    durationMs:30*60*1000, cost:30, effect:'offline',mult:3},
+    {id:'lucky_charm',   icon:'🍀', name:'Lucky Charm',     desc:'+25% event chance for 15 min',  durationMs:15*60*1000, cost:15, effect:'luck',   mult:0.25},
+    {id:'cash_burst',    icon:'💥', name:'Cash Burst',      desc:'Instant 60s of active-country income', durationMs:0, cost:18, effect:'burst', mult:60},
+    {id:'rep_boost',     icon:'⭐', name:'Star Chef',       desc:'+20 reputation instantly',      durationMs:0, cost:12, effect:'rep', mult:20},
+  ];
+  function powerupActive(id){
+    const ends = state.activePowerups && state.activePowerups[id];
+    return ends && ends > Date.now();
+  }
+  function powerupMult(effect){
+    let m = 1;
+    POWERUPS.forEach(p => {
+      if(p.effect === effect && powerupActive(p.id) && p.mult > 1) m *= p.mult;
+    });
+    return m;
+  }
+  function powerupLuckBonus(){
+    let b = 0;
+    POWERUPS.forEach(p => {
+      if(p.effect === 'luck' && powerupActive(p.id)) b += p.mult;
+    });
+    return b;
+  }
+  function buyPowerup(id){
+    const def = POWERUPS.find(p => p.id === id);
+    if(!def) return;
+    if((state.diamonds || 0) < def.cost){ playErrorSfx(); return; }
+    if(def.durationMs > 0 && powerupActive(id)){ playErrorSfx(); return; } // already active
+    state.diamonds -= def.cost;
+    playBuySfx();
+    if(def.effect === 'burst'){
+      const gain = Math.max(1, countryRatePerSec(activeCountryDef()) * globalMultiplier() * eventMultiplier() * def.mult);
+      addCountryCash(state.activeCountry, gain);
+      addEarned(gain);
+      spawnFloatingGain(gain);
+    } else if(def.effect === 'rep'){
+      adjustReputation(def.mult);
+    } else {
+      if(!state.activePowerups) state.activePowerups = {};
+      state.activePowerups[id] = Date.now() + def.durationMs;
+    }
+    save(); renderStats(); renderPowerups();
+  }
+  function earnDiamonds(n){
+    if(n <= 0) return;
+    state.diamonds = (state.diamonds || 0) + n;
+  }
+  function renderPowerups(){
+    const list = document.getElementById('powerupsList');
+    const bal = document.getElementById('diamondBalance');
+    if(bal) bal.textContent = Math.floor(state.diamonds || 0);
+    if(!list) return;
+    list.innerHTML = '';
+    POWERUPS.forEach(def => {
+      const active = powerupActive(def.id);
+      const remain = active ? Math.ceil((state.activePowerups[def.id] - Date.now()) / 1000) : 0;
+      const canBuy = (state.diamonds || 0) >= def.cost && !(def.durationMs > 0 && active);
+      const card = document.createElement('div');
+      card.className = 'ach-card' + (active ? ' claimed' : '');
+      card.innerHTML = `
+        <div class="ach-icon${active ? ' done' : ''}" aria-hidden="true">${def.icon}</div>
+        <div class="ach-info">
+          <div class="ach-name">${def.name}</div>
+          <div class="ach-desc">${def.desc}</div>
+          <div class="ach-reward">${active ? 'Active · ' + remain + 's left' : '💎 ' + def.cost + ' diamonds'}</div>
+        </div>
+        <button class="claim-btn" data-action="buy-powerup" data-id="${def.id}" ${canBuy ? '' : 'disabled'}>${active ? 'Active' : 'Buy'}</button>`;
+      list.appendChild(card);
+    });
+  }
 
   // ---------- persistence ----------
   const SAVE_KEY = 'ramenEmpireSave_v2';
@@ -460,6 +587,8 @@
   }
   function save(){
     state.lastSeen = Date.now();
+    // Keep legacy cash field = sum for checksums / any remaining readers
+    state.cash = totalCash();
     state.__checksum = computeChecksum(state);
     localStorage.setItem(SAVE_KEY, JSON.stringify(state));
     submitScore();
@@ -482,6 +611,17 @@
       }
       state = Object.assign(state, loaded);
       state.integrityFlag = !valid;
+      // Migrate legacy single cash pool → per-country cash
+      if(!state.countryCash) state.countryCash = {};
+      COUNTRIES.forEach(c => {
+        if(state.countryCash[c.id] === undefined) state.countryCash[c.id] = 0;
+      });
+      if(typeof loaded.cash === 'number' && loaded.cash > 0 && !loaded.countryCash){
+        // Put legacy cash into Japan (home base)
+        state.countryCash.japan = (state.countryCash.japan || 0) + loaded.cash;
+      }
+      if(state.diamonds === undefined) state.diamonds = 0;
+      if(!state.activePowerups) state.activePowerups = {};
       if(!valid) console.warn('Ramen Empire: save checksum mismatch — state may have been edited outside the game.');
       if(!state.unlockedCountries) state.unlockedCountries = ['japan'];
       if(!state.unlockedCountries.includes('japan')) state.unlockedCountries.unshift('japan');
@@ -569,7 +709,8 @@
       * (1 + metaBonus('umami'))
       * reputationMultiplier()
       * (1 + activeRecipeBoost('income'))
-      * (typeof giftBoostMultiplier === 'function' ? giftBoostMultiplier() : 1);
+      * (typeof giftBoostMultiplier === 'function' ? giftBoostMultiplier() : 1)
+      * powerupMult('income');
   }
   function businessCost(def, level){ return def.baseCost * Math.pow(CONFIG.COST_GROWTH, level); }
   function upgradeCost(def, type, level){
@@ -630,14 +771,15 @@
       * globalMultiplier()
       * luckyMult
       * (1 + metaBonus('tap'))
-      * (1 + activeRecipeBoost('tap'));
+      * (1 + activeRecipeBoost('tap'))
+      * powerupMult('tap');
   }
   function potentialPrestigePoints(){
     return Math.floor(Math.sqrt(state.totalEarned / CONFIG.PRESTIGE_EARNINGS_DIVISOR));
   }
   function fmt(n){
     if(n < 1000) return '¥' + n.toFixed(n < 10 ? 1 : 0);
-    const units = ['K','M','B','T','Qa','Qi','Sx','Sp'];
+    const units = ['K','M','B','T','Qa','Qi','Sx','Sp','Oc','No','Dc','Ud','Dd'];
     let u = -1;
     while(n >= 1000 && u < units.length - 1){ n /= 1000; u++; }
     return '¥' + n.toFixed(2) + units[u];
@@ -704,9 +846,11 @@
   }
   function collectDailyStreak(){
     if(!pendingDailyReward) return;
-    state.cash += pendingDailyReward.cash;
+    addCountryCash(state.activeCountry, pendingDailyReward.cash);
     addEarned(pendingDailyReward.cash);
     state.prestigePoints += pendingDailyReward.miso;
+    if(state.daily.streak % 7 === 0) earnDiamonds(3);
+    else if(state.daily.streak % 3 === 0) earnDiamonds(1);
     pendingDailyReward = null;
     closeModal(document.getElementById('dailyStreakModal'));
     save(); renderStats(); checkMilestones();
@@ -766,9 +910,10 @@
   function claimChallenge(which){
     const c = state.challenges[which];
     if(!c || c.claimed || c.progress < c.target) return;
-    state.cash += c.reward.cash || 0;
+    addCountryCash(state.activeCountry, c.reward.cash || 0);
     addEarned(c.reward.cash || 0);
     state.prestigePoints += c.reward.miso || 0;
+    if(c.reward.miso) earnDiamonds(2); else earnDiamonds(1);
     c.claimed = true;
     save(); renderAchievements(); renderStats();
   }
@@ -839,7 +984,7 @@
     if(activeEvent.type) return;
     if(Date.now() < nextEventCheck) return;
     nextEventCheck = Date.now() + CONFIG.EVENT_CHECK_INTERVAL_MS;
-    if(Math.random() < CONFIG.EVENT_TRIGGER_CHANCE + metaBonus('luck')){
+    if(Math.random() < CONFIG.EVENT_TRIGGER_CHANCE + metaBonus('luck') + powerupLuckBonus()){
       const roll = Math.random();
       if(roll < CONFIG.LUCKY_EVENT_SHARE) startLuckyEvent();
       else if(roll < CONFIG.LUCKY_EVENT_SHARE + (1 - CONFIG.LUCKY_EVENT_SHARE) * CONFIG.CRITIC_EVENT_SHARE) startCriticEvent();
@@ -933,8 +1078,8 @@
   function repairReputation(){
     if(state.reputation >= CONFIG.REP_MAX) return;
     const cost = reputationRepairCost();
-    if(state.cash < cost) return;
-    state.cash -= cost;
+    if(getCountryCash(state.activeCountry) < cost) return;
+    if(!spendCountryCash(state.activeCountry, cost)) return;
     adjustReputation(CONFIG.REP_REPAIR_AMOUNT);
     renderStats();
     renderKitchen();
@@ -959,9 +1104,10 @@
     if(!activeOrder) return;
     const rate = Math.max(totalRatePerSec(), 0.5);
     const gain = rate * CONFIG.ORDER_REWARD_SECONDS + nextTapGain() * CONFIG.ORDER_REWARD_TAP_MULT;
-    state.cash += gain;
+    addCountryCash(state.activeCountry, gain);
     addEarned(gain);
     state.ordersFulfilled = (state.ordersFulfilled || 0) + 1;
+    if(Math.random() < 0.08) earnDiamonds(1);
     adjustReputation(CONFIG.REP_ORDER_GAIN);
     spawnFloatingGain(gain);
     fireTapFeedback(false);
@@ -1055,7 +1201,7 @@
         </div>
         <div class="rep-track big"><div class="rep-fill" style="width:${repPct}%"></div></div>
         <p class="rep-hint">Decays slowly while you play. Fulfill orders, pass inspections, or spend cash to restore it.</p>
-        <button class="modal-btn" id="repairRepBtn" ${rep >= CONFIG.REP_MAX || state.cash < repairCost ? 'disabled' : ''}>
+        <button class="modal-btn" id="repairRepBtn" ${rep >= CONFIG.REP_MAX || getCountryCash(state.activeCountry) < repairCost ? 'disabled' : ''}>
           Polish Reputation · ${fmt(repairCost)}
         </button>
       </div>`;
@@ -1128,7 +1274,7 @@
     const country = activeCountryDef();
     const bizState = state.countries[country.id];
     document.getElementById('countryBarIcon').textContent = country.icon;
-    document.getElementById('countryBarName').textContent = country.name;
+    document.getElementById('countryBarName').textContent = country.name + ' · ' + fmt(getCountryCash(country.id));
     bizPanel.innerHTML = '';
     bizElCache = {};
     country.businesses.forEach((def, idx) => {
@@ -1136,7 +1282,7 @@
       const prevDef = country.businesses[idx-1];
       const locked = idx > 0 && b.level === 0 && (!prevDef || bizState[prevDef.id].level < def.unlockAt) && def.unlockAt > 0;
       const cost = businessCost(def, b.level);
-      const canAfford = state.cash >= cost;
+      const canAfford = getCountryCash(state.activeCountry) >= cost;
       const income = businessIncomeWithManager(def, b);
       const mCost = managerCost(def);
       const isOpen = expandedCards.has(def.id);
@@ -1151,7 +1297,7 @@
           const lvl = b[type];
           const uc = upgradeCost(def, type, lvl);
           const maxed = lvl >= t.max;
-          const canBuy = state.cash >= uc && !maxed;
+          const canBuy = getCountryCash(state.activeCountry) >= uc && !maxed;
           const upgLabel = `${t.label} upgrade for ${def.name}, level ${lvl}${maxed ? ', maxed out' : ', cost ' + fmt(uc)}`;
           upgradeChips += `
             <button class="upgrade-chip" data-action="upgrade" data-id="${def.id}" data-type="${type}" aria-label="${upgLabel}" ${!canBuy ? 'disabled':''}>
@@ -1174,10 +1320,10 @@
         : '';
       let staffBtn = '';
       if(!b.manager && b.level >= CONFIG.MANAGER_UNLOCK_LEVEL){
-        staffBtn = `<button class="buy-btn manager-btn" data-action="manager" data-id="${def.id}" aria-label="Hire manager for ${def.name}, cost ${fmt(mCost)}" ${state.cash < mCost ? 'disabled' : ''}>${MANAGER_BONUS_LABEL}<small>${fmt(mCost)}</small></button>`;
+        staffBtn = `<button class="buy-btn manager-btn" data-action="manager" data-id="${def.id}" aria-label="Hire manager for ${def.name}, cost ${fmt(mCost)}" ${getCountryCash(state.activeCountry) < mCost ? 'disabled' : ''}>${MANAGER_BONUS_LABEL}<small>${fmt(mCost)}</small></button>`;
       } else if(b.manager && mLvl < CONFIG.MANAGER_MAX_LEVEL){
         const tCost = managerTrainCost(def, mLvl);
-        staffBtn = `<button class="buy-btn manager-btn train-btn" data-action="train" data-id="${def.id}" aria-label="Train manager for ${def.name} to level ${mLvl+1}, cost ${fmt(tCost)}" ${state.cash < tCost ? 'disabled' : ''}>Train Lv${mLvl+1}<small>${fmt(tCost)}</small></button>`;
+        staffBtn = `<button class="buy-btn manager-btn train-btn" data-action="train" data-id="${def.id}" aria-label="Train manager for ${def.name} to level ${mLvl+1}, cost ${fmt(tCost)}" ${getCountryCash(state.activeCountry) < tCost ? 'disabled' : ''}>Train Lv${mLvl+1}<small>${fmt(tCost)}</small></button>`;
       } else if(b.manager){
         staffBtn = `<button class="buy-btn manager-btn" disabled>MAX Lv${mLvl}</button>`;
       }
@@ -1222,14 +1368,14 @@
       const prevDef = country.businesses[idx-1];
       const locked = idx > 0 && b.level === 0 && (!prevDef || bizState[prevDef.id].level < def.unlockAt) && def.unlockAt > 0;
       const cost = businessCost(def, b.level);
-      if(cache.buyBtn) cache.buyBtn.disabled = state.cash < cost || locked;
+      if(cache.buyBtn) cache.buyBtn.disabled = getCountryCash(state.activeCountry) < cost || locked;
       if(cache.managerBtn){
         if(b.manager){
           const ml = b.managerLevel || 1;
           if(ml >= CONFIG.MANAGER_MAX_LEVEL) cache.managerBtn.disabled = true;
-          else cache.managerBtn.disabled = state.cash < managerTrainCost(def, ml);
+          else cache.managerBtn.disabled = getCountryCash(state.activeCountry) < managerTrainCost(def, ml);
         } else {
-          cache.managerBtn.disabled = state.cash < managerCost(def);
+          cache.managerBtn.disabled = getCountryCash(state.activeCountry) < managerCost(def);
         }
       }
       if(b.level > 0){
@@ -1239,7 +1385,7 @@
           const t = UPGRADE_TYPES[type];
           const lvl = b[type];
           const maxed = lvl >= t.max;
-          chip.disabled = maxed || state.cash < upgradeCost(def, type, lvl);
+          chip.disabled = maxed || getCountryCash(state.activeCountry) < upgradeCost(def, type, lvl);
         });
       }
     });
@@ -1270,8 +1416,9 @@
     if(!found || !found.cond(state)) return;
     state.storyClaimed[questId] = true;
     const cash = storyQuestRewardCash(found);
-    state.cash += cash;
+    addCountryCash(state.activeCountry, cash);
     addEarned(cash);
+    earnDiamonds(1);
     if(found.reward.miso) state.prestigePoints += found.reward.miso;
     save();
     renderAchievements();
@@ -1373,8 +1520,9 @@
     }
     if(ev.rewardMiso) state.prestigePoints += ev.rewardMiso;
     const cash = Math.max(totalRatePerSec(), 1) * 60;
-    state.cash += cash;
+    addCountryCash(state.activeCountry, cash);
     addEarned(cash);
+    earnDiamonds(2);
     save();
     renderAchievements();
     renderStats();
@@ -1481,13 +1629,13 @@
       card.className = 'world-card' + (unlocked ? '' : ' locked') + (active ? ' active' : '');
       const btn = unlocked
         ? `<button class="world-btn${active ? ' active-btn' : ''}" data-action="select" data-id="${country.id}" aria-label="${active ? country.name + ' is currently active' : 'Manage ' + country.name}" ${active ? 'disabled' : ''}>${active ? 'ACTIVE' : 'MANAGE'}</button>`
-        : `<button class="world-btn" data-action="unlock" data-id="${country.id}" aria-label="Unlock ${country.name} for ${fmt(country.unlockCost)}" ${state.cash < country.unlockCost ? 'disabled' : ''}>UNLOCK<small>${fmt(country.unlockCost)}</small></button>`;
+        : `<button class="world-btn" data-action="unlock" data-id="${country.id}" aria-label="Unlock ${country.name} for ${fmt(country.unlockCost)}" ${!canAffordUnlock(country.unlockCost) ? 'disabled' : ''}>UNLOCK<small>${fmt(country.unlockCost)}</small></button>`;
       card.innerHTML = `
         <div class="world-flag" aria-hidden="true">${country.icon}</div>
         <div class="world-info">
           <div class="world-name">${country.name}${active ? '<span class="active-tag">ACTIVE</span>' : ''}</div>
           <div class="world-tagline">${country.tagline}</div>
-          <div class="world-income">${unlocked ? fmt(rate) + '/s' : 'Locked'}</div>
+          <div class="world-income">${unlocked ? fmt(rate) + '/s · ' + fmt(getCountryCash(country.id)) + ' cash' : 'Locked'}</div>
         </div>
         ${btn}
       `;
@@ -1496,10 +1644,12 @@
   }
   function unlockCountry(id){
     const country = getCountry(id);
-    if(!country || isUnlocked(id) || state.cash < country.unlockCost) return;
-    state.cash -= country.unlockCost;
+    if(!country || isUnlocked(id) || !canAffordUnlock(country.unlockCost)) return;
+    if(!spendFromRichest(country.unlockCost)) return;
     state.unlockedCountries.push(id);
     state.activeCountry = id;
+    // Seed a tiny starter pot so the new market isn't dead on arrival
+    addCountryCash(id, Math.min(50, country.unlockCost * 0.00001 + 10));
     renderWorld(); renderBusinesses(); renderStats(); checkAchievements();
     activatePanel('bizPanel');
   }
@@ -1519,6 +1669,7 @@
   // ---------- meta upgrades (Umami Shards shop, in the Prestige panel) ----------
   function renderPrestige(){
     document.getElementById('shardBalance').textContent = Math.floor(state.shards);
+    renderPowerups();
     const shardsNext = potentialShards();
     const line = document.getElementById('shardPreviewLine');
     line.textContent = shardsNext > 0
@@ -1557,8 +1708,10 @@
     renderPrestige(); renderStats(); refreshBusinessAffordability();
   }
   document.getElementById('prestigePanel').addEventListener('click', e => {
-    const btn = e.target.closest('[data-action="buy-meta"]');
-    if(btn) buyMetaUpgrade(btn.dataset.id);
+    const metaBtn = e.target.closest('[data-action="buy-meta"]');
+    if(metaBtn) buyMetaUpgrade(metaBtn.dataset.id);
+    const puBtn = e.target.closest('[data-action="buy-powerup"]');
+    if(puBtn) buyPowerup(puBtn.dataset.id);
   });
 
   // ---------- collection (cosmetic bowl skins) ----------
@@ -1619,8 +1772,16 @@
   }
 
   function renderStats(){
-    document.getElementById('cashDisplay').textContent = fmt(state.cash);
+    const activeCash = getCountryCash(state.activeCountry);
+    document.getElementById('cashDisplay').textContent = fmt(activeCash);
     document.getElementById('rateDisplay').textContent = fmt(totalRatePerSec()) + '/s';
+    const diaEl = document.getElementById('diamondDisplay');
+    if(diaEl) diaEl.textContent = Math.floor(state.diamonds || 0);
+    const cashCorner = document.getElementById('cashCorner');
+    if(cashCorner){
+      const c = activeCountryDef();
+      cashCorner.setAttribute('aria-label', (c ? c.name + ' cash' : 'Cash') + ' and income rate');
+    }
     document.getElementById('prestigeDisplay').textContent = Math.floor(state.prestigePoints);
     const multEl = document.getElementById('multiplierDisplay');
     if(multEl) multEl.textContent = 'x' + globalMultiplier().toFixed(2);
@@ -1674,14 +1835,14 @@
       const b = bizState[def.id];
       if(b.level === 0){
         const cost = businessCost(def, 0);
-        return { icon: def.icon, name: def.name, detail: `Save up ${fmt(cost)}`, progress: state.cash / cost };
+        return { icon: def.icon, name: def.name, detail: `Save up ${fmt(cost)}`, progress: getCountryCash(country.id) / cost };
       }
     }
     const nextCountry = COUNTRIES.find(c => !isUnlocked(c.id));
     if(nextCountry){
       return {
         icon: nextCountry.icon, name: nextCountry.name,
-        detail: `Unlock for ${fmt(nextCountry.unlockCost)}`, progress: state.cash / nextCountry.unlockCost
+        detail: `Unlock for ${fmt(nextCountry.unlockCost)}`, progress: totalCash() / nextCountry.unlockCost
       };
     }
     return null;
@@ -1708,11 +1869,13 @@
     const def = country.businesses.find(d => d.id === id);
     const b = state.countries[country.id][id];
     const cost = businessCost(def, b.level);
-    if(state.cash < cost){ playErrorSfx(); return; }
-    state.cash -= cost;
+    if(getCountryCash(country.id) < cost){ playErrorSfx(); return; }
+    if(!spendCountryCash(country.id, cost)){ playErrorSfx(); return; }
     playBuySfx();
     b.level++;
     addChallengeProgress('buy', 1);
+    // Small diamond chance on level-up (rarer at high levels)
+    if(Math.random() < 0.04){ earnDiamonds(1); }
     const dropped = tryDropIngredient(country.id);
     if(dropped){
       // Brief toast via floating gain style
@@ -1730,8 +1893,8 @@
     const def = country.businesses.find(d => d.id === id);
     const b = state.countries[country.id][id];
     const cost = managerCost(def);
-    if(state.cash < cost){ playErrorSfx(); return; }
-    state.cash -= cost;
+    if(getCountryCash(country.id) < cost){ playErrorSfx(); return; }
+    if(!spendCountryCash(country.id, cost)){ playErrorSfx(); return; }
     playBuySfx();
     b.manager = true;
     b.managerLevel = 1;
@@ -1745,8 +1908,8 @@
     const lvl = b.managerLevel || 1;
     if(lvl >= CONFIG.MANAGER_MAX_LEVEL) return;
     const cost = managerTrainCost(def, lvl);
-    if(state.cash < cost){ playErrorSfx(); return; }
-    state.cash -= cost;
+    if(getCountryCash(country.id) < cost){ playErrorSfx(); return; }
+    if(!spendCountryCash(country.id, cost)){ playErrorSfx(); return; }
     playBuySfx();
     b.managerLevel = lvl + 1;
     addChallengeProgress('buy', 1);
@@ -1759,8 +1922,8 @@
     const t = UPGRADE_TYPES[type];
     if(b[type] >= t.max) return;
     const cost = upgradeCost(def, type, b[type]);
-    if(state.cash < cost){ playErrorSfx(); return; }
-    state.cash -= cost;
+    if(getCountryCash(country.id) < cost){ playErrorSfx(); return; }
+    if(!spendCountryCash(country.id, cost)){ playErrorSfx(); return; }
     playBuySfx();
     b[type]++;
     addChallengeProgress('buy', 1);
@@ -1775,7 +1938,10 @@
     state.shards += shardsGained;
     state.prestigeCount++;
     state.cash = 0;
+    COUNTRIES.forEach(c => setCountryCash(c.id, 0));
     state.totalEarned = 0;
+    // Diamonds and active powerups persist across prestige
+    earnDiamonds(Math.max(1, Math.floor(potential / 5))); // bonus diamonds for retiring
     // Retiring resets every country's shops — unlocked countries stay
     // unlocked, only their business levels/upgrades/managers reset.
     // Umami Shards and metaUpgrades are untouched: that's the whole point of
@@ -1788,7 +1954,7 @@
     renderOrderCard();
     save();
     renderBusinesses(); renderWorld(); renderStats(); checkAchievements();
-    if(document.getElementById('prestigePanel').classList.contains('active')) renderPrestige();
+    if(document.getElementById('prestigePanel').classList.contains('active')){ renderPrestige(); renderPowerups(); }
   }
 
   // Called on every tap/purchase plus once a second — cheap by default
@@ -1819,7 +1985,8 @@
     while(state.milestoneIdx + 1 < MILESTONES.length && state.totalEarned >= MILESTONES[state.milestoneIdx + 1]){
       state.milestoneIdx++;
       const bonus = totalRatePerSec() * CONFIG.MILESTONE_BONUS_SECONDS;
-      state.cash += bonus;
+      addCountryCash(state.activeCountry, bonus);
+      earnDiamonds(1);
       addEarned(bonus);
       milestoneQueue.push({ threshold: MILESTONES[state.milestoneIdx], bonus });
     }
@@ -2283,7 +2450,7 @@
     // Extra client-side bounds (belt + suspenders — firestore.rules does
     // the real, elapsed-time-aware plausibility check server-side; these
     // just stop obviously-broken values from even being sent)
-    const cash = Math.max(0, Math.min(state.cash || 0, 1e18 - 1));
+    const cash = Math.max(0, Math.min(totalCash() || 0, 1e18 - 1));
     const totalEarned = Math.max(0, Math.min(state.totalEarned || 0, 1e18 - 1));
     const weeklyEarned = Math.max(0, Math.min(state.weeklyEarned || 0, 1e16 - 1));
     const prestigePoints = Math.max(0, Math.min(state.prestigePoints || 0, 99999));
@@ -2582,7 +2749,7 @@
       snap.forEach(doc => {
         const data = doc.data();
         if(state.gifts.pendingClaimed[doc.id]) return;
-        state.cash += data.amount || 0;
+        addCountryCash(state.activeCountry, data.amount || 0);
         addEarned(data.amount || 0);
         if(data.boost){
           // Short income boost via activeRecipe-like temporary state
@@ -3103,7 +3270,7 @@
       fulfillOrder();
     } else {
       const gain = nextTapGain();
-      state.cash += gain;
+      addCountryCash(state.activeCountry, gain);
       addEarned(gain);
       addChallengeProgress('earn', gain);
       adjustReputation(CONFIG.REP_TAP_GAIN);
@@ -3206,7 +3373,7 @@
     if(elapsedSec < CONFIG.OFFLINE_MIN_SEC) return false;
     const rate = totalRatePerSec();
     if(rate <= 0) return false;
-    pendingOfflineGain = rate * elapsedSec * CONFIG.OFFLINE_EARN_MULT * (1 + metaBonus('offline') + totalManagerOfflineBoost());
+    pendingOfflineGain = rate * elapsedSec * CONFIG.OFFLINE_EARN_MULT * (1 + metaBonus('offline') + totalManagerOfflineBoost()) * powerupMult('offline');
     if(pendingOfflineGain < CONFIG.OFFLINE_MIN_GAIN) return false;
     document.getElementById('offlineText').textContent =
       `While you were away for ${Math.round(elapsedSec/60)} min, your shops earned ${fmt(pendingOfflineGain)}.`;
@@ -3215,7 +3382,22 @@
   }
   function collectOffline(multiplier){
     const amount = pendingOfflineGain * multiplier;
-    state.cash += amount;
+    // Split offline earnings across unlocked countries by their share of income
+    let totalR = 0;
+    const shares = {};
+    COUNTRIES.forEach(c => {
+      if(!isUnlocked(c.id)) return;
+      const r = countryRatePerSec(c);
+      shares[c.id] = r;
+      totalR += r;
+    });
+    if(totalR <= 0){
+      addCountryCash(state.activeCountry, amount);
+    } else {
+      COUNTRIES.forEach(c => {
+        if(shares[c.id]) addCountryCash(c.id, amount * (shares[c.id] / totalR));
+      });
+    }
     addEarned(amount);
     closeModal(document.getElementById('offlineModal'));
     renderStats(); checkAchievements();
@@ -3247,11 +3429,18 @@
     lastTick = now;
     // Businesses keep producing passively even during a health inspector event;
     // eventMultiplier() already applies the CONFIG.INSPECTOR_INCOME_MULT penalty inside totalRatePerSec().
-    const gain = totalRatePerSec() * dt;
-    if(gain > 0){
-      state.cash += gain;
-      addEarned(gain);
-      addChallengeProgress('earn', gain);
+    let totalGain = 0;
+    COUNTRIES.forEach(country => {
+      if(!isUnlocked(country.id)) return;
+      const g = countryRatePerSec(country) * globalMultiplier() * eventMultiplier() * dt;
+      if(g > 0){
+        addCountryCash(country.id, g);
+        totalGain += g;
+      }
+    });
+    if(totalGain > 0){
+      addEarned(totalGain);
+      addChallengeProgress('earn', totalGain);
     }
     tickReputation(dt);
     maybeTriggerEvent();

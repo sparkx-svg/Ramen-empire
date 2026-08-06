@@ -27,9 +27,11 @@
     <div class="corner-hud-value" id="cashDisplay">¥0</div>
     <div class="corner-hud-sub jade" id="rateDisplay">¥0/s</div>
   </div>
-  <div class="corner-hud corner-hud-right" id="misoCorner" aria-label="Miso Points">
+  <div class="corner-hud corner-hud-right" id="misoCorner" aria-label="Miso Points and diamonds">
     <div class="corner-hud-icon" aria-hidden="true">🍥</div>
     <div class="corner-hud-value" id="prestigeDisplay">0</div>
+    <div class="corner-hud-icon" aria-hidden="true" style="margin-left:6px;">💎</div>
+    <div class="corner-hud-value" id="diamondDisplay">0</div>
   </div>
 
   <header>
@@ -109,6 +111,10 @@
     <div class="settings-item"><span>🍥 Umami Shards</span><strong id="shardBalance">0</strong></div>
     <p style="font-size:11px; opacity:0.7; margin:6px 2px 12px; line-height:1.5;" id="shardPreviewLine">Prestige to earn Umami Shards</p>
     <div id="metaUpgradesList"></div>
+    <div class="chal-section-label" style="margin-top:18px;">💎 Diamond Powerups</div>
+    <div class="settings-item"><span>💎 Diamonds</span><strong id="diamondBalance">0</strong></div>
+    <p style="font-size:11px; opacity:0.7; margin:6px 2px 12px; line-height:1.5;">Shared across every country. Earn from dailies, milestones, prestige, and rare level-ups. Never reset by Prestige.</p>
+    <div id="powerupsList"></div>
   </div>
 
   <div class="panel-view" id="collectionPanel" role="tabpanel" aria-labelledby="navCollection"></div>
@@ -176,7 +182,7 @@
     <div class="settings-item"><span>Log in with Google</span><button class="modal-btn secondary" style="width:auto; padding:8px 16px; margin:0;" id="loginGoogleBtn">Log In</button></div>
     <div class="settings-item"><span>Log out</span><button class="modal-btn secondary" style="width:auto; padding:8px 16px; margin:0;" id="logoutBtn">Log Out</button></div>
     <div class="settings-item"><span>Reset all progress</span><button class="modal-btn secondary" style="width:auto; padding:8px 16px; margin:0; background:var(--red); color:white;" id="resetBtn">Reset</button></div>
-    <div class="settings-item"><span>Version</span><strong>1.8.1</strong></div>
+    <div class="settings-item"><span>Version</span><strong>1.9.0</strong></div>
   </div>
 
   <div class="bottom-bar" role="tablist" aria-label="Sections">

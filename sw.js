@@ -15,7 +15,7 @@
 // stuck on stale assets indefinitely even with SWR serving cache-first.
 // Forgetting to bump this is the main way this strategy goes stale, so
 // treat it like a changelog entry: bump it, don't skip it.
-const APP_VERSION = '1.8.1';
+const APP_VERSION = '1.9.0';
 const CACHE_NAME = 'ramen-empire-v' + APP_VERSION;
 
 const CORE_ASSETS = [
