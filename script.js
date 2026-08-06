@@ -576,6 +576,15 @@
     return saveKeyFor(activeAccountId);
   }
 
+  // Profile is complete once name + age have been collected once for this account.
+  function hasCompleteProfile(s){
+    s = s || state;
+    if(!s || !s.profile) return false;
+    const name = (s.profile.name || '').trim();
+    const age = parseInt(s.profile.age, 10);
+    return !!name && !isNaN(age) && age >= 5 && age <= 120;
+  }
+
   // NOTE on integrity: this is tamper-EVIDENCE, not tamper-PROOF. The salt below
   // ships in plain client JS, so anyone who opens devtools can read it and forge
   // a matching checksum. All this does is catch casual/naive save edits (someone
@@ -691,6 +700,8 @@
     if(!state.achievementsClaimed) state.achievementsClaimed = {};
     if(!state.profile) state.profile = { name: '', age: null, provider: null };
     if(state.onboarded === undefined) state.onboarded = false;
+    // Once name+age exist for this save, never re-ask on later logins
+    if(hasCompleteProfile(state)) state.onboarded = true;
     if(!state.daily) state.daily = { streak: 0, lastClaimDate: null };
     if(!state.challenges) state.challenges = { daily: null, weekly: null };
     if(state.achievementBonus === undefined) state.achievementBonus = 0;
@@ -2400,8 +2411,23 @@
     auth.signInWithPopup(googleProvider).then(result => {
       const user = result.user;
       pendingProvider = 'google';
-      authNameInput.value = (user.displayName || '').slice(0, 24);
-      // Firebase doesn't provide age, so still collect it on the profile step.
+      // onAuthStateChanged switches to this account's save first. If name+age
+      // were already stored for this account, skip the profile form entirely.
+      if(hasCompleteProfile(state)){
+        state.profile.provider = 'google';
+        if(!state.profile.name && user.displayName){
+          state.profile.name = user.displayName.slice(0, 24);
+        }
+        state.onboarded = true;
+        save();
+        renderProfileSettings();
+        closeModal(authOverlay);
+        startGame();
+        return;
+      }
+      // First time on this account — collect name + age once, then never again.
+      authNameInput.value = (state.profile.name || user.displayName || '').slice(0, 24);
+      authAgeInput.value = state.profile.age || '';
       authStepProvider.style.display = 'none';
       authStepProfile.style.display = 'block';
       authCancelBtn.style.display = 'none';
@@ -2420,8 +2446,14 @@
     const age = parseInt(authAgeInput.value, 10);
     if(!name){ showAuthError('Please enter a name.'); authNameInput.focus(); return; }
     if(!authAgeInput.value || isNaN(age) || age < 5 || age > 120){ showAuthError('Please enter a valid age.'); authAgeInput.focus(); return; }
-    state.profile = { name: name.slice(0, 24), age, provider: pendingProvider || state.profile.provider || 'guest' };
+    state.profile = {
+      name: name.slice(0, 24),
+      age,
+      provider: pendingProvider || (firebaseUser ? 'google' : null) || state.profile.provider || 'guest'
+    };
     state.onboarded = true;
+    // Persist immediately under the active account key (guest or Google uid)
+    if(firebaseUser) activeAccountId = firebaseUser.uid;
     save();
     renderProfileSettings();
     closeModal(authOverlay);
@@ -2484,13 +2516,24 @@
   // way — this only changes state.profile.provider and starts submitting
   // scores to the leaderboard under the new Google identity going forward.
   document.getElementById('loginGoogleBtn').addEventListener('click', () => {
-    if(state.profile.provider === 'google'){
+    if(state.profile.provider === 'google' && firebaseUser){
       alert("You're already signed in with Google.");
       return;
     }
     auth.signInWithPopup(googleProvider).then(result => {
       const user = result.user;
       pendingProvider = 'google';
+      // Account save is loaded by onAuthStateChanged. If name+age already
+      // stored for this Google account, do not show the form again.
+      if(hasCompleteProfile(state)){
+        state.profile.provider = 'google';
+        state.onboarded = true;
+        save();
+        renderProfileSettings();
+        closeModal(authOverlay);
+        startGame();
+        return;
+      }
       authError.style.display = 'none';
       authStepProvider.style.display = 'none';
       authStepProfile.style.display = 'block';
@@ -2563,10 +2606,14 @@
       // If signed in with Google and this account has never onboarded, keep
       // onboarded false so the profile gate still runs when needed.
       if(user && state.profile){
-        if(state.onboarded) state.profile.provider = 'google';
+        if(hasCompleteProfile(state)){
+          state.onboarded = true;
+          state.profile.provider = 'google';
+        }
       }
       renderProfileSettings();
-      if(state.onboarded){
+      if(hasCompleteProfile(state)){
+        state.onboarded = true;
         startGame();
       } else {
         openAuthOverlay('onboard');
@@ -2583,8 +2630,13 @@
       } : null
     });
     renderProfileSettings();
-    // If the newly loaded account has never finished onboarding, show the gate
-    if(!state.onboarded && typeof openAuthOverlay === 'function'){
+    // Only ask name/age if THIS account has never completed a profile
+    if(hasCompleteProfile(state)){
+      state.onboarded = true;
+      if(user) state.profile.provider = 'google';
+      save();
+      startGame();
+    } else {
       openAuthOverlay('onboard');
     }
   });
@@ -3740,7 +3792,7 @@
     activeAccountId = 'guest';
     loadFromKey(currentSaveKey());
     renderProfileSettings();
-    if(state.onboarded) startGame();
+    if(hasCompleteProfile(state)){ state.onboarded = true; startGame(); }
     else openAuthOverlay('onboard');
   }, 2000);
 
