@@ -396,6 +396,8 @@
     weekId: null,      // ISO week id ('2026-W31') this weeklyEarned total belongs to
     seasonWins: 0,      // number of past weeks this player finished #1 on the Weekly board
     tapFxEnabled: true, // screen shake + particle burst + pop sound + haptic on tap
+    musicEnabled: true, // procedural background music loop
+    sfxEnabled: true,   // UI clicks, purchase/error/prestige/order stings, tap pop, chimes
     // Depth systems (v1.6)
     reputation: 70,           // 0–100; multiplies passive income, decays over time
     ingredients: {},          // ingredientId -> count
@@ -517,6 +519,8 @@
       if(state.ordersFulfilled === undefined) state.ordersFulfilled = 0;
       if(state.recipesCrafted === undefined) state.recipesCrafted = 0;
       if(state.tapFxEnabled === undefined) state.tapFxEnabled = true;
+      if(state.musicEnabled === undefined) state.musicEnabled = true;
+      if(state.sfxEnabled === undefined) state.sfxEnabled = true;
       if(!state.storyClaimed) state.storyClaimed = {};
       if(!state.seasonal) state.seasonal = { eventId: null, progress: 0, claimed: false, skinUnlocked: {} };
       if(!state.seasonal.skinUnlocked) state.seasonal.skinUnlocked = {};
@@ -968,6 +972,7 @@
   }
   function missOrder(){
     if(!activeOrder) return;
+    playOrderMissSfx();
     adjustReputation(-CONFIG.REP_ORDER_MISS);
     activeOrder = null;
     renderOrderCard();
@@ -1703,8 +1708,9 @@
     const def = country.businesses.find(d => d.id === id);
     const b = state.countries[country.id][id];
     const cost = businessCost(def, b.level);
-    if(state.cash < cost) return;
+    if(state.cash < cost){ playErrorSfx(); return; }
     state.cash -= cost;
+    playBuySfx();
     b.level++;
     addChallengeProgress('buy', 1);
     const dropped = tryDropIngredient(country.id);
@@ -1724,8 +1730,9 @@
     const def = country.businesses.find(d => d.id === id);
     const b = state.countries[country.id][id];
     const cost = managerCost(def);
-    if(state.cash < cost) return;
+    if(state.cash < cost){ playErrorSfx(); return; }
     state.cash -= cost;
+    playBuySfx();
     b.manager = true;
     b.managerLevel = 1;
     renderBusinesses(); renderStats(); checkAchievements();
@@ -1738,8 +1745,9 @@
     const lvl = b.managerLevel || 1;
     if(lvl >= CONFIG.MANAGER_MAX_LEVEL) return;
     const cost = managerTrainCost(def, lvl);
-    if(state.cash < cost) return;
+    if(state.cash < cost){ playErrorSfx(); return; }
     state.cash -= cost;
+    playBuySfx();
     b.managerLevel = lvl + 1;
     addChallengeProgress('buy', 1);
     renderBusinesses(); renderStats(); checkAchievements();
@@ -1751,15 +1759,17 @@
     const t = UPGRADE_TYPES[type];
     if(b[type] >= t.max) return;
     const cost = upgradeCost(def, type, b[type]);
-    if(state.cash < cost) return;
+    if(state.cash < cost){ playErrorSfx(); return; }
     state.cash -= cost;
+    playBuySfx();
     b[type]++;
     addChallengeProgress('buy', 1);
     renderBusinesses(); renderStats(); checkAchievements();
   }
   function doPrestige(){
     const potential = potentialPrestigePoints();
-    if(potential <= 0) return;
+    if(potential <= 0){ playErrorSfx(); return; }
+    playPrestigeSfx();
     const shardsGained = potentialShards();
     state.prestigePoints += potential;
     state.shards += shardsGained;
@@ -1856,11 +1866,11 @@
   // Synthesizes a quick ascending chime with the Web Audio API rather than
   // shipping an audio asset — keeps the milestone reward feeling instant
   // without adding anything for the service worker to cache/fetch.
-  let milestoneAudioCtx = null;
   function playMilestoneChime(){
+    if(!state.sfxEnabled) return;
+    const ctx = getAudioCtx();
+    if(!ctx || !sfxBus) return;
     try{
-      milestoneAudioCtx = milestoneAudioCtx || new (window.AudioContext || window.webkitAudioContext)();
-      const ctx = milestoneAudioCtx;
       const now = ctx.currentTime;
       [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
         const osc = ctx.createOscillator();
@@ -1871,7 +1881,7 @@
         gain.gain.setValueAtTime(0, t0);
         gain.gain.linearRampToValueAtTime(0.18, t0 + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.35);
-        osc.connect(gain).connect(ctx.destination);
+        osc.connect(gain).connect(sfxBus);
         osc.start(t0);
         osc.stop(t0 + 0.4);
       });
@@ -2080,6 +2090,26 @@
   });
   renderTapFxBtn();
 
+  // ---- music / SFX toggles ----
+  const musicBtn = document.getElementById('musicBtn');
+  function renderMusicBtn(){ musicBtn.textContent = state.musicEnabled ? 'On' : 'Off'; }
+  musicBtn.addEventListener('click', () => {
+    state.musicEnabled = !state.musicEnabled;
+    renderMusicBtn();
+    save();
+    if(state.musicEnabled) startMusic(); else stopMusic();
+  });
+  renderMusicBtn();
+
+  const sfxBtn = document.getElementById('sfxBtn');
+  function renderSfxBtn(){ sfxBtn.textContent = state.sfxEnabled ? 'On' : 'Off'; }
+  sfxBtn.addEventListener('click', () => {
+    state.sfxEnabled = !state.sfxEnabled;
+    renderSfxBtn();
+    save();
+  });
+  renderSfxBtn();
+
   // ---- log in (upgrade a Guest profile to Google) ----
   // Reuses the same signInWithPopup + profile-step flow as first-run
   // onboarding, but pre-fills the existing name/age so it reads as an
@@ -2243,17 +2273,29 @@
       return;
     }
 
-    // Client-side rate limit
+    // Client-side rate limit. Firestore rules enforce their own minimum
+    // interval too (see firestore.rules) — this just avoids firing writes
+    // we know would be rejected.
     const now = Date.now();
     if(now - lastLeaderboardSubmit < 30000) return;
     lastLeaderboardSubmit = now;
 
-    // Extra client-side bounds (belt + suspenders with the rules)
+    // Extra client-side bounds (belt + suspenders — firestore.rules does
+    // the real, elapsed-time-aware plausibility check server-side; these
+    // just stop obviously-broken values from even being sent)
     const cash = Math.max(0, Math.min(state.cash || 0, 1e18 - 1));
     const totalEarned = Math.max(0, Math.min(state.totalEarned || 0, 1e18 - 1));
     const weeklyEarned = Math.max(0, Math.min(state.weeklyEarned || 0, 1e16 - 1));
     const prestigePoints = Math.max(0, Math.min(state.prestigePoints || 0, 99999));
 
+    // NOTE: this writes to Firestore directly — there's no Cloud Function
+    // in front of it (those need the paid Blaze plan). Instead
+    // firestore.rules does real server-side validation itself: it reads
+    // the previous doc, compares elapsed time (via request.time, which the
+    // client can't forge) against the reported ratePerSec, and rejects
+    // implausible growth — not just a static "cash < some huge number"
+    // bound. See firestore.rules and SECURITY.md for exactly what that
+    // does and doesn't catch.
     db.collection('leaderboard').doc(firebaseUser.uid).set({
       name: (state.profile.name || firebaseUser.displayName || 'Anonymous').slice(0, 32),
       code: myFriendCode(),
@@ -2266,6 +2308,7 @@
       guildId: state.guildId || null,
       guildName: state.guildName || null,
       seasonWins: state.seasonWins || 0,
+      ratePerSec: Math.max(0, Math.min(totalRatePerSec(), 1e12)),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true }).catch(err => console.warn('Leaderboard submit failed', err));
 
@@ -2285,7 +2328,6 @@
   const GUILD_WEEKLY_GOAL_BASE = 1e6; // base shared goal; scales mildly with member count at display time
   let myGuildCache = null; // last fetched guild doc data
   let lastGuildContribute = 0;
-  let lastGuildContribValue = 0;
 
   function makeGuildCode(){
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -2321,6 +2363,13 @@
       myGuildCache = null;
       statusEl.textContent = `Created "${name}" — code ${code}`;
       document.getElementById('guildNameInput').value = '';
+      // Initialize our per-member progress doc up front so contributeToGuild
+      // never has to handle "doc doesn't exist yet" — see firestore.rules'
+      // memberProgress block and SECURITY.md for why this matters.
+      ref.collection('memberProgress').doc(firebaseUser.uid).set({
+        weeklyEarned: 0, weekId: wid, ratePerSec: 0,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }).catch(err => console.warn('memberProgress init failed', err));
       save();
       submitScore();
       if(currentLbMode === 'guilds') renderLeaderboard();
@@ -2353,6 +2402,12 @@
         myGuildCache = null;
         statusEl.textContent = `Joined "${state.guildName}"!`;
         document.getElementById('guildCodeInput').value = '';
+        // Same as createGuild — make sure our memberProgress doc exists
+        // before we ever try to contribute.
+        doc.ref.collection('memberProgress').doc(firebaseUser.uid).set({
+          weeklyEarned: 0, weekId: data.weekId || currentWeekId(), ratePerSec: 0,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true }).catch(err => console.warn('memberProgress init failed', err));
         save();
         submitScore();
         if(currentLbMode === 'guilds') renderLeaderboard();
@@ -2401,26 +2456,66 @@
   function contributeToGuild(weeklyEarned){
     if(!firebaseUser || !state.guildId) return;
     const now = Date.now();
-    // Throttle and only push the delta since last contribution write
+    // Client-side throttle — firestore.rules enforces its own minimum
+    // interval too (see the memberProgress rules below), this just avoids
+    // a write we know would be rejected.
     if(now - lastGuildContribute < 60000) return;
-    const delta = Math.max(0, (weeklyEarned || 0) - lastGuildContribValue);
-    if(delta < 1) return;
     lastGuildContribute = now;
-    lastGuildContribValue = weeklyEarned || 0;
-    const ref = db.collection('guilds').doc(state.guildId);
     const wid = currentWeekId();
-    ref.get().then(doc => {
-      if(!doc.exists) return;
-      const data = doc.data();
-      if(data.weekId !== wid){
-        // New week — reset shared counter
-        return ref.update({ weekId: wid, weeklyContrib: delta });
-      }
-      return ref.update({
-        weeklyContrib: firebase.firestore.FieldValue.increment(delta)
+    const rate = Math.max(0, Math.min(totalRatePerSec(), 1e12));
+    const earned = Math.max(0, Math.min(weeklyEarned || 0, 1e16 - 1));
+
+    // No Cloud Function available on the free Spark plan, so this uses a
+    // client-side Firestore transaction (still fully supported without
+    // Cloud Functions/Blaze) instead of one server-validated call:
+    //
+    //  1. Read guilds/{id}/memberProgress/{uid} — our own last known
+    //     weeklyEarned + when. This doc is single-writer (only we can
+    //     write it — see firestore.rules), so the rate/growth check on it
+    //     is clean and can't be confused by other members contributing at
+    //     the same time.
+    //  2. Compute the delta since our last recorded contribution.
+    //  3. In the SAME transaction, update guilds/{id}.weeklyContrib (as an
+    //     increment, or a reset if the shared week rolled over) and
+    //     overwrite our memberProgress doc with the new snapshot. The
+    //     transaction keeps both writes atomic, so two members hitting a
+    //     week rollover at the same moment can't both "reset" and stomp
+    //     on each other.
+    //
+    // firestore.rules bounds the memberProgress write against elapsed
+    // time (can't be forged — request.time is server-set), and bounds the
+    // guild's weeklyContrib change by reading that same memberProgress
+    // doc via get(). See SECURITY.md for what this catches vs. a full
+    // Cloud Function, if that's ever affordable later.
+    const guildRef = db.collection('guilds').doc(state.guildId);
+    const progressRef = guildRef.collection('memberProgress').doc(firebaseUser.uid);
+
+    db.runTransaction(tx => {
+      return Promise.all([tx.get(progressRef), tx.get(guildRef)]).then(([progSnap, guildSnap]) => {
+        if(!guildSnap.exists) return;
+        const prev = progSnap.exists ? progSnap.data() : null;
+        const prevEarned = (prev && prev.weekId === wid) ? (prev.weeklyEarned || 0) : 0;
+        const delta = Math.max(0, earned - prevEarned);
+
+        const progressWrite = { weeklyEarned: earned, weekId: wid, ratePerSec: rate, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+        if(delta < 1){
+          // Nothing new, but still refresh our timestamp so the rate
+          // limit window advances instead of retrying the same no-op.
+          tx.set(progressRef, progressWrite, { merge: true });
+          return;
+        }
+
+        const guildData = guildSnap.data();
+        if(guildData.weekId !== wid){
+          tx.update(guildRef, { weeklyContrib: delta, weekId: wid });
+        } else {
+          tx.update(guildRef, { weeklyContrib: firebase.firestore.FieldValue.increment(delta) });
+        }
+        tx.set(progressRef, progressWrite, { merge: true });
       });
     }).catch(err => console.warn('Guild contribute failed', err));
   }
+
   function loadMyGuild(){
     if(!state.guildId) return Promise.resolve(null);
     return db.collection('guilds').doc(state.guildId).get().then(doc => {
@@ -2770,6 +2865,153 @@
   });
 
   // ---------- tap to earn ----------
+  // ---------- sound system (SFX + procedural background music) ----------
+  // Everything below is synthesized with the Web Audio API rather than
+  // shipping .mp3/.ogg assets — this keeps the service worker's cache list
+  // at zero audio bytes, sidesteps any music-licensing question entirely,
+  // and means sound "just works" the instant the game loads instead of
+  // waiting on a fetch. One shared AudioContext + two gain buses (sfxBus for
+  // one-shot stings, musicBus for the background loop) so both toggles in
+  // Settings and any future volume sliders control everything uniformly.
+  let audioCtx = null, sfxBus = null, musicBus = null;
+  function getAudioCtx(){
+    if(audioCtx) return audioCtx;
+    try{
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      sfxBus = audioCtx.createGain();
+      sfxBus.gain.value = 0.55;
+      sfxBus.connect(audioCtx.destination);
+      musicBus = audioCtx.createGain();
+      musicBus.gain.value = 0.16;
+      musicBus.connect(audioCtx.destination);
+    }catch(e){ /* Web Audio unavailable/blocked — game still fully playable silently */ }
+    return audioCtx;
+  }
+  // Most mobile/desktop browsers start any new AudioContext 'suspended'
+  // until a real user gesture happens; this is called from the first
+  // pointerdown/keydown the page sees (wired near the bottom of this file).
+  function unlockAudio(){
+    const ctx = getAudioCtx();
+    if(ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+    if(state.musicEnabled) startMusic();
+  }
+  // Generic short tone, used to build every one-shot SFX below so each one
+  // is a couple lines instead of a full oscillator/gain setup each time.
+  function playTone(freq, opts){
+    if(!state.sfxEnabled) return;
+    const ctx = getAudioCtx();
+    if(!ctx || !sfxBus) return;
+    const {type = 'sine', duration = 0.12, gain = 0.2, delay = 0, sweepTo = null} = opts || {};
+    try{
+      const t0 = ctx.currentTime + delay;
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t0);
+      if(sweepTo) osc.frequency.exponentialRampToValueAtTime(sweepTo, t0 + duration);
+      g.gain.setValueAtTime(0, t0);
+      g.gain.linearRampToValueAtTime(gain, t0 + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
+      osc.connect(g).connect(sfxBus);
+      osc.start(t0);
+      osc.stop(t0 + duration + 0.03);
+    }catch(e){ /* ignore */ }
+  }
+  // ---- individual SFX ----
+  function playClickSfx(){ playTone(520, {type:'square', duration:0.045, gain:0.08}); }
+  function playTabSfx(){ playTone(380, {type:'sine', duration:0.05, gain:0.06}); }
+  function playBuySfx(){
+    playTone(660, {type:'triangle', duration:0.09, gain:0.16});
+    playTone(880, {type:'triangle', duration:0.12, gain:0.13, delay:0.05});
+  }
+  function playErrorSfx(){ playTone(180, {type:'sawtooth', duration:0.16, gain:0.13, sweepTo:100}); }
+  function playPrestigeSfx(){
+    [392, 523.25, 659.25, 783.99, 1046.5].forEach((f, i) => playTone(f, {type:'triangle', duration:0.4, gain:0.15, delay:i*0.08}));
+  }
+  function playOrderMissSfx(){ playTone(210, {type:'square', duration:0.18, gain:0.11, sweepTo:130}); }
+
+  // ---------- background music: a short looping chord progression with a
+  // gentle plucked arpeggio on top, scheduled one beat at a time. Not a
+  // sample-accurate lookahead scheduler — a plain setInterval is plenty
+  // steady for a chill idle-game loop and far simpler to maintain. ----------
+  const MUSIC_BPM = 88;
+  const MUSIC_CHORDS = [
+    [261.63, 329.63, 392.00], // C major
+    [220.00, 261.63, 329.63], // A minor
+    [174.61, 220.00, 261.63], // F major
+    [196.00, 246.94, 293.66], // G major
+  ];
+  let musicTimer = null;
+  let musicStep = 0;
+  function scheduleMusicStep(){
+    if(!state.musicEnabled){ stopMusic(); return; }
+    const ctx = getAudioCtx();
+    if(!ctx || !musicBus) return;
+    const chord = MUSIC_CHORDS[Math.floor(musicStep / 4) % MUSIC_CHORDS.length];
+    const beat = musicStep % 4;
+    const t0 = ctx.currentTime + 0.02;
+    const beatSec = 60 / MUSIC_BPM;
+    if(beat === 0){
+      // Soft pad, one octave down, held across the whole chord's 4 beats
+      chord.forEach(freq => {
+        try{
+          const osc = ctx.createOscillator();
+          const g = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = freq / 2;
+          g.gain.setValueAtTime(0, t0);
+          g.gain.linearRampToValueAtTime(0.5, t0 + 0.6);
+          g.gain.linearRampToValueAtTime(0, t0 + beatSec * 4 - 0.15);
+          osc.connect(g).connect(musicBus);
+          osc.start(t0);
+          osc.stop(t0 + beatSec * 4);
+        }catch(e){ /* ignore */ }
+      });
+    }
+    // Plucked arpeggio note on every beat
+    try{
+      const note = chord[beat % chord.length];
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = note * 2;
+      g.gain.setValueAtTime(0, t0);
+      g.gain.linearRampToValueAtTime(0.35, t0 + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + beatSec * 0.9);
+      osc.connect(g).connect(musicBus);
+      osc.start(t0);
+      osc.stop(t0 + beatSec);
+    }catch(e){ /* ignore */ }
+    musicStep++;
+  }
+  function startMusic(){
+    if(musicTimer || !state.musicEnabled) return;
+    const ctx = getAudioCtx();
+    if(!ctx) return;
+    if(ctx.state === 'suspended'){ ctx.resume().catch(() => {}); }
+    scheduleMusicStep();
+    musicTimer = setInterval(scheduleMusicStep, (60 / MUSIC_BPM) * 1000);
+  }
+  function stopMusic(){
+    if(musicTimer){ clearInterval(musicTimer); musicTimer = null; }
+  }
+  // Unlock + start music on the very first user gesture anywhere on the
+  // page (autoplay policies block audio until then); only needs to fire once.
+  ['pointerdown', 'keydown'].forEach(evt => document.addEventListener(evt, unlockAudio, {once:true, passive:true}));
+  document.addEventListener('visibilitychange', () => {
+    if(document.hidden) stopMusic();
+    else if(state.musicEnabled) startMusic();
+  });
+  // Generic click sound for any plain button press that doesn't already
+  // fire a more specific sting (buy, error, prestige, tap-pop, chime, tab
+  // switch, etc). .nav-btn is excluded since activatePanel() already plays
+  // its own tab-switch sound for those.
+  document.addEventListener('click', e => {
+    const el = e.target.closest('button');
+    if(!el || el.classList.contains('nav-btn')) return;
+    playClickSfx();
+  }, true);
+
   // ---- tap "juice": screen shake, particle burst, pop sound, haptic ----
   // All gated on state.tapFxEnabled (toggle lives in Settings) so anyone who
   // finds it distracting — or is tapping fast enough that constant vibration
@@ -2794,33 +3036,35 @@
     }
   }
   // Synthesizes a short decaying noise "pop" rather than shipping an audio
-  // asset — same reasoning as playMilestoneChime() above. The buffer is built
-  // once and reused; only a cheap BufferSource is created per tap.
-  let tapAudioCtx = null;
+  // asset — same reasoning as playMilestoneChime() below. The buffer is built
+  // once (on the shared audioCtx) and reused; only a cheap BufferSource is
+  // created per tap.
   let tapNoiseBuffer = null;
   function ensureTapAudio(){
-    if(tapAudioCtx) return;
+    const ctx = getAudioCtx();
+    if(!ctx || tapNoiseBuffer) return;
     try{
-      tapAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const rate = tapAudioCtx.sampleRate;
+      const rate = ctx.sampleRate;
       const duration = 0.05;
-      tapNoiseBuffer = tapAudioCtx.createBuffer(1, Math.floor(rate * duration), rate);
+      tapNoiseBuffer = ctx.createBuffer(1, Math.floor(rate * duration), rate);
       const data = tapNoiseBuffer.getChannelData(0);
       for(let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
     }catch(e){ /* Web Audio unavailable/blocked — shake/particles/haptic still fire */ }
   }
   function playTapPop(){
+    if(!state.sfxEnabled) return;
     ensureTapAudio();
-    if(!tapAudioCtx || !tapNoiseBuffer) return;
+    const ctx = getAudioCtx();
+    if(!ctx || !tapNoiseBuffer || !sfxBus) return;
     try{
-      const src = tapAudioCtx.createBufferSource();
+      const src = ctx.createBufferSource();
       src.buffer = tapNoiseBuffer;
-      const filter = tapAudioCtx.createBiquadFilter();
+      const filter = ctx.createBiquadFilter();
       filter.type = 'bandpass';
       filter.frequency.value = 900 + Math.random() * 300; // slight variation so rapid taps don't sound identical
-      const gain = tapAudioCtx.createGain();
+      const gain = ctx.createGain();
       gain.gain.value = 0.22;
-      src.connect(filter).connect(gain).connect(tapAudioCtx.destination);
+      src.connect(filter).connect(gain).connect(sfxBus);
       src.start();
     }catch(e){ /* ignore */ }
   }
@@ -2894,6 +3138,7 @@
   // ---------- nav ----------
   function activatePanel(panelId){
     if(!panelId) return; // e.g. the "More" nav button, which opens a sheet instead of a panel
+    playTabSfx();
     document.querySelectorAll('.nav-btn').forEach(b => {
       const on = b.dataset.panel === panelId;
       b.classList.toggle('active', on);
