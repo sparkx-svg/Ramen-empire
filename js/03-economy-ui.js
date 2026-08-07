@@ -95,18 +95,19 @@
   function restaurantRating(s){
     s = s || state;
     // Composite 0–100 from food quality (shop quality upgrades), stations,
-    // cleanliness, layout, reputation, and Michelin stars.
+    // cleanliness, layout, reputation, Michelin stars, and customer satisfaction.
     let qualityPts = 0, qualityN = 0;
     allBusinessStates(s).forEach(b => {
       if((b.level||0) > 0){ qualityPts += (b.quality||0); qualityN++; }
     });
-    const food = qualityN ? Math.min(25, (qualityPts / (qualityN * 20)) * 25) : 0;
-    const stations = Math.min(20, (sumLevels(s.stations) / (COOKING_STATIONS.length * 10)) * 20);
-    const clean = Math.min(20, ((s.cleanliness||0) / 100) * 20);
-    const layout = Math.min(15, (sumLevels(s.layout) / (LAYOUT_UPGRADES.length * 8)) * 15);
-    const rep = Math.min(15, ((s.reputation||0) / 100) * 15);
+    const food = qualityN ? Math.min(22, (qualityPts / (qualityN * 20)) * 22) : 0;
+    const stations = Math.min(18, (sumLevels(s.stations) / (COOKING_STATIONS.length * 10)) * 18);
+    const clean = Math.min(18, ((s.cleanliness||0) / 100) * 18);
+    const layout = Math.min(14, (sumLevels(s.layout) / (LAYOUT_UPGRADES.length * 8)) * 14);
+    const rep = Math.min(13, ((s.reputation||0) / 100) * 13);
     const stars = Math.min(5, (s.michelinStars||0) * (5/3));
-    return Math.round(Math.min(100, food + stations + clean + layout + rep + stars));
+    const sat = Math.min(10, ((s.satisfaction||CONFIG.SATISFACTION_START) / 100) * 10);
+    return Math.round(Math.min(100, food + stations + clean + layout + rep + stars + sat));
   }
   function ratingIncomeBonus(){
     return 1 + restaurantRating() * CONFIG.RATING_INCOME_PER_POINT;
@@ -556,63 +557,285 @@
     renderKitchen();
   }
 
-  // ---------- customer orders ----------
-  let activeOrder = null; // { typeId, endsAt }
+  // ---------- customer orders (GDD Part 5) ----------
+  let activeOrder = null; // { typeId, endsAt, startedAt, durationMs, customerName }
   let nextOrderCheck = Date.now() + CONFIG.ORDER_CHECK_INTERVAL_MS;
+  let lastReviewToast = 0;
+
+  function patienceMultiplier(){
+    // Staff service roles, queue upgrades, and cleanliness extend patience.
+    let mult = 1;
+    mult += sumLevels(state.queue) * (CONFIG.PATIENCE_QUEUE_BONUS || 0.08);
+    const serviceStaff = ['waiter','cashier','cleaner','host'].filter(id => state.staff && state.staff[id]);
+    mult += serviceStaff.length * (CONFIG.PATIENCE_STAFF_BONUS || 0.04);
+    const clean = Math.max(0, Math.min(100, state.cleanliness || 0)) / 100;
+    mult += clean * (CONFIG.PATIENCE_CLEAN_BONUS || 0.15);
+    // Express lane slightly reduces wait pressure (more time feel) via queue id
+    if(state.queue && state.queue.express) mult += 0.05 * state.queue.express;
+    return Math.min(CONFIG.PATIENCE_MAX_MULT || 2.2, mult);
+  }
+
+  function loyaltyRewardMult(){
+    const pts = state.loyaltyPoints || 0;
+    const tier = Math.floor(pts / (CONFIG.LOYALTY_TIER_SIZE || 25));
+    return 1 + tier * (CONFIG.LOYALTY_REWARD_PER_TIER || 0.01);
+  }
+
+  function satisfactionMult(){
+    // High satisfaction slightly boosts order rewards; low satisfaction soft-nerfs them.
+    const s = Math.max(CONFIG.SATISFACTION_MIN, Math.min(CONFIG.SATISFACTION_MAX, state.satisfaction || CONFIG.SATISFACTION_START));
+    return 0.85 + (s / 100) * 0.30; // 0.85–1.15
+  }
+
+  function adjustSatisfaction(delta){
+    state.satisfaction = Math.max(
+      CONFIG.SATISFACTION_MIN,
+      Math.min(CONFIG.SATISFACTION_MAX, (state.satisfaction || CONFIG.SATISFACTION_START) + delta)
+    );
+  }
+
+  function recordCustomerStat(typeId, field){
+    if(!state.customerTypeStats) state.customerTypeStats = {};
+    if(!state.customerTypeStats[typeId]) state.customerTypeStats[typeId] = {served:0, missed:0};
+    state.customerTypeStats[typeId][field] = (state.customerTypeStats[typeId][field] || 0) + 1;
+  }
+
+  function pickCustomerType(){
+    const rep = state.reputation || CONFIG.REP_START;
+    const rating = typeof restaurantRating === 'function' ? restaurantRating() : 50;
+    const vipArea = (state.layout && state.layout.vip) || 0;
+
+    // Special rare rolls first
+    if(rating >= 70 && Math.random() < (CONFIG.CELEBRITY_SPAWN_CHANCE || 0.015)){
+      return CUSTOMER_TYPES.find(c => c.id === 'celebrity');
+    }
+    if(rep >= 55 && Math.random() < (CONFIG.VIP_SPAWN_CHANCE || 0.06) * (1 + vipArea * 0.15)){
+      return CUSTOMER_TYPES.find(c => c.id === 'vip');
+    }
+    // Occasional critic order (separate from the timed Critic income event)
+    if(rep >= 65 && Math.random() < 0.04){
+      return CUSTOMER_TYPES.find(c => c.id === 'critic');
+    }
+
+    // Weighted normal pool — tourists scale with reputation / unlocked countries
+    const unlocked = (state.unlockedCountries || []).length;
+    const pool = CUSTOMER_TYPES.filter(c => !c.special);
+    let total = 0;
+    const weights = pool.map(c => {
+      let w = c.weight || 10;
+      if(c.tourist){
+        w *= 1 + Math.max(0, (rep - 50) / 50) * (CONFIG.TOURIST_REP_BONUS || 0.12) * 8;
+        w *= 1 + Math.max(0, unlocked - 1) * 0.25;
+      }
+      // Foodies prefer high rating
+      if(c.id === 'foodie') w *= 0.6 + (rating / 100) * 0.9;
+      // Students more common early
+      if(c.id === 'student') w *= Math.max(0.4, 1.4 - unlocked * 0.2);
+      total += w;
+      return w;
+    });
+    let roll = Math.random() * total;
+    for(let i = 0; i < pool.length; i++){
+      roll -= weights[i];
+      if(roll <= 0) return pool[i];
+    }
+    return pool[0];
+  }
 
   function maybeTriggerOrder(){
     if(activeOrder) return;
     if(activeEvent.type === 'inspector') return; // don't stack with inspector taps
     if(Date.now() < nextOrderCheck) return;
     nextOrderCheck = Date.now() + CONFIG.ORDER_CHECK_INTERVAL_MS;
-    if(Math.random() < CONFIG.ORDER_TRIGGER_CHANCE){
-      const def = ORDER_TYPES[Math.floor(Math.random() * ORDER_TYPES.length)];
-      activeOrder = { typeId: def.id, endsAt: Date.now() + CONFIG.ORDER_DURATION_MS };
-      renderOrderCard();
-    }
+
+    // Satisfaction slightly affects spawn chance (happy customers = more traffic)
+    const sat = (state.satisfaction || CONFIG.SATISFACTION_START) / 100;
+    const chance = (CONFIG.ORDER_TRIGGER_CHANCE || 0.28) * (0.75 + sat * 0.5);
+    if(Math.random() >= chance) return;
+
+    const def = pickCustomerType();
+    if(!def) return;
+    const basePatience = def.patience || CONFIG.ORDER_DURATION_MS;
+    const durationMs = Math.round(basePatience * patienceMultiplier());
+    const now = Date.now();
+    activeOrder = {
+      typeId: def.id,
+      endsAt: now + durationMs,
+      startedAt: now,
+      durationMs,
+      special: def.special || null
+    };
+    renderOrderCard();
   }
+
+  function showReviewToast(def, stars, text){
+    const now = Date.now();
+    if(now - lastReviewToast < 4000) return;
+    lastReviewToast = now;
+    const toast = document.getElementById('reviewToast');
+    if(!toast) return;
+    const starStr = '★'.repeat(stars) + '☆'.repeat(5 - stars);
+    document.getElementById('reviewStars').textContent = starStr;
+    document.getElementById('reviewText').textContent = text;
+    document.getElementById('reviewWho').textContent = def.name;
+    toast.classList.add('show');
+    clearTimeout(showReviewToast._t);
+    showReviewToast._t = setTimeout(() => toast.classList.remove('show'), 3200);
+  }
+
+  function maybeLeaveReview(def, success, tipBonus){
+    if(Math.random() > (CONFIG.REVIEW_CHANCE || 0.22)) return;
+    state.reviewsTotal = (state.reviewsTotal || 0) + 1;
+    const sat = state.satisfaction || CONFIG.SATISFACTION_START;
+    let stars;
+    if(!success){
+      stars = sat > 60 ? 2 : 1;
+      showReviewToast(def, stars, stars === 1 ? 'Waited forever… left hungry.' : 'Service was too slow.');
+      return;
+    }
+    // Positive review spectrum based on satisfaction + tip
+    if(sat >= 85 || tipBonus) stars = 5;
+    else if(sat >= 70) stars = 4;
+    else if(sat >= 50) stars = 3;
+    else stars = 2;
+    if(stars >= 4) state.reviewsPositive = (state.reviewsPositive || 0) + 1;
+    const lines = {
+      5: ['Best ramen in town!', 'Will definitely come back!', 'Absolute perfection.', 'Tell your friends!'],
+      4: ['Really solid bowl.', 'Great flavor, nice pace.', 'Happy we stopped by.'],
+      3: ['Decent, nothing special.', 'Okay for the price.', 'Might try again.'],
+      2: ['Expected more.', 'A bit underwhelming.']
+    };
+    const pool = lines[stars] || lines[3];
+    showReviewToast(def, stars, pool[Math.floor(Math.random() * pool.length)]);
+  }
+
   function fulfillOrder(){
     if(!activeOrder) return;
+    const def = CUSTOMER_TYPES.find(c => c.id === activeOrder.typeId) || CUSTOMER_TYPES[0];
     const rate = Math.max(totalRatePerSec(), 0.5);
-    const gain = rate * CONFIG.ORDER_REWARD_SECONDS + nextTapGain() * CONFIG.ORDER_REWARD_TAP_MULT;
+    const budget = def.budget || 1;
+    const gain = (rate * CONFIG.ORDER_REWARD_SECONDS + nextTapGain() * CONFIG.ORDER_REWARD_TAP_MULT)
+      * budget * loyaltyRewardMult() * satisfactionMult();
+
     addCountryCash(state.activeCountry, gain);
     addEarned(gain);
     state.ordersFulfilled = (state.ordersFulfilled || 0) + 1;
-    if(Math.random() < 0.08) earnDiamonds(1);
-    adjustReputation(CONFIG.REP_ORDER_GAIN);
+    recordCustomerStat(def.id, 'served');
+
+    // Tips & diamonds
+    let tipped = false;
+    if(Math.random() < (def.tipChance || 0.1)){
+      tipped = true;
+      const tip = gain * (0.15 + Math.random() * 0.25);
+      addCountryCash(state.activeCountry, tip);
+      addEarned(tip);
+      spawnFloatingGain(tip);
+    }
+    if(Math.random() < 0.08 + (def.special ? 0.12 : 0)) earnDiamonds(1);
+
+    // Reputation / satisfaction / loyalty
+    let repGain = CONFIG.REP_ORDER_GAIN;
+    let satGain = CONFIG.SATISFACTION_FULFILL;
+    let loyalty = CONFIG.LOYALTY_PER_FULFILL;
+    if(def.special === 'vip'){
+      repGain += 3;
+      satGain += 3;
+      loyalty += CONFIG.LOYALTY_VIP_BONUS;
+      state.vipServed = (state.vipServed || 0) + 1;
+    } else if(def.special === 'celebrity'){
+      repGain += 8;
+      satGain += 6;
+      loyalty += CONFIG.LOYALTY_CELEB_BONUS;
+      state.celebritiesServed = (state.celebritiesServed || 0) + 1;
+      // Celebrity draws a crowd — brief income feel via floating + extra cash
+      const crowd = rate * 8;
+      addCountryCash(state.activeCountry, crowd);
+      addEarned(crowd);
+      spawnFloatingGain(crowd);
+    } else if(def.special === 'critic'){
+      repGain += 5;
+      satGain += 4;
+      state.criticEventsSeen = (state.criticEventsSeen || 0) + 1;
+    } else if(def.tourist){
+      repGain += 1;
+      satGain += 1;
+    }
+
+    // Fast serve bonus (served with >50% patience remaining)
+    const remainFrac = Math.max(0, (activeOrder.endsAt - Date.now()) / activeOrder.durationMs);
+    if(remainFrac > 0.5){
+      satGain += 1.5;
+      repGain += 1;
+    }
+
+    adjustReputation(repGain);
+    adjustSatisfaction(satGain);
+    state.loyaltyPoints = (state.loyaltyPoints || 0) + loyalty;
+
     spawnFloatingGain(gain);
     fireTapFeedback(false);
+    maybeLeaveReview(def, true, tipped);
+
     activeOrder = null;
     renderOrderCard();
     renderStats();
+    if(typeof renderKitchen === 'function') renderKitchen();
     checkAchievements();
   }
+
   function missOrder(){
     if(!activeOrder) return;
+    const def = CUSTOMER_TYPES.find(c => c.id === activeOrder.typeId) || CUSTOMER_TYPES[0];
     playOrderMissSfx();
-    adjustReputation(-CONFIG.REP_ORDER_MISS);
+    let repLoss = CONFIG.REP_ORDER_MISS;
+    let satLoss = CONFIG.SATISFACTION_MISS;
+    if(def.special === 'vip'){ repLoss += 4; satLoss += 5; }
+    else if(def.special === 'celebrity'){ repLoss += 10; satLoss += 12; }
+    else if(def.special === 'critic'){ repLoss += 6; satLoss += 8; }
+    adjustReputation(-repLoss);
+    adjustSatisfaction(-satLoss);
+    recordCustomerStat(def.id, 'missed');
+    maybeLeaveReview(def, false, false);
     activeOrder = null;
     renderOrderCard();
     renderStats();
+    if(typeof renderKitchen === 'function') renderKitchen();
   }
+
   function renderOrderCard(){
     const el = document.getElementById('orderCard');
     if(!el) return;
     if(!activeOrder){
-      el.classList.remove('show');
+      el.classList.remove('show', 'order-vip', 'order-celebrity', 'order-critic');
       return;
     }
-    const def = ORDER_TYPES.find(o => o.id === activeOrder.typeId) || ORDER_TYPES[0];
+    const def = CUSTOMER_TYPES.find(c => c.id === activeOrder.typeId) || CUSTOMER_TYPES[0];
     el.classList.add('show');
+    el.classList.toggle('order-vip', def.special === 'vip');
+    el.classList.toggle('order-celebrity', def.special === 'celebrity');
+    el.classList.toggle('order-critic', def.special === 'critic');
     document.getElementById('orderIcon').textContent = def.icon;
     document.getElementById('orderLabel').textContent = def.label;
+    const whoEl = document.getElementById('orderWho');
+    if(whoEl) whoEl.textContent = def.name;
     document.getElementById('orderFlavor').textContent = def.flavor;
+    // Reset patience bar
+    const fill = document.getElementById('patienceFill');
+    if(fill) fill.style.width = '100%';
   }
+
   function tickOrder(){
     if(!activeOrder) return;
     const remain = Math.max(0, activeOrder.endsAt - Date.now());
     const timeEl = document.getElementById('orderTime');
     if(timeEl) timeEl.textContent = Math.ceil(remain/1000) + 's';
+    const fill = document.getElementById('patienceFill');
+    if(fill && activeOrder.durationMs){
+      const pct = Math.max(0, Math.min(100, (remain / activeOrder.durationMs) * 100));
+      fill.style.width = pct + '%';
+      fill.classList.toggle('patience-low', pct < 30);
+      fill.classList.toggle('patience-mid', pct >= 30 && pct < 55);
+    }
     if(remain <= 0) missOrder();
   }
 
@@ -834,6 +1057,31 @@
     html += `<div class="rep-panel-card">
       <div class="rep-track big"><div class="rep-fill" style="width:${rating}%"></div></div>
       <p class="rep-hint">Food quality, stations, cleanliness, layout, reputation & Michelin stars. +${(rating * CONFIG.RATING_INCOME_PER_POINT * 100).toFixed(1)}% income.</p>
+    </div>`;
+
+    // ---- Customer System (GDD Part 5) ----
+    const sat = Math.round(state.satisfaction || CONFIG.SATISFACTION_START);
+    const loyalty = state.loyaltyPoints || 0;
+    const loyaltyTier = Math.floor(loyalty / (CONFIG.LOYALTY_TIER_SIZE || 25));
+    const loyaltyBonusPct = Math.round(loyaltyTier * (CONFIG.LOYALTY_REWARD_PER_TIER || 0.01) * 100);
+    const reviewsPos = state.reviewsPositive || 0;
+    const reviewsTot = state.reviewsTotal || 0;
+    const vipN = state.vipServed || 0;
+    const celebN = state.celebritiesServed || 0;
+    html += `<div class="chal-section-label" style="margin-top:16px;">Customers</div>`;
+    html += `<div class="rep-panel-card">
+      <div class="rep-panel-top">
+        <span class="rep-panel-score">😊 ${sat}/100</span>
+        <span class="rep-panel-mult">Satisfaction</span>
+      </div>
+      <div class="rep-track big"><div class="rep-fill" style="width:${Math.max(0,Math.min(100,sat))}%; background:linear-gradient(90deg,#5ecf8a,#c9e265);"></div></div>
+      <div style="display:flex; flex-wrap:wrap; gap:8px 14px; margin-top:10px; font-size:11.5px;">
+        <span>❤️ Loyalty <b>${loyalty}</b> (Tier ${loyaltyTier}${loyaltyBonusPct ? ` · +${loyaltyBonusPct}% orders` : ''})</span>
+        <span>⭐ Reviews <b>${reviewsPos}</b>/${reviewsTot}</span>
+        <span>💎 VIP <b>${vipN}</b></span>
+        <span>🌟 Celebs <b>${celebN}</b></span>
+      </div>
+      <p class="rep-hint">Serve quickly to raise satisfaction. VIPs, tourists & celebrities pay more. Queue upgrades & staff extend patience. Loyalty tiers boost order rewards.</p>
     </div>`;
 
     // ---- Michelin Challenge (GDD) ----

@@ -154,11 +154,30 @@
     REP_INCOME_MAX: 1.45,
 
     // Customer orders (active-play requests near the bowl)
-    ORDER_CHECK_INTERVAL_MS: 22000,
-    ORDER_TRIGGER_CHANCE: 0.28,
-    ORDER_DURATION_MS: 18000,
+    ORDER_CHECK_INTERVAL_MS: 20000,
+    ORDER_TRIGGER_CHANCE: 0.32,
+    ORDER_DURATION_MS: 18000,      // base patience; overridden per customer type
     ORDER_REWARD_SECONDS: 12,      // bonus cash ≈ this many seconds of current income
     ORDER_REWARD_TAP_MULT: 1.35,   // also scales with nextTapGain() a bit
+    // GDD Part 5 — Customer System
+    SATISFACTION_START: 70,        // 0–100 customer satisfaction score
+    SATISFACTION_MIN: 0,
+    SATISFACTION_MAX: 100,
+    SATISFACTION_FULFILL: 2.5,     // base gain on successful serve
+    SATISFACTION_MISS: 4,          // base loss on walk-away
+    LOYALTY_PER_FULFILL: 1,        // loyalty points per normal serve
+    LOYALTY_VIP_BONUS: 3,
+    LOYALTY_CELEB_BONUS: 8,
+    LOYALTY_TIER_SIZE: 25,         // every N points = 1 loyalty tier (+1% order rewards)
+    LOYALTY_REWARD_PER_TIER: 0.01, // +1% order cash per loyalty tier
+    VIP_SPAWN_CHANCE: 0.06,        // extra roll for VIP when rep ≥ 60
+    CELEBRITY_SPAWN_CHANCE: 0.015, // rare celebrity when rating ≥ 70
+    TOURIST_REP_BONUS: 0.12,       // extra tourist weight at high reputation
+    REVIEW_CHANCE: 0.22,           // chance to leave a review after fulfill
+    PATIENCE_QUEUE_BONUS: 0.08,    // +8% patience time per total queue upgrade level
+    PATIENCE_STAFF_BONUS: 0.04,    // +4% per hired service staff
+    PATIENCE_CLEAN_BONUS: 0.15,    // up to +15% from high cleanliness
+    PATIENCE_MAX_MULT: 2.2,        // hard cap on patience extension
 
     // Crafting / signature ramen
     INGREDIENT_DROP_CHANCE: 0.22,  // chance a business level-up grants an ingredient
@@ -458,15 +477,22 @@
     {id:'feast_ramen',  icon:'🎄', name:'Christmas Seafood Ramen', desc:'+50% income & +10 rep', rarity:'seasonal',
       cost:{noodles:2, seafood:2, cheese:1}, boost:{income:0.50, rep:10}, unlock:{seasonal:'holiday'}},
   ];
-  // Customer order templates — short timed requests the player can fulfill with a tap.
-  const ORDER_TYPES = [
-    {id:'spicy',   icon:'🌶️', label:'Extra spicy!',       flavor:'A customer wants heat.'},
-    {id:'extra',   icon:'🥚', label:'Extra toppings',     flavor:'Pile it high, please.'},
-    {id:'quick',   icon:'⚡', label:'Rush order',         flavor:'They\'re in a hurry!'},
-    {id:'classic', icon:'🍜', label:'Classic bowl',       flavor:'Keep it traditional.'},
-    {id:'veggie',  icon:'🥬', label:'Vegetarian special', flavor:'No meat this time.'},
-    {id:'large',   icon:'📦', label:'Large portion',      flavor:'Make it a big one.'},
+  // GDD Part 5 — Customer types. Each has budget (reward mult), base patience (ms),
+  // weight (spawn frequency), favorite order flavor, and optional special flags.
+  const CUSTOMER_TYPES = [
+    {id:'student',    icon:'🎒', name:'Student',        label:'Budget ramen',        flavor:'Cheap & filling, please!',     budget:0.7,  patience:14000, weight:22, tipChance:0.05},
+    {id:'office',     icon:'💼', name:'Office Worker',  label:'Lunch special',       flavor:'Quick — back to the desk!',   budget:1.1,  patience:12000, weight:20, tipChance:0.12},
+    {id:'family',     icon:'👨‍👩‍👧', name:'Family',         label:'Family order',        flavor:'Something for everyone.',     budget:1.4,  patience:22000, weight:14, tipChance:0.15},
+    {id:'tourist',    icon:'🧳', name:'Tourist',        label:'Local specialty',     flavor:'What\'s the regional classic?', budget:1.6,  patience:20000, weight:12, tipChance:0.20, tourist:true},
+    {id:'elderly',    icon:'👴', name:'Elderly',        label:'Mild classic',        flavor:'Not too spicy, dear.',        budget:0.9,  patience:28000, weight:10, tipChance:0.18},
+    {id:'foodie',     icon:'😋', name:'Food Lover',     label:'Signature bowl',      flavor:'Surprise me with your best!', budget:1.8,  patience:16000, weight:10, tipChance:0.25},
+    {id:'vip',        icon:'💎', name:'VIP Guest',      label:'VIP tasting',         flavor:'I expect excellence.',        budget:3.2,  patience:15000, weight:0,  tipChance:0.55, special:'vip'},
+    {id:'celebrity',  icon:'🌟', name:'Celebrity',      label:'Celebrity visit!',    flavor:'The cameras are rolling…',   budget:5.5,  patience:18000, weight:0,  tipChance:0.80, special:'celebrity'},
+    {id:'critic',     icon:'📰', name:'Food Critic',    label:'Critic\'s order',     flavor:'Every detail will be noted.', budget:2.4,  patience:16000, weight:0,  tipChance:0.40, special:'critic'},
   ];
+
+  // Legacy alias — order flavors still used for display variety on normal types
+  const ORDER_TYPES = CUSTOMER_TYPES.filter(c => !c.special);
 
   // Story chapters — narrative quests tied to each country unlock path.
   // Quests unlock in order within a chapter; chapters gate on country unlock
@@ -551,6 +577,14 @@
     {id:'world_tour',  icon:'🌍', name:'World Tour',        desc:'Expand your empire to every country', reward:0.05, cond: s => s.unlockedCountries.length >= COUNTRIES.length},
     {id:'first_order', icon:'🧾', name:'Order Up!',         desc:'Fulfill your first customer order', reward:0.02, cond: s => (s.ordersFulfilled||0) >= 1},
     {id:'order_pro',   icon:'🛎️', name:'Service Pro',       desc:'Fulfill 25 customer orders',       reward:0.03, cond: s => (s.ordersFulfilled||0) >= 25},
+    {id:'order_100',   icon:'🏅', name:'Crowd Favorite',    desc:'Fulfill 100 customer orders',      reward:0.04, cond: s => (s.ordersFulfilled||0) >= 100},
+    {id:'vip_serve',   icon:'💎', name:'VIP Treatment',     desc:'Successfully serve a VIP guest',   reward:0.03, cond: s => (s.vipServed||0) >= 1},
+    {id:'celeb_serve', icon:'🌟', name:'Star Attraction',   desc:'Serve a celebrity customer',       reward:0.05, cond: s => (s.celebritiesServed||0) >= 1},
+    {id:'loyalty_50',  icon:'❤️', name:'Regulars Club',     desc:'Earn 50 loyalty points',           reward:0.03, cond: s => (s.loyaltyPoints||0) >= 50},
+    {id:'loyalty_150', icon:'👑', name:'Loyalty Legend',    desc:'Earn 150 loyalty points',          reward:0.05, cond: s => (s.loyaltyPoints||0) >= 150},
+    {id:'sat_high',    icon:'😊', name:'Happy Customers',   desc:'Reach 90 customer satisfaction',   reward:0.03, cond: s => (s.satisfaction||0) >= 90},
+    {id:'reviews_10',  icon:'⭐', name:'Review Magnet',     desc:'Collect 10 positive customer reviews', reward:0.03, cond: s => (s.reviewsPositive||0) >= 10},
+
     {id:'first_craft', icon:'🧪', name:'Kitchen Debut',     desc:'Craft your first signature ramen', reward:0.02, cond: s => (s.recipesCrafted||0) >= 1},
     {id:'chef_five',   icon:'👨‍🍳', name:'Five-Star Kitchen', desc:'Craft 10 signature ramen dishes',  reward:0.03, cond: s => (s.recipesCrafted||0) >= 10},
     {id:'rep_high',    icon:'⭐', name:'Beloved Shop',      desc:'Reach 95 reputation',              reward:0.03, cond: s => (s.reputation||0) >= 95},

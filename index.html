@@ -64,14 +64,26 @@
   </div>
 
   <div class="order-card" id="orderCard" role="status" aria-live="polite">
-    <div class="order-icon" id="orderIcon" aria-hidden="true">🌶️</div>
+    <div class="order-icon" id="orderIcon" aria-hidden="true">🎒</div>
     <div class="order-body">
-      <div class="order-label" id="orderLabel">Extra spicy!</div>
-      <div class="order-flavor" id="orderFlavor">A customer wants heat.</div>
+      <div class="order-who" id="orderWho">Student</div>
+      <div class="order-label" id="orderLabel">Budget ramen</div>
+      <div class="order-flavor" id="orderFlavor">Cheap &amp; filling, please!</div>
+      <div class="patience-track" title="Customer patience">
+        <div class="patience-fill" id="patienceFill"></div>
+      </div>
     </div>
     <div class="order-right">
       <div class="order-time" id="orderTime">18s</div>
       <button class="order-fulfill" id="orderFulfillBtn" aria-label="Fulfill customer order">Serve</button>
+    </div>
+  </div>
+
+  <div class="review-toast" id="reviewToast" role="status" aria-live="polite" aria-hidden="true">
+    <div class="review-stars" id="reviewStars">★★★★☆</div>
+    <div class="review-body">
+      <div class="review-text" id="reviewText">Best ramen in town!</div>
+      <div class="review-who" id="reviewWho">Food Lover</div>
     </div>
   </div>
 

@@ -44,6 +44,14 @@
     activeRecipe: null,       // {id, endsAt} while a signature ramen boost is active
     ordersFulfilled: 0,
     recipesCrafted: 0,
+    // GDD Part 5 — Customer System
+    satisfaction: 70,         // 0–100 overall customer satisfaction
+    loyaltyPoints: 0,         // accumulates from successful serves
+    vipServed: 0,
+    celebritiesServed: 0,
+    reviewsPositive: 0,
+    reviewsTotal: 0,
+    customerTypeStats: {},    // customerTypeId -> {served, missed}
     // Story / seasonal / staff (v1.7)
     storyClaimed: {},     // questId -> true once reward claimed
     seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
@@ -321,6 +329,13 @@
       activeRecipe: null,
       ordersFulfilled: 0,
       recipesCrafted: 0,
+      satisfaction: CONFIG.SATISFACTION_START,
+      loyaltyPoints: 0,
+      vipServed: 0,
+      celebritiesServed: 0,
+      reviewsPositive: 0,
+      reviewsTotal: 0,
+      customerTypeStats: {},
       storyClaimed: {},
       seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
       guildId: null,
@@ -431,6 +446,13 @@
     if(state.activeRecipe && state.activeRecipe.endsAt < Date.now()) state.activeRecipe = null;
     if(state.ordersFulfilled === undefined) state.ordersFulfilled = 0;
     if(state.recipesCrafted === undefined) state.recipesCrafted = 0;
+    if(state.satisfaction === undefined) state.satisfaction = CONFIG.SATISFACTION_START;
+    if(state.loyaltyPoints === undefined) state.loyaltyPoints = 0;
+    if(state.vipServed === undefined) state.vipServed = 0;
+    if(state.celebritiesServed === undefined) state.celebritiesServed = 0;
+    if(state.reviewsPositive === undefined) state.reviewsPositive = 0;
+    if(state.reviewsTotal === undefined) state.reviewsTotal = 0;
+    if(!state.customerTypeStats) state.customerTypeStats = {};
     if(state.tapFxEnabled === undefined) state.tapFxEnabled = true;
     if(state.musicEnabled === undefined) state.musicEnabled = true;
     if(state.sfxEnabled === undefined) state.sfxEnabled = true;
