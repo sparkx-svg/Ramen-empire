@@ -2136,30 +2136,26 @@
   }
   // Kitchen panel now has 6 sub-sections instead of one long scroll —
   // pick a default and remember the user's last choice between renders.
-  let kitchenSubTab = 'overview';
-  const KITCHEN_TABS = [
-    {id:'overview', label:'🏮 Overview'},
-    {id:'ingredients', label:'🧅 Ingredients'},
-    {id:'recipes', label:'📜 Recipes'},
-    {id:'stations', label:'🔥 Stations'},
-    {id:'staff', label:'👨‍🍳 Staff'},
-    {id:'facility', label:'🏪 Facility'}
-  ];
-  function setKitchenTab(id){
-    if(!KITCHEN_TABS.some(t => t.id === id)) return;
-    kitchenSubTab = id;
-    renderKitchen();
-  }
+  // Kitchen features now live as separate entries in the More sheet
+  // (Overview / Ingredients / Recipes / Stations / Staff / Facility)
+  // instead of being crammed inside one Kitchen tab.
   function renderKitchen(){
-    const panel = document.getElementById('kitchenPanel');
-    if(!panel || !panel.classList.contains('active')) return;
+    renderKitchenOverview();
+    renderKitchenIngredients();
+    renderKitchenRecipes();
+    renderKitchenStations();
+    renderKitchenStaff();
+    renderKitchenFacility();
+  }
 
-    // ================= OVERVIEW =================
+  function renderKitchenOverview(){
+    const panel = document.getElementById('kitchenOverviewPanel');
+    if(!panel || !panel.classList.contains('active')) return;
     const rep = Math.round(state.reputation || 0);
     const repPct = Math.max(0, Math.min(100, rep));
     const mult = reputationMultiplier();
     const repairCost = reputationRepairCost();
-    let overviewHtml = `
+    let html = `
       <div class="chal-section-label">Reputation</div>
       <div class="rep-panel-card">
         <div class="rep-panel-top">
@@ -2175,32 +2171,32 @@
 
     // ---- Restaurant Rating (GDD Part 2) ----
     const rating = restaurantRating();
-    overviewHtml += `<div class="chal-section-label" style="margin-top:16px;">Restaurant Rating · ${rating}/100</div>`;
-    overviewHtml += `<div class="rep-panel-card">
+    html += `<div class="chal-section-label" style="margin-top:16px;">Restaurant Rating · ${rating}/100</div>`;
+    html += `<div class="rep-panel-card">
       <div class="rep-track big"><div class="rep-fill" style="width:${rating}%"></div></div>
       <p class="rep-hint">Food quality, stations, cleanliness, layout, reputation & Michelin stars. +${(rating * CONFIG.RATING_INCOME_PER_POINT * 100).toFixed(1)}% income.</p>
     </div>`;
 
     // ---- Michelin Challenge (GDD) ----
-    overviewHtml += `<div class="chal-section-label" style="margin-top:16px;">Michelin Stars · ${'⭐'.repeat(state.michelinStars||0)}${'☆'.repeat(Math.max(0, CONFIG.MICHELIN_MAX_STARS - (state.michelinStars||0)))}</div>`;
+    html += `<div class="chal-section-label" style="margin-top:16px;">Michelin Stars · ${'⭐'.repeat(state.michelinStars||0)}${'☆'.repeat(Math.max(0, CONFIG.MICHELIN_MAX_STARS - (state.michelinStars||0)))}</div>`;
     if((state.michelinStars||0) >= CONFIG.MICHELIN_MAX_STARS){
-      overviewHtml += `<p class="rep-hint">Three-star empire! +${Math.round(CONFIG.MICHELIN_INCOME_PER_STAR*CONFIG.MICHELIN_MAX_STARS*100)}% permanent income.</p>`;
+      html += `<p class="rep-hint">Three-star empire! +${Math.round(CONFIG.MICHELIN_INCOME_PER_STAR*CONFIG.MICHELIN_MAX_STARS*100)}% permanent income.</p>`;
     } else if(state.michelinChallenge){
       const ch = state.michelinChallenge;
       const pct = Math.min(100, Math.floor((ch.earned / ch.targetCash) * 100));
       const left = Math.max(0, Math.ceil((ch.durationMs - (Date.now() - ch.startedAt)) / 1000));
-      overviewHtml += `<div class="rep-panel-card"><div class="rep-panel-top"><span>Challenge in progress</span><span>${pct}% · ${left}s</span></div>
+      html += `<div class="rep-panel-card"><div class="rep-panel-top"><span>Challenge in progress</span><span>${pct}% · ${left}s</span></div>
         <div class="rep-track big"><div class="rep-fill" style="width:${pct}%"></div></div>
         <p class="rep-hint">Earn ${fmt(ch.targetCash)} before time runs out.</p></div>`;
     } else {
       const canStart = (state.reputation||0) >= CONFIG.MICHELIN_REP_REQ;
-      overviewHtml += `<p class="rep-hint">Need ${CONFIG.MICHELIN_REP_REQ}+ reputation. Earn a huge cash burst in 2 minutes for a permanent star (+${Math.round(CONFIG.MICHELIN_INCOME_PER_STAR*100)}% income each).</p>
+      html += `<p class="rep-hint">Need ${CONFIG.MICHELIN_REP_REQ}+ reputation. Earn a huge cash burst in 2 minutes for a permanent star (+${Math.round(CONFIG.MICHELIN_INCOME_PER_STAR*100)}% income each).</p>
         <button class="modal-btn" data-action="michelin-start" ${canStart ? '' : 'disabled'}>Begin Michelin Challenge</button>`;
     }
 
     // ---- Legendary Chefs (GDD) ----
     unlockAvailableChefs();
-    overviewHtml += `<div class="chal-section-label" style="margin-top:16px;">Legendary Chefs</div>`;
+    html += `<div class="chal-section-label" style="margin-top:16px;">Legendary Chefs</div>`;
     LEGENDARY_CHEFS.forEach(c => {
       const owned = !!(state.chefsOwned && state.chefsOwned[c.id]);
       const equipped = state.equippedChef === c.id;
@@ -2217,7 +2213,7 @@
         else if(onCd) action = `<button class="claim-btn" disabled>Cooldown</button>`;
         else action = `<button class="claim-btn" data-action="chef-skill">Use Skill</button>`;
       }
-      overviewHtml += `<div class="recipe-card${locked ? ' dim' : ''}">
+      html += `<div class="recipe-card${locked ? ' dim' : ''}">
         <div class="recipe-icon">${c.icon}</div>
         <div class="recipe-info">
           <div class="recipe-name">${c.name}${equipped ? ' ★' : ''}</div>
@@ -2227,35 +2223,43 @@
       </div>`;
     });
 
-    // ================= INGREDIENTS =================
-    let ingredientsHtml = '';
+    
+    panel.innerHTML = html;
+    const repairBtn = document.getElementById('repairRepBtn');
+    if(repairBtn) repairBtn.addEventListener('click', repairReputation);
+  }
+
+  function renderKitchenIngredients(){
+    const panel = document.getElementById('kitchenIngredientsPanel');
+    if(!panel || !panel.classList.contains('active')) return;
+    let html = '';
     const cap = storageCapacity();
     const storCost = CONFIG.STORAGE_UPGRADE_COST * Math.pow(CONFIG.STORAGE_COST_GROWTH, state.storageLevel || 0) * researchCostBonus();
-    ingredientsHtml += `<div class="chal-section-label">Ingredients · cap ${cap}/stack · storage Lv${state.storageLevel||0}</div>`;
-    ingredientsHtml += `<button class="modal-btn" data-action="upgrade-storage" style="margin-bottom:8px;" ${(state.storageLevel||0) >= CONFIG.STORAGE_MAX_LEVEL || getCountryCash(state.activeCountry) < storCost ? 'disabled' : ''}>Expand Storage · ${(state.storageLevel||0) >= CONFIG.STORAGE_MAX_LEVEL ? 'MAX' : fmt(storCost)}</button>`;
-    ingredientsHtml += `<div class="ing-grid">`;
+    html += `<div class="chal-section-label">Ingredients · cap ${cap}/stack · storage Lv${state.storageLevel||0}</div>`;
+    html += `<button class="modal-btn" data-action="upgrade-storage" style="margin-bottom:8px;" ${(state.storageLevel||0) >= CONFIG.STORAGE_MAX_LEVEL || getCountryCash(state.activeCountry) < storCost ? 'disabled' : ''}>Expand Storage · ${(state.storageLevel||0) >= CONFIG.STORAGE_MAX_LEVEL ? 'MAX' : fmt(storCost)}</button>`;
+    html += `<div class="ing-grid">`;
     INGREDIENTS.forEach(ing => {
       const locked = !isUnlocked(ing.country);
       const count = ingredientCount(ing.id);
       const qIdx = (state.ingredientQuality && state.ingredientQuality[ing.id]) || 0;
       const q = INGREDIENT_QUALITIES[qIdx];
-      ingredientsHtml += `<div class="ing-chip${locked ? ' locked' : ''}${count ? ' has' : ''}" title="${ing.name}${ing.rare ? ' (rare)' : ''} · ${q.name}">
+      html += `<div class="ing-chip${locked ? ' locked' : ''}${count ? ' has' : ''}" title="${ing.name}${ing.rare ? ' (rare)' : ''} · ${q.name}">
         <span class="ing-icon">${ing.icon}</span>
         <span class="ing-count">${locked ? '🔒' : count}</span>
         <span class="ing-name">${q.icon} ${ing.name}</span>
       </div>`;
     });
-    ingredientsHtml += `</div>`;
+    html += `</div>`;
 
     // ---- Supply chain ----
-    ingredientsHtml += `<div class="chal-section-label" style="margin-top:14px;">Supply Chain</div>`;
-    ingredientsHtml += `<p class="rep-hint">Order bulk ingredients from world suppliers (60s cooldown).</p>`;
+    html += `<div class="chal-section-label" style="margin-top:14px;">Supply Chain</div>`;
+    html += `<p class="rep-hint">Order bulk ingredients from world suppliers (60s cooldown).</p>`;
     const onCd = state.supplierCooldownUntil && state.supplierCooldownUntil > Date.now();
     SUPPLIERS.forEach(sup => {
       const unlocked = (state.unlockedCountries || []).length >= sup.unlockCountries;
       const unitPrice = 50 * Math.pow(1.15, state.prestigeCount || 0);
       const totalCost = unitPrice * sup.qty * sup.priceMult;
-      ingredientsHtml += `<div class="recipe-card${!unlocked || onCd ? ' dim' : ''}">
+      html += `<div class="recipe-card${!unlocked || onCd ? ' dim' : ''}">
         <div class="recipe-icon">${sup.icon}</div>
         <div class="recipe-info">
           <div class="recipe-name">${sup.name}</div>
@@ -2265,22 +2269,28 @@
       </div>`;
     });
 
-    // ================= RECIPES =================
-    let recipesHtml = '';
-    recipesHtml += `<div class="chal-section-label">Signature Ramen</div>`;
+    
+    panel.innerHTML = html;
+  }
+
+  function renderKitchenRecipes(){
+    const panel = document.getElementById('kitchenRecipesPanel');
+    if(!panel || !panel.classList.contains('active')) return;
+    let html = '';
+    html += `<div class="chal-section-label">Signature Ramen</div>`;
     if(state.activeRecipe && state.activeRecipe.endsAt > Date.now()){
       const def = RECIPES.find(r => r.id === state.activeRecipe.id);
       const remain = Math.ceil((state.activeRecipe.endsAt - Date.now()) / 1000);
-      recipesHtml += `<div class="recipe-active-banner">
+      html += `<div class="recipe-active-banner">
         <span aria-hidden="true">${def ? def.icon : '🍜'}</span>
         <div><strong>${def ? def.name : 'Boost'}</strong> active · ${remain}s left</div>
       </div>`;
     } else {
-      recipesHtml += `<p class="rep-hint">Craft a signature dish for a temporary boost. Ingredients drop when you level shops.</p>`;
+      html += `<p class="rep-hint">Craft a signature dish for a temporary boost. Ingredients drop when you level shops.</p>`;
     }
 
-    recipesHtml += `<div class="chal-section-label" style="margin-top:14px;">Recipes & Mastery</div>`;
-    recipesHtml += `<p class="rep-hint">Craft for temporary boosts. Mastery grants permanent income. Upgrade price/speed/popularity with ingredients.</p>`;
+    html += `<div class="chal-section-label" style="margin-top:14px;">Recipes & Mastery</div>`;
+    html += `<p class="rep-hint">Craft for temporary boosts. Mastery grants permanent income. Upgrade price/speed/popularity with ingredients.</p>`;
     RECIPES.forEach(recipe => {
       const unlocked = recipeUnlocked(recipe);
       const ok = canCraft(recipe);
@@ -2304,7 +2314,7 @@
         else if(u.prestige) lockHint = `Prestige ${u.prestige}`;
         else lockHint = 'Locked';
       }
-      recipesHtml += `<div class="recipe-card${!unlocked || !ok || busy ? ' dim' : ''}">
+      html += `<div class="recipe-card${!unlocked || !ok || busy ? ' dim' : ''}">
         <div class="recipe-icon" aria-hidden="true">${recipe.icon}</div>
         <div class="recipe-info">
           <div class="recipe-name">${recipe.name} <small>(${recipe.rarity||'common'})</small></div>
@@ -2322,7 +2332,7 @@
           const cur = up[stat] || 0;
           const need = CONFIG.RECIPE_UPGRADE_COST_BASE + cur;
           const maxed = cur >= CONFIG.RECIPE_UPGRADE_MAX;
-          recipesHtml += `<div style="display:flex;gap:6px;margin:2px 0 6px 48px;align-items:center;font-size:12px;">
+          html += `<div style="display:flex;gap:6px;margin:2px 0 6px 48px;align-items:center;font-size:12px;">
             <span style="min-width:70px;text-transform:capitalize;">${stat}</span>
             <button class="claim-btn" data-action="recipe-upgrade" data-id="${recipe.id}" data-stat="${stat}" ${maxed || ingredientCount(ingId) < need ? 'disabled' : ''} style="padding:4px 8px;">
               ${maxed ? 'MAX' : `+1 (${need}×)`}
@@ -2332,15 +2342,21 @@
       }
     });
 
-    // ================= STATIONS (cooking stations, research, workflow, automation) =================
-    let stationsHtml = '';
-    stationsHtml += `<div class="chal-section-label">Cooking Stations</div>`;
-    stationsHtml += `<p class="rep-hint">Upgrade production lines for permanent empire-wide income (+${Math.round(CONFIG.STATION_INCOME_BOOST*100)}% per level).</p>`;
+    
+    panel.innerHTML = html;
+  }
+
+  function renderKitchenStations(){
+    const panel = document.getElementById('kitchenStationsPanel');
+    if(!panel || !panel.classList.contains('active')) return;
+    let html = '';
+    html += `<div class="chal-section-label">Cooking Stations</div>`;
+    html += `<p class="rep-hint">Upgrade production lines for permanent empire-wide income (+${Math.round(CONFIG.STATION_INCOME_BOOST*100)}% per level).</p>`;
     COOKING_STATIONS.forEach(st => {
       const lvl = (state.stations && state.stations[st.id]) || 0;
       const cost = stationCost(st.id);
       const maxed = lvl >= CONFIG.STATION_MAX_LEVEL;
-      stationsHtml += `<div class="recipe-card">
+      html += `<div class="recipe-card">
         <div class="recipe-icon">${st.icon}</div>
         <div class="recipe-info">
           <div class="recipe-name">${st.name} · Lv${lvl}</div>
@@ -2350,13 +2366,13 @@
       </div>`;
     });
 
-    stationsHtml += `<div class="chal-section-label" style="margin-top:16px;">Research · ${state.researchPoints||0} pts</div>`;
-    stationsHtml += `<p class="rep-hint">Earn research points from Prestige and milestones. Permanent empire bonuses.</p>`;
+    html += `<div class="chal-section-label" style="margin-top:16px;">Research · ${state.researchPoints||0} pts</div>`;
+    html += `<p class="rep-hint">Earn research points from Prestige and milestones. Permanent empire bonuses.</p>`;
     RESEARCH_BRANCHES.forEach(br => {
       const lvl = researchLevel(br.id);
       const cost = researchUpgradeCost(br.id);
       const maxed = lvl >= CONFIG.RESEARCH_MAX_LEVEL;
-      stationsHtml += `<div class="recipe-card">
+      html += `<div class="recipe-card">
         <div class="recipe-icon">${br.icon}</div>
         <div class="recipe-info">
           <div class="recipe-name">${br.name} · Lv${lvl}</div>
@@ -2366,135 +2382,132 @@
       </div>`;
     });
 
-    stationsHtml += `<div class="chal-section-label" style="margin-top:16px;">Kitchen Workflow</div>`;
-    stationsHtml += `<p class="rep-hint">Order → Noodles → Broth → Toppings → Quality → Serve. Upgrade Cooking Stations above to speed each stage.</p>`;
-    stationsHtml += `<div class="ing-grid">`;
+    html += `<div class="chal-section-label" style="margin-top:16px;">Kitchen Workflow</div>`;
+    html += `<p class="rep-hint">Order → Noodles → Broth → Toppings → Quality → Serve. Upgrade Cooking Stations above to speed each stage.</p>`;
+    html += `<div class="ing-grid">`;
     WORKFLOW_STAGES.forEach(w => {
-      stationsHtml += `<div class="ing-chip has" title="${w.name}"><span class="ing-icon">${w.icon}</span><span class="ing-name">${w.name}</span></div>`;
+      html += `<div class="ing-chip has" title="${w.name}"><span class="ing-icon">${w.icon}</span><span class="ing-name">${w.name}</span></div>`;
     });
-    stationsHtml += `</div>`;
+    html += `</div>`;
 
     const autoLv = state.automationLevel || 0;
     const autoCost = CONFIG.AUTOMATION_BASE_COST * Math.pow(CONFIG.AUTOMATION_COST_GROWTH, autoLv);
-    stationsHtml += `<div class="chal-section-label" style="margin-top:16px;">Automation · Lv${autoLv}</div>`;
-    stationsHtml += `<p class="rep-hint">AI managers handle routine work. +${Math.round(CONFIG.AUTOMATION_INCOME_BOOST*100)}% income/level and less burnout.</p>`;
-    stationsHtml += `<button class="modal-btn" data-action="automation" ${autoLv >= CONFIG.AUTOMATION_MAX_LEVEL || getCountryCash(state.activeCountry) < autoCost ? 'disabled' : ''}>${autoLv >= CONFIG.AUTOMATION_MAX_LEVEL ? 'MAX Automation' : 'Upgrade Automation · '+fmt(autoCost)}</button>`;
+    html += `<div class="chal-section-label" style="margin-top:16px;">Automation · Lv${autoLv}</div>`;
+    html += `<p class="rep-hint">AI managers handle routine work. +${Math.round(CONFIG.AUTOMATION_INCOME_BOOST*100)}% income/level and less burnout.</p>`;
+    html += `<button class="modal-btn" data-action="automation" ${autoLv >= CONFIG.AUTOMATION_MAX_LEVEL || getCountryCash(state.activeCountry) < autoCost ? 'disabled' : ''}>${autoLv >= CONFIG.AUTOMATION_MAX_LEVEL ? 'MAX Automation' : 'Upgrade Automation · '+fmt(autoCost)}</button>`;
 
-    // ================= STAFF =================
-    let staffHtml = '';
-    staffHtml += `<div class="chal-section-label">Staff Roster</div>`;
-    staffHtml += `<p class="rep-hint">Hire empire staff. Happy workers earn more; burnout hurts. Salaries scale with levels.</p>`;
+    
+    panel.innerHTML = html;
+  }
+
+  function renderKitchenStaff(){
+    const panel = document.getElementById('kitchenStaffPanel');
+    if(!panel || !panel.classList.contains('active')) return;
+    let html = '';
+    html += `<div class="chal-section-label">Staff Roster</div>`;
+    html += `<p class="rep-hint">Hire empire staff. Happy workers earn more; burnout hurts. Salaries scale with levels.</p>`;
     STAFF_ROLES.forEach(role => {
       const hired = state.staff && state.staff[role.id];
       if(!hired){
         const cost = role.hireCost * researchCostBonus();
-        staffHtml += `<div class="recipe-card"><div class="recipe-icon">${role.icon}</div><div class="recipe-info"><div class="recipe-name">${role.name}</div><div class="recipe-desc">${role.desc} · +${Math.round(role.incomeBoost*100)}%/lvl</div></div>
+        html += `<div class="recipe-card"><div class="recipe-icon">${role.icon}</div><div class="recipe-info"><div class="recipe-name">${role.name}</div><div class="recipe-desc">${role.desc} · +${Math.round(role.incomeBoost*100)}%/lvl</div></div>
           <button class="claim-btn" data-action="hire-staff" data-id="${role.id}" ${getCountryCash(state.activeCountry) < cost ? 'disabled' : ''}>Hire · ${fmt(cost)}</button></div>`;
       } else {
         const happy = Math.round(hired.happiness == null ? 70 : hired.happiness);
         const burned = happy < CONFIG.STAFF_BURNOUT_THRESHOLD;
         const trainCost = CONFIG.STAFF_TRAIN_COST_BASE * Math.pow(CONFIG.STAFF_TRAIN_COST_GROWTH, hired.level || 1);
         const maxed = (hired.level || 1) >= CONFIG.STAFF_MAX_LEVEL;
-        staffHtml += `<div class="recipe-card"><div class="recipe-icon">${role.icon}</div><div class="recipe-info">
+        html += `<div class="recipe-card"><div class="recipe-icon">${role.icon}</div><div class="recipe-info">
           <div class="recipe-name">${role.name} · Lv${hired.level||1}${hired.promoted ? ' ★'+hired.promoted : ''}</div>
           <div class="recipe-desc">😊 ${happy}%${burned ? ' · BURNOUT' : ''} · ${role.desc}</div>
         </div>
           <button class="claim-btn" data-action="train-staff" data-id="${role.id}" ${maxed || getCountryCash(state.activeCountry) < trainCost ? 'disabled' : ''}>${maxed ? 'MAX' : 'Train · '+fmt(trainCost)}</button></div>`;
       }
     });
-    staffHtml += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+    html += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
       <button class="modal-btn" data-action="reward-staff" ${!state.staff || !Object.keys(state.staff).length ? 'disabled' : ''}>🎉 Reward Staff</button>
       <button class="modal-btn secondary" data-action="break-room">☕ Break Room · Lv${state.breakRoomLevel||0}</button>
     </div>`;
 
-    staffHtml += `<div class="chal-section-label" style="margin-top:16px;">Culinary Academy</div>`;
-    staffHtml += `<p class="rep-hint">Train global skills that boost the whole team.</p>`;
+    html += `<div class="chal-section-label" style="margin-top:16px;">Culinary Academy</div>`;
+    html += `<p class="rep-hint">Train global skills that boost the whole team.</p>`;
     STAFF_SKILLS.forEach(sk => {
       const lvl = (state.staffSkills && state.staffSkills[sk.id]) || 0;
       const cost = CONFIG.STAFF_TRAIN_COST_BASE * Math.pow(CONFIG.STAFF_TRAIN_COST_GROWTH, lvl) * 2;
-      staffHtml += `<div class="recipe-card"><div class="recipe-icon">${sk.icon}</div><div class="recipe-info"><div class="recipe-name">${sk.name} · Lv${lvl}</div><div class="recipe-desc">${sk.desc}</div></div>
+      html += `<div class="recipe-card"><div class="recipe-icon">${sk.icon}</div><div class="recipe-info"><div class="recipe-name">${sk.name} · Lv${lvl}</div><div class="recipe-desc">${sk.desc}</div></div>
         <button class="claim-btn" data-action="academy" data-id="${sk.id}" ${lvl >= 15 || getCountryCash(state.activeCountry) < cost ? 'disabled' : ''}>${lvl >= 15 ? 'MAX' : fmt(cost)}</button></div>`;
     });
 
-    staffHtml += `<div class="chal-section-label" style="margin-top:16px;">Staff Equipment</div>`;
+    html += `<div class="chal-section-label" style="margin-top:16px;">Staff Equipment</div>`;
     STAFF_EQUIPMENT.forEach(eq => {
       const lvl = (state.staffEquip && state.staffEquip[eq.id]) || 0;
       const cost = CONFIG.STAFF_EQUIP_COST_BASE * Math.pow(CONFIG.STAFF_EQUIP_COST_GROWTH, lvl);
-      staffHtml += `<div class="recipe-card"><div class="recipe-icon">${eq.icon}</div><div class="recipe-info"><div class="recipe-name">${eq.name} · Lv${lvl}</div><div class="recipe-desc">${eq.desc}</div></div>
+      html += `<div class="recipe-card"><div class="recipe-icon">${eq.icon}</div><div class="recipe-info"><div class="recipe-name">${eq.name} · Lv${lvl}</div><div class="recipe-desc">${eq.desc}</div></div>
         <button class="claim-btn" data-action="staff-equip" data-id="${eq.id}" ${lvl >= CONFIG.STAFF_EQUIP_MAX || getCountryCash(state.activeCountry) < cost ? 'disabled' : ''}>${lvl >= CONFIG.STAFF_EQUIP_MAX ? 'MAX' : fmt(cost)}</button></div>`;
     });
 
-    // ================= FACILITY (layout, queue, delivery, service modes, cleaning) =================
-    let facilityHtml = '';
-    facilityHtml += `<div class="chal-section-label">Restaurant Layout</div>`;
-    facilityHtml += `<p class="rep-hint">Seating, kitchen size, VIP area & serving lanes. +${Math.round(CONFIG.LAYOUT_INCOME_BOOST*100)}% income per level.</p>`;
+    
+    panel.innerHTML = html;
+  }
+
+  function renderKitchenFacility(){
+    const panel = document.getElementById('kitchenFacilityPanel');
+    if(!panel || !panel.classList.contains('active')) return;
+    let html = '';
+    html += `<div class="chal-section-label">Restaurant Layout</div>`;
+    html += `<p class="rep-hint">Seating, kitchen size, VIP area & serving lanes. +${Math.round(CONFIG.LAYOUT_INCOME_BOOST*100)}% income per level.</p>`;
     LAYOUT_UPGRADES.forEach(u => {
       const lvl = (state.layout && state.layout[u.id]) || 0;
       const cost = scaledUpgradeCost(CONFIG.LAYOUT_BASE_COST, CONFIG.LAYOUT_COST_GROWTH, lvl);
       const maxed = lvl >= CONFIG.LAYOUT_MAX_LEVEL;
-      facilityHtml += `<div class="recipe-card"><div class="recipe-icon">${u.icon}</div><div class="recipe-info"><div class="recipe-name">${u.name} · Lv${lvl}</div><div class="recipe-desc">${u.desc}</div></div>
+      html += `<div class="recipe-card"><div class="recipe-icon">${u.icon}</div><div class="recipe-info"><div class="recipe-name">${u.name} · Lv${lvl}</div><div class="recipe-desc">${u.desc}</div></div>
         <button class="claim-btn" data-action="layout" data-id="${u.id}" ${maxed || getCountryCash(state.activeCountry) < cost ? 'disabled' : ''}>${maxed ? 'MAX' : fmt(cost)}</button></div>`;
     });
 
-    facilityHtml += `<div class="chal-section-label" style="margin-top:16px;">Customer Queue</div>`;
-    facilityHtml += `<p class="rep-hint">Reduce wait times and walk-aways. +${Math.round(CONFIG.QUEUE_INCOME_BOOST*100)}% income per level.</p>`;
+    html += `<div class="chal-section-label" style="margin-top:16px;">Customer Queue</div>`;
+    html += `<p class="rep-hint">Reduce wait times and walk-aways. +${Math.round(CONFIG.QUEUE_INCOME_BOOST*100)}% income per level.</p>`;
     QUEUE_UPGRADES.forEach(u => {
       const lvl = (state.queue && state.queue[u.id]) || 0;
       const cost = scaledUpgradeCost(CONFIG.QUEUE_BASE_COST, CONFIG.QUEUE_COST_GROWTH, lvl);
       const maxed = lvl >= CONFIG.QUEUE_MAX_LEVEL;
-      facilityHtml += `<div class="recipe-card"><div class="recipe-icon">${u.icon}</div><div class="recipe-info"><div class="recipe-name">${u.name} · Lv${lvl}</div><div class="recipe-desc">${u.desc}</div></div>
+      html += `<div class="recipe-card"><div class="recipe-icon">${u.icon}</div><div class="recipe-info"><div class="recipe-name">${u.name} · Lv${lvl}</div><div class="recipe-desc">${u.desc}</div></div>
         <button class="claim-btn" data-action="queue" data-id="${u.id}" ${maxed || getCountryCash(state.activeCountry) < cost ? 'disabled' : ''}>${maxed ? 'MAX' : fmt(cost)}</button></div>`;
     });
 
-    facilityHtml += `<div class="chal-section-label" style="margin-top:16px;">Delivery Fleet</div>`;
-    facilityHtml += `<p class="rep-hint">Passive delivery income. +${Math.round(CONFIG.DELIVERY_INCOME_PER_LEVEL*100)}% per vehicle level.</p>`;
+    html += `<div class="chal-section-label" style="margin-top:16px;">Delivery Fleet</div>`;
+    html += `<p class="rep-hint">Passive delivery income. +${Math.round(CONFIG.DELIVERY_INCOME_PER_LEVEL*100)}% per vehicle level.</p>`;
     DELIVERY_FLEET.forEach(u => {
       const lvl = (state.delivery && state.delivery[u.id]) || 0;
       const cost = scaledUpgradeCost(CONFIG.DELIVERY_BASE_COST, CONFIG.DELIVERY_COST_GROWTH, lvl);
       const maxed = lvl >= CONFIG.DELIVERY_MAX_LEVEL;
-      facilityHtml += `<div class="recipe-card"><div class="recipe-icon">${u.icon}</div><div class="recipe-info"><div class="recipe-name">${u.name} · Lv${lvl}</div><div class="recipe-desc">${u.desc}</div></div>
+      html += `<div class="recipe-card"><div class="recipe-icon">${u.icon}</div><div class="recipe-info"><div class="recipe-name">${u.name} · Lv${lvl}</div><div class="recipe-desc">${u.desc}</div></div>
         <button class="claim-btn" data-action="delivery" data-id="${u.id}" ${maxed || getCountryCash(state.activeCountry) < cost ? 'disabled' : ''}>${maxed ? 'MAX' : fmt(cost)}</button></div>`;
     });
 
-    facilityHtml += `<div class="chal-section-label" style="margin-top:16px;">Service Modes</div>`;
+    html += `<div class="chal-section-label" style="margin-top:16px;">Service Modes</div>`;
     const hasTakeaway = !!(state.serviceModes && state.serviceModes.takeaway);
     const hasDrive = !!(state.serviceModes && state.serviceModes.driveThrough);
-    facilityHtml += `<div class="recipe-card"><div class="recipe-icon">🥡</div><div class="recipe-info"><div class="recipe-name">Takeaway Orders</div><div class="recipe-desc">+${Math.round(CONFIG.TAKEAWAY_INCOME_BONUS*100)}% income · no seating needed</div></div>
+    html += `<div class="recipe-card"><div class="recipe-icon">🥡</div><div class="recipe-info"><div class="recipe-name">Takeaway Orders</div><div class="recipe-desc">+${Math.round(CONFIG.TAKEAWAY_INCOME_BONUS*100)}% income · no seating needed</div></div>
       <button class="claim-btn" data-action="unlock-takeaway" ${hasTakeaway || getCountryCash(state.activeCountry) < CONFIG.TAKEAWAY_UNLOCK_COST * researchCostBonus() ? 'disabled' : ''}>${hasTakeaway ? 'Unlocked' : fmt(CONFIG.TAKEAWAY_UNLOCK_COST)}</button></div>`;
-    facilityHtml += `<div class="recipe-card"><div class="recipe-icon">🚗</div><div class="recipe-info"><div class="recipe-name">Drive-Through</div><div class="recipe-desc">+${Math.round(CONFIG.DRIVETHRU_INCOME_BONUS*100)}% income · requires takeaway</div></div>
+    html += `<div class="recipe-card"><div class="recipe-icon">🚗</div><div class="recipe-info"><div class="recipe-name">Drive-Through</div><div class="recipe-desc">+${Math.round(CONFIG.DRIVETHRU_INCOME_BONUS*100)}% income · requires takeaway</div></div>
       <button class="claim-btn" data-action="unlock-drivethru" ${hasDrive || !hasTakeaway || getCountryCash(state.activeCountry) < CONFIG.DRIVETHRU_UNLOCK_COST * researchCostBonus() ? 'disabled' : ''}>${hasDrive ? 'Unlocked' : fmt(CONFIG.DRIVETHRU_UNLOCK_COST)}</button></div>`;
 
     const clean = Math.round(state.cleanliness || 0);
     const cLvl = state.cleaningLevel || 0;
     const cCost = scaledUpgradeCost(CONFIG.CLEANING_BASE_COST, CONFIG.CLEANING_COST_GROWTH, cLvl);
     const polishCost = Math.max(50, totalRatePerSec() * CONFIG.CLEANLINESS_REPAIR_COST_MULT * ((100 - clean) / 100));
-    facilityHtml += `<div class="chal-section-label" style="margin-top:16px;">Cleaning · ${clean}/100</div>`;
-    facilityHtml += `<div class="rep-panel-card">
+    html += `<div class="chal-section-label" style="margin-top:16px;">Cleaning · ${clean}/100</div>`;
+    html += `<div class="rep-panel-card">
       <div class="rep-track big"><div class="rep-fill" style="width:${clean}%"></div></div>
       <p class="rep-hint">Dirty shops hurt rating. Cleaning staff level ${cLvl} slows decay by ${Math.round(cleaningDecayReduction()*100)}%.</p>
       <button class="modal-btn" data-action="upgrade-cleaning" ${cLvl >= CONFIG.CLEANING_MAX_LEVEL || getCountryCash(state.activeCountry) < cCost ? 'disabled' : ''}>Hire Cleaning Staff · ${cLvl >= CONFIG.CLEANING_MAX_LEVEL ? 'MAX' : fmt(cCost)}</button>
       <button class="modal-btn secondary" data-action="polish-clean" style="margin-top:8px;" ${clean >= 100 || getCountryCash(state.activeCountry) < polishCost ? 'disabled' : ''}>Deep Clean · ${fmt(polishCost)}</button>
     </div>`;
 
-    // ================= ASSEMBLE =================
-    const tabContent = {
-      overview: overviewHtml,
-      ingredients: ingredientsHtml,
-      recipes: recipesHtml,
-      stations: stationsHtml,
-      staff: staffHtml,
-      facility: facilityHtml
-    };
-    if(!tabContent[kitchenSubTab]) kitchenSubTab = 'overview';
-
-    const navHtml = `<div class="kitchen-subnav" role="tablist" aria-label="Kitchen sections">` +
-      KITCHEN_TABS.map(t => `<button class="kitchen-subtab-btn${t.id===kitchenSubTab?' active':''}" data-kitchen-tab="${t.id}" role="tab" aria-selected="${t.id===kitchenSubTab}">${t.label}</button>`).join('') +
-      `</div>`;
-
-    panel.innerHTML = navHtml + `<div id="kitchenSubContent">${tabContent[kitchenSubTab]}</div>`;
-    const repairBtn = document.getElementById('repairRepBtn');
-    if(repairBtn) repairBtn.addEventListener('click', repairReputation);
+    
+    panel.innerHTML = html;
   }
+
 
 
   // ---------- rendering ----------
@@ -4994,7 +5007,12 @@
     if(panelId === 'leaderboardPanel') renderLeaderboard();
     if(panelId === 'prestigePanel') renderPrestige();
     if(panelId === 'collectionPanel') renderCollection();
-    if(panelId === 'kitchenPanel') renderKitchen();
+    if(panelId === 'kitchenOverviewPanel') renderKitchenOverview();
+    if(panelId === 'kitchenIngredientsPanel') renderKitchenIngredients();
+    if(panelId === 'kitchenRecipesPanel') renderKitchenRecipes();
+    if(panelId === 'kitchenStationsPanel') renderKitchenStations();
+    if(panelId === 'kitchenStaffPanel') renderKitchenStaff();
+    if(panelId === 'kitchenFacilityPanel') renderKitchenFacility();
   }
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => activatePanel(btn.dataset.panel));
@@ -5024,10 +5042,10 @@
     const dot = document.getElementById('moreDot');
     if(dot) dot.classList.toggle('show', achOn || collOn);
   }
-  // Kitchen panel actions (delegated — panel is rebuilt on each open)
-  document.getElementById('kitchenPanel').addEventListener('click', e => {
-    const tabBtn = e.target.closest('[data-kitchen-tab]');
-    if(tabBtn){ setKitchenTab(tabBtn.dataset.kitchenTab); return; }
+  // Kitchen actions — content now spans 6 separate panels (Overview /
+  // Ingredients / Recipes / Stations / Staff / Facility), each rebuilt
+  // from scratch whenever it's opened, so delegate on each individually.
+  function handleKitchenAction(e){
     const btn = e.target.closest('[data-action]');
     if(!btn) return;
     const action = btn.dataset.action;
@@ -5054,6 +5072,10 @@
     else if(action === 'automation') upgradeAutomation();
     else if(action === 'break-room') upgradeBreakRoom();
     else if(action === 'reward-staff') rewardStaff();
+  }
+  ['kitchenOverviewPanel','kitchenIngredientsPanel','kitchenRecipesPanel','kitchenStationsPanel','kitchenStaffPanel','kitchenFacilityPanel'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('click', handleKitchenAction);
   });
   // Order card fulfill button
   const fulfillBtn = document.getElementById('orderFulfillBtn');

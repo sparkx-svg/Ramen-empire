@@ -1249,7 +1249,12 @@
     if(panelId === 'leaderboardPanel') renderLeaderboard();
     if(panelId === 'prestigePanel') renderPrestige();
     if(panelId === 'collectionPanel') renderCollection();
-    if(panelId === 'kitchenPanel') renderKitchen();
+    if(panelId === 'kitchenOverviewPanel') renderKitchenOverview();
+    if(panelId === 'kitchenIngredientsPanel') renderKitchenIngredients();
+    if(panelId === 'kitchenRecipesPanel') renderKitchenRecipes();
+    if(panelId === 'kitchenStationsPanel') renderKitchenStations();
+    if(panelId === 'kitchenStaffPanel') renderKitchenStaff();
+    if(panelId === 'kitchenFacilityPanel') renderKitchenFacility();
   }
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => activatePanel(btn.dataset.panel));
@@ -1279,10 +1284,10 @@
     const dot = document.getElementById('moreDot');
     if(dot) dot.classList.toggle('show', achOn || collOn);
   }
-  // Kitchen panel actions (delegated — panel is rebuilt on each open)
-  document.getElementById('kitchenPanel').addEventListener('click', e => {
-    const tabBtn = e.target.closest('[data-kitchen-tab]');
-    if(tabBtn){ setKitchenTab(tabBtn.dataset.kitchenTab); return; }
+  // Kitchen actions — content now spans 6 separate panels (Overview /
+  // Ingredients / Recipes / Stations / Staff / Facility), each rebuilt
+  // from scratch whenever it's opened, so delegate on each individually.
+  function handleKitchenAction(e){
     const btn = e.target.closest('[data-action]');
     if(!btn) return;
     const action = btn.dataset.action;
@@ -1309,6 +1314,10 @@
     else if(action === 'automation') upgradeAutomation();
     else if(action === 'break-room') upgradeBreakRoom();
     else if(action === 'reward-staff') rewardStaff();
+  }
+  ['kitchenOverviewPanel','kitchenIngredientsPanel','kitchenRecipesPanel','kitchenStationsPanel','kitchenStaffPanel','kitchenFacilityPanel'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('click', handleKitchenAction);
   });
   // Order card fulfill button
   const fulfillBtn = document.getElementById('orderFulfillBtn');
