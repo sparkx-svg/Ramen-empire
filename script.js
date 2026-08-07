@@ -157,6 +157,22 @@
     WHEEL_FREE_SPINS_PER_DAY: 1,
     WHEEL_EXTRA_SPIN_DIAMOND_COST: 8,
 
+    // GDD Part 7 — Progression
+    FAME_START: 0,
+    FAME_MAX: 1000,
+    FAME_PER_ORDER: 0.4,
+    FAME_PER_VIP: 3,
+    FAME_PER_CELEB: 12,
+    FAME_PER_REVIEW: 1.5,
+    FAME_PER_MICHELIN: 40,
+    FAME_PER_COUNTRY: 25,
+    FAME_INCOME_PER_100: 0.03,
+    FAME_VIP_BONUS: 0.0004,
+    EMPIRE_LEVEL_INCOME_PER: 0.015,
+    CITY_UNLOCK_REP: { italy: 55, mexico: 65, india: 75 },
+    CITY_UNLOCK_RATING: { italy: 35, mexico: 50, india: 65 },
+    CITY_UNLOCK_SHOP_LEVELS: { italy: 8, mexico: 20, india: 40 },
+
     // Customer orders (active-play requests near the bowl)
     ORDER_CHECK_INTERVAL_MS: 20000,
     ORDER_TRIGGER_CHANCE: 0.32,
@@ -618,7 +634,20 @@
     {id:'wheel_spin',  icon:'🎡', name:'Feeling Lucky',    desc:'Spin the Lucky Wheel once',         reward:0.02, cond: s => (s.wheelSpins||0) >= 1},
     {id:'wheel_10',    icon:'🎰', name:'High Roller',      desc:'Spin the Lucky Wheel 10 times',     reward:0.04, cond: s => (s.wheelSpins||0) >= 10},
     {id:'price_high',  icon:'📈', name:'Premium Menu',     desc:'Set menu price to 1.5× or higher',   reward:0.02, cond: s => (s.menuPrice||1) >= 1.5},
+    {id:'fame_50',     icon:'📣', name:'Local Buzz',       desc:'Reach 50 fame',                     reward:0.02, cond: s => (s.fame||0) >= 50},
+    {id:'fame_200',    icon:'📡', name:'Rising Star',      desc:'Reach 200 fame',                    reward:0.03, cond: s => (s.fame||0) >= 200},
+    {id:'fame_500',    icon:'🎬', name:'Household Name',   desc:'Reach 500 fame',                    reward:0.05, cond: s => (s.fame||0) >= 500},
+    {id:'empire_10',   icon:'🏯', name:'Franchise Boss',   desc:'Reach Empire Level 10',             reward:0.03, cond: s => empireLevel(s) >= 10},
+    {id:'empire_25',   icon:'🌐', name:'Global Operator',  desc:'Reach Empire Level 25',             reward:0.05, cond: s => empireLevel(s) >= 25},
 
+  ];
+
+  // Player journey stages (display only — derived from progress)
+  const JOURNEY_STAGES = [
+    {id:'beginner',  icon:'🛒', name:'Street Cart Rookie',  desc:'Learn the craft in one city.',           minEmpire:0,  minCountries:1},
+    {id:'mid',       icon:'🏢', name:'City Expansion',      desc:'Multiple cities and hired managers.',    minEmpire:8,  minCountries:2},
+    {id:'late',      icon:'🌆', name:'Global Franchise',    desc:'Worldwide ramen with Michelin prestige.', minEmpire:20, minCountries:3},
+    {id:'endgame',   icon:'👑', name:'Ramen Legend',        desc:'Max stars, every chef, global rank.',    minEmpire:40, minCountries:4},
   ];
   // Cash-earned thresholds that trigger a celebratory milestone popup (confetti
   // + chime + a small bonus). Independent of ACHIEVEMENTS above: these are
@@ -706,6 +735,8 @@
     wheelSpins: 0,            // lifetime spins
     wheelLastFreeDate: null,  // YYYY-MM-DD of last free spin
     wheelExtraSpins: 0,       // paid extras remaining today
+    // GDD Part 7 — Progression
+    fame: 0,                  // 0–1000 popularity
     // Story / seasonal / staff (v1.7)
     storyClaimed: {},     // questId -> true once reward claimed
     seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
@@ -1023,6 +1054,7 @@
       wheelSpins: 0,
       wheelLastFreeDate: null,
       wheelExtraSpins: 0,
+      fame: CONFIG.FAME_START || 0,
       storyClaimed: {},
       seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
       guildId: null,
@@ -1144,6 +1176,7 @@
     if(state.wheelSpins === undefined) state.wheelSpins = 0;
     if(state.wheelLastFreeDate === undefined) state.wheelLastFreeDate = null;
     if(state.wheelExtraSpins === undefined) state.wheelExtraSpins = 0;
+    if(state.fame === undefined) state.fame = CONFIG.FAME_START || 0;
     if(state.tapFxEnabled === undefined) state.tapFxEnabled = true;
     if(state.musicEnabled === undefined) state.musicEnabled = true;
     if(state.sfxEnabled === undefined) state.sfxEnabled = true;
@@ -1543,6 +1576,65 @@
     // at 0.6 → ~1.35 traffic, at 1.0 → 1.0, at 1.8 → ~0.55
     return Math.max(0.4, 1.55 - p * 0.55);
   }
+
+  // ---------- GDD Part 7: Fame + Empire Level ----------
+  function adjustFame(delta){
+    state.fame = Math.max(0, Math.min(CONFIG.FAME_MAX || 1000, (state.fame || 0) + delta));
+  }
+  function fameMultiplier(){
+    return 1 + Math.floor((state.fame || 0) / 100) * (CONFIG.FAME_INCOME_PER_100 || 0.03);
+  }
+  function empireLevel(s){
+    s = s || state;
+    // Total shop levels across all countries + station levels / 2
+    let n = 0;
+    if(typeof allBusinessStates === 'function'){
+      allBusinessStates(s).forEach(b => { n += b.level || 0; });
+    } else if(s.countries){
+      Object.values(s.countries).forEach(c => Object.values(c).forEach(b => { n += b.level || 0; }));
+    }
+    n += Math.floor(sumLevels(s.stations) / 2);
+    return Math.max(1, Math.floor(n / 3) + 1);
+  }
+  function empireLevelMultiplier(){
+    return 1 + Math.max(0, empireLevel() - 1) * (CONFIG.EMPIRE_LEVEL_INCOME_PER || 0.015);
+  }
+  function michelinTrafficBonus(){
+    return 1 + (state.michelinStars || 0) * 0.12; // +12% order traffic per star
+  }
+  function currentJourneyStage(){
+    const el = empireLevel();
+    const countries = (state.unlockedCountries || []).length;
+    let stage = JOURNEY_STAGES[0];
+    JOURNEY_STAGES.forEach(st => {
+      if(el >= st.minEmpire && countries >= st.minCountries) stage = st;
+    });
+    return stage;
+  }
+  function totalShopLevelsInCountry(countryId){
+    const c = state.countries && state.countries[countryId];
+    if(!c) return 0;
+    return Object.values(c).reduce((a, b) => a + (b.level || 0), 0);
+  }
+  function cityUnlockRequirements(countryId){
+    const repNeed = (CONFIG.CITY_UNLOCK_REP && CONFIG.CITY_UNLOCK_REP[countryId]) || 0;
+    const ratingNeed = (CONFIG.CITY_UNLOCK_RATING && CONFIG.CITY_UNLOCK_RATING[countryId]) || 0;
+    const shopsNeed = (CONFIG.CITY_UNLOCK_SHOP_LEVELS && CONFIG.CITY_UNLOCK_SHOP_LEVELS[countryId]) || 0;
+    // Prior country shop levels: for italy use japan, mexico use sum of unlocked, etc.
+    const priorLevels = totalShopLevelsInCountry('japan') +
+      (isUnlocked('italy') ? totalShopLevelsInCountry('italy') : 0) +
+      (isUnlocked('mexico') ? totalShopLevelsInCountry('mexico') : 0);
+    const rep = state.reputation || 0;
+    const rating = typeof restaurantRating === 'function' ? restaurantRating() : 0;
+    return {
+      repNeed, ratingNeed, shopsNeed,
+      repOk: rep >= repNeed,
+      ratingOk: rating >= ratingNeed,
+      shopsOk: priorLevels >= shopsNeed,
+      priorLevels,
+      allOk: rep >= repNeed && rating >= ratingNeed && priorLevels >= shopsNeed
+    };
+  }
   function serviceModeBonus(){
     let m = 1;
     if(state.serviceModes && state.serviceModes.takeaway) m += CONFIG.TAKEAWAY_INCOME_BONUS;
@@ -1594,7 +1686,9 @@
       * staffIncomeBonus()
       * automationBonus()
       * staffEquipBonus()
-      * menuPriceMult();
+      * menuPriceMult()
+      * fameMultiplier()
+      * empireLevelMultiplier();
   }
   function staffIncomeBonus(){
     let mult = 1;
@@ -2081,8 +2175,13 @@
     if(rating >= 70 && Math.random() < (CONFIG.CELEBRITY_SPAWN_CHANCE || 0.015)){
       return CUSTOMER_TYPES.find(c => c.id === 'celebrity');
     }
-    if(rep >= 55 && Math.random() < (CONFIG.VIP_SPAWN_CHANCE || 0.06) * (1 + vipArea * 0.15)){
+    const fameVip = (state.fame || 0) * (CONFIG.FAME_VIP_BONUS || 0.0004);
+    if(rep >= 55 && Math.random() < (CONFIG.VIP_SPAWN_CHANCE || 0.06) * (1 + vipArea * 0.15) + fameVip){
       return CUSTOMER_TYPES.find(c => c.id === 'vip');
+    }
+    // High fame also slightly boosts celebrity chance
+    if((state.fame || 0) >= 150 && rating >= 60 && Math.random() < 0.01 + (state.fame || 0) * 0.00005){
+      return CUSTOMER_TYPES.find(c => c.id === 'celebrity');
     }
     // Occasional critic order (separate from the timed Critic income event)
     if(rep >= 65 && Math.random() < 0.04){
@@ -2120,9 +2219,11 @@
     if(Date.now() < nextOrderCheck) return;
     nextOrderCheck = Date.now() + CONFIG.ORDER_CHECK_INTERVAL_MS;
 
-    // Satisfaction, menu price, and traffic boosters affect spawn chance
+    // Satisfaction, menu price, Michelin traffic, and traffic boosters affect spawn chance
     const sat = (state.satisfaction || CONFIG.SATISFACTION_START) / 100;
-    const traffic = (typeof powerupTrafficMult === 'function' ? powerupTrafficMult() : 1) * menuPriceTrafficMult();
+    const traffic = (typeof powerupTrafficMult === 'function' ? powerupTrafficMult() : 1)
+      * menuPriceTrafficMult()
+      * michelinTrafficBonus();
     const chance = (CONFIG.ORDER_TRIGGER_CHANCE || 0.28) * (0.75 + sat * 0.5) * traffic;
     if(Math.random() >= Math.min(0.85, chance)) return;
 
@@ -2171,7 +2272,10 @@
     else if(sat >= 70) stars = 4;
     else if(sat >= 50) stars = 3;
     else stars = 2;
-    if(stars >= 4) state.reviewsPositive = (state.reviewsPositive || 0) + 1;
+    if(stars >= 4){
+      state.reviewsPositive = (state.reviewsPositive || 0) + 1;
+      adjustFame(CONFIG.FAME_PER_REVIEW || 1.5);
+    }
     const lines = {
       5: ['Best ramen in town!', 'Will definitely come back!', 'Absolute perfection.', 'Tell your friends!'],
       4: ['Really solid bowl.', 'Great flavor, nice pace.', 'Happy we stopped by.'],
@@ -2244,6 +2348,13 @@
     adjustReputation(repGain);
     adjustSatisfaction(satGain);
     state.loyaltyPoints = (state.loyaltyPoints || 0) + loyalty;
+
+    // Fame (GDD Part 7)
+    let fameGain = CONFIG.FAME_PER_ORDER || 0.4;
+    if(def.special === 'vip') fameGain += CONFIG.FAME_PER_VIP || 3;
+    if(def.special === 'celebrity') fameGain += CONFIG.FAME_PER_CELEB || 12;
+    if(tipped) fameGain += 0.5;
+    adjustFame(fameGain);
 
     spawnFloatingGain(gain);
     fireTapFeedback(false);
@@ -2740,6 +2851,25 @@
     html += `<div class="rep-panel-card">
       <div class="rep-track big"><div class="rep-fill" style="width:${rating}%"></div></div>
       <p class="rep-hint">Food quality, stations, cleanliness, layout, reputation & Michelin stars. +${(rating * CONFIG.RATING_INCOME_PER_POINT * 100).toFixed(1)}% income.</p>
+    </div>`;
+
+    // ---- Progression (GDD Part 7) ----
+    const stage = currentJourneyStage();
+    const elvl = empireLevel();
+    const fame = Math.floor(state.fame || 0);
+    const famePct = Math.min(100, (fame / (CONFIG.FAME_MAX || 1000)) * 100);
+    html += `<div class="chal-section-label" style="margin-top:16px;">Progression</div>`;
+    html += `<div class="rep-panel-card">
+      <div class="rep-panel-top">
+        <span class="rep-panel-score">${stage.icon} ${stage.name}</span>
+        <span class="rep-panel-mult">Empire Lv ${elvl} · +${Math.round((empireLevelMultiplier()-1)*100)}% income</span>
+      </div>
+      <div class="rep-panel-top" style="margin-top:8px;">
+        <span>📣 Fame ${fame}/${CONFIG.FAME_MAX || 1000}</span>
+        <span class="rep-panel-mult">+${Math.round((fameMultiplier()-1)*100)}% income</span>
+      </div>
+      <div class="rep-track big"><div class="rep-fill" style="width:${famePct}%; background:linear-gradient(90deg,#7c5cbf,#c4b5fd);"></div></div>
+      <p class="rep-hint">Fame rises from orders, VIPs, celebs, reviews, Michelin stars & city unlocks. Higher fame attracts more VIP/celebrity guests. Empire Level grows with total shop levels.</p>
     </div>`;
 
     // ---- Customer System (GDD Part 5) ----
@@ -3464,21 +3594,54 @@
   function renderWorld(){
     const panel = document.getElementById('worldPanel');
     panel.innerHTML = '';
+    // Progression header
+    const stage = currentJourneyStage();
+    const elvl = empireLevel();
+    const fame = Math.floor(state.fame || 0);
+    const header = document.createElement('div');
+    header.className = 'rep-panel-card';
+    header.style.marginBottom = '12px';
+    header.innerHTML = `
+      <div class="rep-panel-top">
+        <span class="rep-panel-score">${stage.icon} ${stage.name}</span>
+        <span class="rep-panel-mult">Empire Lv ${elvl}</span>
+      </div>
+      <div style="display:flex; flex-wrap:wrap; gap:8px 14px; margin-top:8px; font-size:11.5px;">
+        <span>📣 Fame <b>${fame}</b>/${CONFIG.FAME_MAX || 1000}</span>
+        <span>⭐ Michelin ${'★'.repeat(state.michelinStars||0)}${'☆'.repeat(Math.max(0,(CONFIG.MICHELIN_MAX_STARS||3)-(state.michelinStars||0)))}</span>
+        <span>🌍 Cities <b>${(state.unlockedCountries||[]).length}</b>/${COUNTRIES.length}</span>
+      </div>
+      <p class="rep-hint">${stage.desc} Prior cities keep earning while you expand.</p>
+    `;
+    panel.appendChild(header);
+
     COUNTRIES.forEach(country => {
       const unlocked = isUnlocked(country.id);
       const active = state.activeCountry === country.id;
       const rate = unlocked ? countryRatePerSec(country) * globalMultiplier() : 0;
       const card = document.createElement('div');
       card.className = 'world-card' + (unlocked ? '' : ' locked') + (active ? ' active' : '');
-      const btn = unlocked
-        ? `<button class="world-btn${active ? ' active-btn' : ''}" data-action="select" data-id="${country.id}" aria-label="${active ? country.name + ' is currently active' : 'Manage ' + country.name}" ${active ? 'disabled' : ''}>${active ? 'ACTIVE' : 'MANAGE'}</button>`
-        : `<button class="world-btn" data-action="unlock" data-id="${country.id}" aria-label="Unlock ${country.name} for ${fmt(country.unlockCost)}" ${!canAffordUnlock(country.unlockCost) ? 'disabled' : ''}>UNLOCK<small>${fmt(country.unlockCost)}</small></button>`;
+      let btn, extra = '';
+      if(unlocked){
+        btn = `<button class="world-btn${active ? ' active-btn' : ''}" data-action="select" data-id="${country.id}" aria-label="${active ? country.name + ' is currently active' : 'Manage ' + country.name}" ${active ? 'disabled' : ''}>${active ? 'ACTIVE' : 'MANAGE'}</button>`;
+      } else {
+        const req = cityUnlockRequirements(country.id);
+        const canCash = canAffordUnlock(country.unlockCost);
+        const can = canCash && req.allOk;
+        btn = `<button class="world-btn" data-action="unlock" data-id="${country.id}" aria-label="Unlock ${country.name}" ${can ? '' : 'disabled'}>UNLOCK<small>${fmt(country.unlockCost)}</small></button>`;
+        extra = `<div class="world-reqs" style="font-size:10.5px; opacity:0.85; margin-top:4px; line-height:1.45;">
+          <span style="color:${req.repOk?'var(--jade-light)':'#e08070'}">⭐ Rep ${Math.round(state.reputation||0)}/${req.repNeed}</span> ·
+          <span style="color:${req.ratingOk?'var(--jade-light)':'#e08070'}">📊 Rating ${restaurantRating()}/${req.ratingNeed}</span> ·
+          <span style="color:${req.shopsOk?'var(--jade-light)':'#e08070'}">🏪 Shops ${req.priorLevels}/${req.shopsNeed}</span>
+        </div>`;
+      }
       card.innerHTML = `
         <div class="world-flag" aria-hidden="true">${country.icon}</div>
         <div class="world-info">
           <div class="world-name">${country.name}${active ? '<span class="active-tag">ACTIVE</span>' : ''}</div>
           <div class="world-tagline">${country.tagline}</div>
-          <div class="world-income">${unlocked ? fmt(rate) + '/s · ' + fmt(getCountryCash(country.id)) + ' cash' : 'Locked'}</div>
+          <div class="world-income">${unlocked ? fmt(rate) + '/s · ' + fmt(getCountryCash(country.id)) + ' cash' : 'Locked · ' + fmt(country.unlockCost)}</div>
+          ${extra}
         </div>
         ${btn}
       `;
@@ -3488,9 +3651,13 @@
   function unlockCountry(id){
     const country = getCountry(id);
     if(!country || isUnlocked(id) || !canAffordUnlock(country.unlockCost)) return;
+    // GDD Part 7: also require reputation, rating, and prior franchise levels
+    const req = cityUnlockRequirements(id);
+    if(!req.allOk){ playErrorSfx(); return; }
     if(!spendFromRichest(country.unlockCost)) return;
     state.unlockedCountries.push(id);
     state.activeCountry = id;
+    adjustFame(CONFIG.FAME_PER_COUNTRY || 25);
     // Seed a tiny starter pot so the new market isn't dead on arrival
     addCountryCash(id, Math.min(50, country.unlockCost * 0.00001 + 10));
     renderWorld(); renderBusinesses(); renderStats(); checkAchievements();
@@ -3874,6 +4041,7 @@
     state.michelinChallenge.earned = (state.michelinChallenge.earned || 0) + amount;
     if(state.michelinChallenge.earned >= state.michelinChallenge.targetCash){
       state.michelinStars = Math.min(CONFIG.MICHELIN_MAX_STARS, (state.michelinStars || 0) + 1);
+      adjustFame(CONFIG.FAME_PER_MICHELIN || 40);
       state.michelinChallenge = null;
       playChimeSfx && playChimeSfx();
       checkAchievements();

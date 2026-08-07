@@ -161,6 +161,22 @@
     WHEEL_FREE_SPINS_PER_DAY: 1,
     WHEEL_EXTRA_SPIN_DIAMOND_COST: 8,
 
+    // GDD Part 7 — Progression
+    FAME_START: 0,
+    FAME_MAX: 1000,
+    FAME_PER_ORDER: 0.4,
+    FAME_PER_VIP: 3,
+    FAME_PER_CELEB: 12,
+    FAME_PER_REVIEW: 1.5,
+    FAME_PER_MICHELIN: 40,
+    FAME_PER_COUNTRY: 25,
+    FAME_INCOME_PER_100: 0.03,
+    FAME_VIP_BONUS: 0.0004,
+    EMPIRE_LEVEL_INCOME_PER: 0.015,
+    CITY_UNLOCK_REP: { italy: 55, mexico: 65, india: 75 },
+    CITY_UNLOCK_RATING: { italy: 35, mexico: 50, india: 65 },
+    CITY_UNLOCK_SHOP_LEVELS: { italy: 8, mexico: 20, india: 40 },
+
     // Customer orders (active-play requests near the bowl)
     ORDER_CHECK_INTERVAL_MS: 20000,
     ORDER_TRIGGER_CHANCE: 0.32,
@@ -622,7 +638,20 @@
     {id:'wheel_spin',  icon:'🎡', name:'Feeling Lucky',    desc:'Spin the Lucky Wheel once',         reward:0.02, cond: s => (s.wheelSpins||0) >= 1},
     {id:'wheel_10',    icon:'🎰', name:'High Roller',      desc:'Spin the Lucky Wheel 10 times',     reward:0.04, cond: s => (s.wheelSpins||0) >= 10},
     {id:'price_high',  icon:'📈', name:'Premium Menu',     desc:'Set menu price to 1.5× or higher',   reward:0.02, cond: s => (s.menuPrice||1) >= 1.5},
+    {id:'fame_50',     icon:'📣', name:'Local Buzz',       desc:'Reach 50 fame',                     reward:0.02, cond: s => (s.fame||0) >= 50},
+    {id:'fame_200',    icon:'📡', name:'Rising Star',      desc:'Reach 200 fame',                    reward:0.03, cond: s => (s.fame||0) >= 200},
+    {id:'fame_500',    icon:'🎬', name:'Household Name',   desc:'Reach 500 fame',                    reward:0.05, cond: s => (s.fame||0) >= 500},
+    {id:'empire_10',   icon:'🏯', name:'Franchise Boss',   desc:'Reach Empire Level 10',             reward:0.03, cond: s => empireLevel(s) >= 10},
+    {id:'empire_25',   icon:'🌐', name:'Global Operator',  desc:'Reach Empire Level 25',             reward:0.05, cond: s => empireLevel(s) >= 25},
 
+  ];
+
+  // Player journey stages (display only — derived from progress)
+  const JOURNEY_STAGES = [
+    {id:'beginner',  icon:'🛒', name:'Street Cart Rookie',  desc:'Learn the craft in one city.',           minEmpire:0,  minCountries:1},
+    {id:'mid',       icon:'🏢', name:'City Expansion',      desc:'Multiple cities and hired managers.',    minEmpire:8,  minCountries:2},
+    {id:'late',      icon:'🌆', name:'Global Franchise',    desc:'Worldwide ramen with Michelin prestige.', minEmpire:20, minCountries:3},
+    {id:'endgame',   icon:'👑', name:'Ramen Legend',        desc:'Max stars, every chef, global rank.',    minEmpire:40, minCountries:4},
   ];
   // Cash-earned thresholds that trigger a celebratory milestone popup (confetti
   // + chime + a small bonus). Independent of ACHIEVEMENTS above: these are

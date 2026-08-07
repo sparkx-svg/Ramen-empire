@@ -57,6 +57,8 @@
     wheelSpins: 0,            // lifetime spins
     wheelLastFreeDate: null,  // YYYY-MM-DD of last free spin
     wheelExtraSpins: 0,       // paid extras remaining today
+    // GDD Part 7 — Progression
+    fame: 0,                  // 0–1000 popularity
     // Story / seasonal / staff (v1.7)
     storyClaimed: {},     // questId -> true once reward claimed
     seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
@@ -374,6 +376,7 @@
       wheelSpins: 0,
       wheelLastFreeDate: null,
       wheelExtraSpins: 0,
+      fame: CONFIG.FAME_START || 0,
       storyClaimed: {},
       seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
       guildId: null,
@@ -495,6 +498,7 @@
     if(state.wheelSpins === undefined) state.wheelSpins = 0;
     if(state.wheelLastFreeDate === undefined) state.wheelLastFreeDate = null;
     if(state.wheelExtraSpins === undefined) state.wheelExtraSpins = 0;
+    if(state.fame === undefined) state.fame = CONFIG.FAME_START || 0;
     if(state.tapFxEnabled === undefined) state.tapFxEnabled = true;
     if(state.musicEnabled === undefined) state.musicEnabled = true;
     if(state.sfxEnabled === undefined) state.sfxEnabled = true;
