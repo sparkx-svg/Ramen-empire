@@ -180,6 +180,14 @@
     CHAMPIONSHIP_DURATION_MS: 90 * 1000,
     CHAMPIONSHIP_COOLDOWN_MS: 30 * 60 * 1000,
 
+    // GDD Part 9 — Social
+    FRIENDSHIP_PER_GIFT: 5,
+    FRIENDSHIP_PER_VISIT: 2,
+    VISIT_COOLDOWN_MS: 60 * 60 * 1000,
+    VISIT_TIP_SECONDS: 15,
+    VISIT_INSPIRATION_CHANCE: 0.25,
+    GUILD_PROJECT_GOAL: 5e7,
+
     // Customer orders (active-play requests near the bowl)
     ORDER_CHECK_INTERVAL_MS: 20000,
     ORDER_TRIGGER_CHANCE: 0.32,
@@ -699,7 +707,29 @@
     {id:'event_tokens',icon:'🎫', name:'Token Collector',  desc:'Earn 50 event tokens',              reward:0.03, cond: s => (s.eventTokensEarned||0) >= 50},
     {id:'champ_win',   icon:'🏆', name:'Champion',         desc:'Win a World Food Championship',     reward:0.04, cond: s => (s.championshipWins||0) >= 1},
     {id:'pass_full',   icon:'📜', name:'Pass Complete',    desc:'Finish an Event Pass',              reward:0.04, cond: s => (s.eventPassCompletes||0) >= 1},
+    {id:'first_gift',  icon:'🎁', name:'Generous Soul',    desc:'Send your first gift',              reward:0.02, cond: s => (s.giftsSent||0) >= 1},
+    {id:'gifts_10',    icon:'🎀', name:'Gift Giver',       desc:'Send 10 gifts',                     reward:0.03, cond: s => (s.giftsSent||0) >= 10},
+    {id:'first_visit', icon:'🚪', name:'Drop By',          desc:'Visit a friend\'s restaurant',      reward:0.02, cond: s => (s.visitsMade||0) >= 1},
+    {id:'visits_10',   icon:'🏡', name:'Social Butterfly', desc:'Visit friends 10 times',            reward:0.03, cond: s => (s.visitsMade||0) >= 10},
+    {id:'join_guild',  icon:'🏯', name:'Alliance Member',  desc:'Join or create a guild',            reward:0.03, cond: s => !!(s.guildId)},
+    {id:'friendship_50',icon:'🤝', name:'True Friends',    desc:'Earn 50 friendship points',         reward:0.03, cond: s => (s.friendshipPoints||0) >= 50},
 
+  ];
+
+  // Gift types players can choose when sending (GDD Part 9)
+  const GIFT_TYPES = [
+    {id:'cash',     icon:'💴', name:'Cash Gift',       desc:'Coins for a friend',           weight:40},
+    {id:'boost',    icon:'⚡', name:'Booster Gift',    desc:'+8% income for 10 min',        weight:25},
+    {id:'tokens',   icon:'🎫', name:'Token Pack',      desc:'5 event tokens',               weight:15},
+    {id:'gems',     icon:'💎', name:'Gem Pinch',       desc:'1 diamond',                    weight:10},
+    {id:'ingredients',icon:'🧅', name:'Ingredient Pack', desc:'3 random ingredients',       weight:10},
+  ];
+
+  // Guild projects (weekly)
+  const GUILD_PROJECTS = [
+    {id:'festival',  icon:'🎊', name:'Giant Ramen Festival',    desc:'Host a city-wide feast together.'},
+    {id:'delivery',  icon:'🌐', name:'Global Delivery Network', desc:'Link every kitchen in the alliance.'},
+    {id:'community', icon:'🏠', name:'Community Kitchen',       desc:'Feed the neighborhood as one.'},
   ];
 
   // Player journey stages (display only — derived from progress)
@@ -807,6 +837,13 @@
     championshipRace: null,
     championshipCooldownUntil: 0,
     communityClaimed: {},
+    // GDD Part 9 — Social
+    friendshipPoints: 0,
+    giftsSent: 0,
+    giftsReceived: 0,
+    visitsMade: 0,
+    visitLog: {},
+    lastGiftType: 'cash',
     // Story / seasonal / staff (v1.7)
     storyClaimed: {},     // questId -> true once reward claimed
     seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
@@ -1140,6 +1177,12 @@
       championshipRace: null,
       championshipCooldownUntil: 0,
       communityClaimed: {},
+      friendshipPoints: 0,
+      giftsSent: 0,
+      giftsReceived: 0,
+      visitsMade: 0,
+      visitLog: {},
+      lastGiftType: 'cash',
       storyClaimed: {},
       seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
       guildId: null,
@@ -1271,6 +1314,12 @@
     if(state.championshipRace === undefined) state.championshipRace = null;
     if(state.championshipCooldownUntil === undefined) state.championshipCooldownUntil = 0;
     if(!state.communityClaimed) state.communityClaimed = {};
+    if(state.friendshipPoints === undefined) state.friendshipPoints = 0;
+    if(state.giftsSent === undefined) state.giftsSent = 0;
+    if(state.giftsReceived === undefined) state.giftsReceived = 0;
+    if(state.visitsMade === undefined) state.visitsMade = 0;
+    if(!state.visitLog) state.visitLog = {};
+    if(!state.lastGiftType) state.lastGiftType = 'cash';
     if(state.tapFxEnabled === undefined) state.tapFxEnabled = true;
     if(state.musicEnabled === undefined) state.musicEnabled = true;
     if(state.sfxEnabled === undefined) state.sfxEnabled = true;
@@ -5569,7 +5618,7 @@
     }).catch(err => { console.warn('Load guild failed', err); return myGuildCache; });
   }
 
-  // ---- gifting ----
+  // ---- gifting (GDD Part 9 — expanded types) ----
   // Gifts are written to gifts/{toUid}/inbox/{fromUid_date} so each sender
   // can only leave one gift per recipient per day (doc id enforces it).
   // Recipients claim by reading their inbox and deleting claimed docs.
@@ -5587,25 +5636,47 @@
     resetGiftDayIfNeeded();
     return !state.gifts.giftedToday[uid];
   }
+  function pickGiftType(){
+    // Use last selected type if set, else weighted random from GIFT_TYPES
+    if(state.lastGiftType && GIFT_TYPES.some(g => g.id === state.lastGiftType)){
+      return GIFT_TYPES.find(g => g.id === state.lastGiftType);
+    }
+    const total = GIFT_TYPES.reduce((s, g) => s + g.weight, 0);
+    let roll = Math.random() * total;
+    for(const g of GIFT_TYPES){
+      roll -= g.weight;
+      if(roll <= 0) return g;
+    }
+    return GIFT_TYPES[0];
+  }
   function sendGift(toUid, toName){
     if(!firebaseUser) return Promise.reject(new Error('Not signed in'));
     if(toUid === firebaseUser.uid) return Promise.reject(new Error('Cannot gift yourself'));
     resetGiftDayIfNeeded();
     if(state.gifts.giftedToday[toUid]) return Promise.reject(new Error('Already gifted today'));
+    const gtype = pickGiftType();
     const amount = giftAmount();
     const today = todayKey();
     const giftId = firebaseUser.uid + '_' + today;
-    return db.collection('gifts').doc(toUid).collection('inbox').doc(giftId).set({
+    const payload = {
       fromUid: firebaseUser.uid,
       fromName: state.profile.name || firebaseUser.displayName || 'Anonymous',
-      amount,
-      boost: 0.05, // +5% income for 10 minutes when claimed
+      giftType: gtype.id,
+      amount: gtype.id === 'cash' ? amount : 0,
+      boost: gtype.id === 'boost' ? 0.08 : (gtype.id === 'cash' ? 0.05 : 0),
+      tokens: gtype.id === 'tokens' ? 5 : 0,
+      diamonds: gtype.id === 'gems' ? 1 : 0,
+      ingredients: gtype.id === 'ingredients' ? 3 : 0,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
       dateKey: today
-    }).then(() => {
+    };
+    return db.collection('gifts').doc(toUid).collection('inbox').doc(giftId).set(payload).then(() => {
       state.gifts.giftedToday[toUid] = true;
+      state.giftsSent = (state.giftsSent || 0) + 1;
+      state.friendshipPoints = (state.friendshipPoints || 0) + (CONFIG.FRIENDSHIP_PER_GIFT || 5);
       save();
-      return { amount, toName };
+      if(typeof checkAchievements === 'function') checkAchievements();
+      return { amount, toName, giftType: gtype };
     });
   }
   function claimPendingGifts(){
@@ -5617,13 +5688,19 @@
       snap.forEach(doc => {
         const data = doc.data();
         if(state.gifts.pendingClaimed[doc.id]) return;
-        addCountryCash(state.activeCountry, data.amount || 0);
-        addEarned(data.amount || 0);
-        if(data.boost){
-          // Short income boost via activeRecipe-like temporary state
-          applyGiftBoost(data.boost);
+        if(data.amount){
+          addCountryCash(state.activeCountry, data.amount || 0);
+          addEarned(data.amount || 0);
+        }
+        if(data.boost) applyGiftBoost(data.boost);
+        if(data.tokens && typeof earnEventTokens === 'function') earnEventTokens(data.tokens);
+        if(data.diamonds) earnDiamonds(data.diamonds);
+        if(data.ingredients && typeof addIngredient === 'function'){
+          const pool = ['noodles','broth','egg','nori','spice','mushroom'];
+          for(let i = 0; i < data.ingredients; i++) addIngredient(pool[Math.floor(Math.random()*pool.length)], 1);
         }
         state.gifts.pendingClaimed[doc.id] = true;
+        state.giftsReceived = (state.giftsReceived || 0) + 1;
         claimed.push(data);
         batch.delete(doc.ref);
       });
@@ -5644,6 +5721,48 @@
   function giftBoostMultiplier(){
     if(Date.now() >= giftBoostEndsAt) return 1;
     return 1 + giftBoostAmount;
+  }
+
+  // ---- restaurant visits (GDD Part 9) ----
+  function canVisitFriend(uid){
+    if(!state.visitLog) state.visitLog = {};
+    const last = state.visitLog[uid] || 0;
+    return Date.now() - last >= (CONFIG.VISIT_COOLDOWN_MS || 3600000);
+  }
+  function visitFriendRestaurant(uid, name, friendData){
+    if(!firebaseUser) return { ok:false, msg:'Sign in to visit friends.' };
+    if(!canVisitFriend(uid)) return { ok:false, msg:'Already visited recently. Try again later.' };
+    state.visitLog[uid] = Date.now();
+    state.visitsMade = (state.visitsMade || 0) + 1;
+    state.friendshipPoints = (state.friendshipPoints || 0) + (CONFIG.FRIENDSHIP_PER_VISIT || 2);
+
+    // Leave a tip (costs visitor a little, pure social — no transfer, local flavor)
+    const tip = Math.max(1, Math.round(Math.max(totalRatePerSec(), 1) * (CONFIG.VISIT_TIP_SECONDS || 15)));
+    // Inspiration: chance for research points from inspecting layout
+    let inspired = false;
+    if(Math.random() < (CONFIG.VISIT_INSPIRATION_CHANCE || 0.25)){
+      state.researchPoints = (state.researchPoints || 0) + 1;
+      inspired = true;
+    }
+    // Like bonus — small satisfaction/fame bump
+    if(typeof adjustFame === 'function') adjustFame(1);
+    if(typeof adjustSatisfaction === 'function') adjustSatisfaction(1);
+
+    // Compare progress summary
+    const theirCash = friendData && friendData.totalEarned ? friendData.totalEarned : 0;
+    const myCash = state.totalEarned || 0;
+    let compare = 'You\'re neck and neck!';
+    if(myCash > theirCash * 1.2) compare = 'Your empire is ahead!';
+    else if(theirCash > myCash * 1.2) compare = 'They\'re pulling ahead — time to grind!';
+
+    save();
+    if(typeof checkAchievements === 'function') checkAchievements();
+    renderStats();
+    return {
+      ok: true,
+      msg: `Visited ${name || 'friend'}! Left a tip worth ${typeof fmt === 'function' ? fmt(tip) : tip}. ${inspired ? '💡 Inspiration: +1 Research! ' : ''}${compare}`,
+      tip, inspired, compare
+    };
   }
 
   function lbSplitIntoChunks(arr, size){
@@ -5681,12 +5800,16 @@
       const wins = d.seasonWins || 0;
       const trophy = wins ? ` <span class="lb-trophy" title="${wins} weekly win(s)">🏆${wins > 1 ? '×' + wins : ''}</span>` : '';
       let giftBtn = '';
+      let visitBtn = '';
       if(opts.showGift && firebaseUser && d.__id !== firebaseUser.uid){
         const can = canGiftFriend(d.__id);
         giftBtn = `<button class="gift-btn" data-action="gift" data-uid="${d.__id}" data-name="${escapeHtml(d.name || 'player')}" ${can ? '' : 'disabled'} title="${can ? 'Send a daily gift' : 'Already gifted today'}">🎁</button>`;
+        const canV = canVisitFriend(d.__id);
+        visitBtn = `<button class="gift-btn" data-action="visit" data-uid="${d.__id}" data-name="${escapeHtml(d.name || 'player')}" ${canV ? '' : 'disabled'} title="${canV ? 'Visit restaurant' : 'Visited recently'}">🚪</button>`;
       }
       const gTag = d.guildName ? ` <span class="lb-guild-tag">${escapeHtml(d.guildName)}</span>` : '';
-      return `<div class="lb-row${isMe ? ' me' : ''}"><span class="lb-rank">#${i + 1}</span><span class="lb-name">${escapeHtml(d.name || 'Anonymous')}${trophy}${gTag}</span>${giftBtn}<span class="lb-cash">¥${fmt(d[cashField] || 0)}</span></div>`;
+      const stars = d.prestigePoints != null ? '' : '';
+      return `<div class="lb-row${isMe ? ' me' : ''}" data-uid="${d.__id||''}"><span class="lb-rank">#${i + 1}</span><span class="lb-name">${escapeHtml(d.name || 'Anonymous')}${trophy}${gTag}</span>${visitBtn}${giftBtn}<span class="lb-cash">¥${fmt(d[cashField] || 0)}</span></div>`;
     }).join('');
   }
 
@@ -5717,6 +5840,16 @@
         document.getElementById('myGuildMembers').textContent = members.length + ' / ' + GUILD_MAX_MEMBERS;
         document.getElementById('guildGoalFill').style.width = pct + '%';
         document.getElementById('guildGoalText').textContent = fmt(contrib) + ' / ' + fmt(goal) + ' this week';
+        // Guild project (GDD Part 9)
+        const projEl = document.getElementById('guildProjectInfo');
+        if(projEl){
+          const proj = GUILD_PROJECTS[(g.weekId || '').length % GUILD_PROJECTS.length] || GUILD_PROJECTS[0];
+          const pGoal = CONFIG.GUILD_PROJECT_GOAL || 5e7;
+          const pPct = Math.min(100, Math.round((contrib / pGoal) * 100));
+          projEl.innerHTML = `<div style="margin-top:10px; font-size:12px;"><strong>${proj.icon} Project: ${proj.name}</strong><div style="opacity:0.75; margin-top:2px;">${proj.desc}</div>
+            <div class="chal-progress" style="margin-top:6px;"><div class="chal-progress-fill" style="width:${pPct}%"></div></div>
+            <div style="font-size:11px; opacity:0.7; margin-top:3px;">${fmt(contrib)} / ${fmt(pGoal)} · finish for bonus tokens</div></div>`;
+        }
         statusEl.textContent = '';
       } else {
         joined.style.display = 'none';
@@ -5733,6 +5866,17 @@
     friendsBox.style.display = currentLbMode === 'friends' ? 'flex' : 'none';
     if(currentLbMode === 'friends'){
       document.getElementById('myFriendCode').textContent = myFriendCode() || 'Sign in to get a code';
+      const fp = document.getElementById('friendshipDisplay');
+      if(fp) fp.textContent = Math.floor(state.friendshipPoints || 0);
+      const gs = document.getElementById('giftsSentDisplay');
+      if(gs) gs.textContent = state.giftsSent || 0;
+      const vs = document.getElementById('visitsDisplay');
+      if(vs) vs.textContent = state.visitsMade || 0;
+      const gts = document.getElementById('giftTypeSelect');
+      if(gts){
+        gts.value = state.lastGiftType || 'cash';
+        gts.onchange = () => { state.lastGiftType = gts.value; save(); };
+      }
     }
     renderGuildPanel();
     renderChampionBanner();
@@ -5883,13 +6027,31 @@
       giftBtn.disabled = true;
       sendGift(uid, name).then(res => {
         const status = document.getElementById('addFriendStatus');
-        if(status) status.textContent = `Sent ${fmt(res.amount)} to ${name}!`;
+        const gt = res.giftType ? res.giftType.icon + ' ' + res.giftType.name : fmt(res.amount);
+        if(status) status.textContent = `Sent ${gt} to ${name}! +${CONFIG.FRIENDSHIP_PER_GIFT||5} friendship`;
         giftBtn.title = 'Already gifted today';
       }).catch(err => {
         giftBtn.disabled = false;
         const status = document.getElementById('addFriendStatus');
         if(status) status.textContent = err.message || 'Gift failed.';
       });
+      return;
+    }
+    const visitBtn = e.target.closest('[data-action="visit"]');
+    if(visitBtn){
+      const uid = visitBtn.dataset.uid;
+      const name = visitBtn.dataset.name || 'friend';
+      // Pull friend data from the row's cash display for comparison
+      const row = visitBtn.closest('.lb-row');
+      const cashText = row ? row.querySelector('.lb-cash') : null;
+      const result = visitFriendRestaurant(uid, name, null);
+      const status = document.getElementById('addFriendStatus');
+      if(status) status.textContent = result.msg;
+      if(result.ok){
+        visitBtn.disabled = true;
+        visitBtn.title = 'Visited recently';
+      }
+      return;
     }
   });
   document.getElementById('guildNameInput') && document.getElementById('guildNameInput').addEventListener('keydown', e => {

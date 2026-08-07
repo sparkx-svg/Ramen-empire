@@ -164,7 +164,22 @@
         <button id="addFriendBtn" class="modal-btn" style="width:auto; padding:10px 14px; margin:0;">Add</button>
       </div>
       <div id="addFriendStatus" style="font-size:11px; opacity:0.75;"></div>
-      <div style="font-size:10.5px; opacity:0.65;">Tap 🎁 next to a friend to send a daily cash gift (+ short boost for them).</div>
+      <div style="font-size:10.5px; opacity:0.65;">🎁 Gift · 🚪 Visit · Friendship points & social rewards.</div>
+      <div style="display:flex; flex-wrap:wrap; gap:6px 12px; margin-top:4px; font-size:11px;">
+        <span>🤝 <b id="friendshipDisplay">0</b></span>
+        <span>🎁 Sent <b id="giftsSentDisplay">0</b></span>
+        <span>🚪 Visits <b id="visitsDisplay">0</b></span>
+      </div>
+      <div style="margin-top:6px;">
+        <label style="font-size:11px; opacity:0.75;">Gift type</label>
+        <select id="giftTypeSelect" style="margin-left:6px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:8px; color:inherit; padding:6px 8px; font-size:12px;">
+          <option value="cash">💴 Cash</option>
+          <option value="boost">⚡ Booster</option>
+          <option value="tokens">🎫 Tokens</option>
+          <option value="gems">💎 Gem</option>
+          <option value="ingredients">🧅 Ingredients</option>
+        </select>
+      </div>
     </div>
     <div id="lbGuildBox" class="settings-item" style="display:none; flex-direction:column; align-items:stretch; gap:8px;">
       <div class="guild-joined" style="display:none;">
@@ -179,6 +194,7 @@
         </div>
         <div class="chal-progress" style="margin-top:6px;"><div class="chal-progress-fill" id="guildGoalFill" style="width:0%"></div></div>
         <div id="guildGoalText" style="font-size:11px; opacity:0.75; margin-top:4px;">—</div>
+        <div id="guildProjectInfo"></div>
         <button id="leaveGuildBtn" class="modal-btn secondary" style="width:100%; margin-top:8px; padding:10px;">Leave Guild</button>
       </div>
       <div class="guild-create" style="display:none;">

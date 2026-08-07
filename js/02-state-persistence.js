@@ -69,6 +69,13 @@
     championshipRace: null,
     championshipCooldownUntil: 0,
     communityClaimed: {},
+    // GDD Part 9 — Social
+    friendshipPoints: 0,
+    giftsSent: 0,
+    giftsReceived: 0,
+    visitsMade: 0,
+    visitLog: {},
+    lastGiftType: 'cash',
     // Story / seasonal / staff (v1.7)
     storyClaimed: {},     // questId -> true once reward claimed
     seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
@@ -402,6 +409,12 @@
       championshipRace: null,
       championshipCooldownUntil: 0,
       communityClaimed: {},
+      friendshipPoints: 0,
+      giftsSent: 0,
+      giftsReceived: 0,
+      visitsMade: 0,
+      visitLog: {},
+      lastGiftType: 'cash',
       storyClaimed: {},
       seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
       guildId: null,
@@ -533,6 +546,12 @@
     if(state.championshipRace === undefined) state.championshipRace = null;
     if(state.championshipCooldownUntil === undefined) state.championshipCooldownUntil = 0;
     if(!state.communityClaimed) state.communityClaimed = {};
+    if(state.friendshipPoints === undefined) state.friendshipPoints = 0;
+    if(state.giftsSent === undefined) state.giftsSent = 0;
+    if(state.giftsReceived === undefined) state.giftsReceived = 0;
+    if(state.visitsMade === undefined) state.visitsMade = 0;
+    if(!state.visitLog) state.visitLog = {};
+    if(!state.lastGiftType) state.lastGiftType = 'cash';
     if(state.tapFxEnabled === undefined) state.tapFxEnabled = true;
     if(state.musicEnabled === undefined) state.musicEnabled = true;
     if(state.sfxEnabled === undefined) state.sfxEnabled = true;

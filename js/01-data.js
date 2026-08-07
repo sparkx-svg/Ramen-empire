@@ -184,6 +184,14 @@
     CHAMPIONSHIP_DURATION_MS: 90 * 1000,
     CHAMPIONSHIP_COOLDOWN_MS: 30 * 60 * 1000,
 
+    // GDD Part 9 — Social
+    FRIENDSHIP_PER_GIFT: 5,
+    FRIENDSHIP_PER_VISIT: 2,
+    VISIT_COOLDOWN_MS: 60 * 60 * 1000,
+    VISIT_TIP_SECONDS: 15,
+    VISIT_INSPIRATION_CHANCE: 0.25,
+    GUILD_PROJECT_GOAL: 5e7,
+
     // Customer orders (active-play requests near the bowl)
     ORDER_CHECK_INTERVAL_MS: 20000,
     ORDER_TRIGGER_CHANCE: 0.32,
@@ -703,7 +711,29 @@
     {id:'event_tokens',icon:'🎫', name:'Token Collector',  desc:'Earn 50 event tokens',              reward:0.03, cond: s => (s.eventTokensEarned||0) >= 50},
     {id:'champ_win',   icon:'🏆', name:'Champion',         desc:'Win a World Food Championship',     reward:0.04, cond: s => (s.championshipWins||0) >= 1},
     {id:'pass_full',   icon:'📜', name:'Pass Complete',    desc:'Finish an Event Pass',              reward:0.04, cond: s => (s.eventPassCompletes||0) >= 1},
+    {id:'first_gift',  icon:'🎁', name:'Generous Soul',    desc:'Send your first gift',              reward:0.02, cond: s => (s.giftsSent||0) >= 1},
+    {id:'gifts_10',    icon:'🎀', name:'Gift Giver',       desc:'Send 10 gifts',                     reward:0.03, cond: s => (s.giftsSent||0) >= 10},
+    {id:'first_visit', icon:'🚪', name:'Drop By',          desc:'Visit a friend\'s restaurant',      reward:0.02, cond: s => (s.visitsMade||0) >= 1},
+    {id:'visits_10',   icon:'🏡', name:'Social Butterfly', desc:'Visit friends 10 times',            reward:0.03, cond: s => (s.visitsMade||0) >= 10},
+    {id:'join_guild',  icon:'🏯', name:'Alliance Member',  desc:'Join or create a guild',            reward:0.03, cond: s => !!(s.guildId)},
+    {id:'friendship_50',icon:'🤝', name:'True Friends',    desc:'Earn 50 friendship points',         reward:0.03, cond: s => (s.friendshipPoints||0) >= 50},
 
+  ];
+
+  // Gift types players can choose when sending (GDD Part 9)
+  const GIFT_TYPES = [
+    {id:'cash',     icon:'💴', name:'Cash Gift',       desc:'Coins for a friend',           weight:40},
+    {id:'boost',    icon:'⚡', name:'Booster Gift',    desc:'+8% income for 10 min',        weight:25},
+    {id:'tokens',   icon:'🎫', name:'Token Pack',      desc:'5 event tokens',               weight:15},
+    {id:'gems',     icon:'💎', name:'Gem Pinch',       desc:'1 diamond',                    weight:10},
+    {id:'ingredients',icon:'🧅', name:'Ingredient Pack', desc:'3 random ingredients',       weight:10},
+  ];
+
+  // Guild projects (weekly)
+  const GUILD_PROJECTS = [
+    {id:'festival',  icon:'🎊', name:'Giant Ramen Festival',    desc:'Host a city-wide feast together.'},
+    {id:'delivery',  icon:'🌐', name:'Global Delivery Network', desc:'Link every kitchen in the alliance.'},
+    {id:'community', icon:'🏠', name:'Community Kitchen',       desc:'Feed the neighborhood as one.'},
   ];
 
   // Player journey stages (display only — derived from progress)
