@@ -567,6 +567,11 @@
   const SAVE_KEY_BASE = 'ramenEmpireSave_v2';
   const SAVE_KEY_LEGACY = SAVE_KEY_BASE; // pre-1.9.1 shared key
   let activeAccountId = 'guest'; // 'guest' | firebase uid
+  // Declared early so cloud-save helpers (defined near save()) and the
+  // auth callback can both see them without temporal-dead-zone issues.
+  let firebaseUser = null;
+  let myFriends = [];
+  let authInitDone = false;
 
   function saveKeyFor(accountId){
     if(!accountId || accountId === 'guest') return SAVE_KEY_BASE + '_guest';
@@ -761,6 +766,12 @@
     }catch(e){ console.warn('Legacy save migration failed', e); }
   }
 
+  // Cloud save throttle (Firestore free-tier friendly). Local save is always
+  // immediate; cloud is debounced so rapid ticks/autosaves don't spam writes.
+  let lastCloudSaveAt = 0;
+  let cloudSaveTimer = null;
+  const CLOUD_SAVE_MIN_MS = 20000; // at most one cloud write every 20s
+
   function save(){
     state.lastSeen = Date.now();
     // Keep legacy cash field = sum for checksums / any remaining readers
@@ -770,6 +781,88 @@
       localStorage.setItem(currentSaveKey(), JSON.stringify(state));
     }catch(e){ console.warn('Save failed', e); }
     submitScore();
+    scheduleCloudSave();
+  }
+
+  function scheduleCloudSave(force){
+    if(!firebaseUser) return;
+    if(force){
+      if(cloudSaveTimer){ clearTimeout(cloudSaveTimer); cloudSaveTimer = null; }
+      cloudSaveNow();
+      return;
+    }
+    const now = Date.now();
+    const elapsed = now - lastCloudSaveAt;
+    if(elapsed >= CLOUD_SAVE_MIN_MS){
+      cloudSaveNow();
+    } else if(!cloudSaveTimer){
+      cloudSaveTimer = setTimeout(() => {
+        cloudSaveTimer = null;
+        cloudSaveNow();
+      }, CLOUD_SAVE_MIN_MS - elapsed);
+    }
+  }
+
+  function cloudSaveNow(){
+    if(!firebaseUser) return;
+    lastCloudSaveAt = Date.now();
+    // Clone without the integrity checksum (server doesn't need it)
+    let payload;
+    try{
+      const { __checksum, ...rest } = state;
+      payload = JSON.parse(JSON.stringify(rest));
+    }catch(e){
+      console.warn('Cloud save clone failed', e);
+      return;
+    }
+    db.collection('saves').doc(firebaseUser.uid).set({
+      state: payload,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      lastSeen: state.lastSeen || Date.now(),
+      totalEarned: state.totalEarned || 0,
+      prestigeCount: state.prestigeCount || 0
+    }).catch(err => console.warn('Cloud save failed', err));
+  }
+
+  // Load cloud save for the current Google user and adopt it if it is clearly
+  // ahead of the local save (higher lifetime earnings, or same earnings but
+  // newer lastSeen). Returns a Promise that resolves after any merge.
+  function maybeLoadCloudSave(){
+    if(!firebaseUser || activeAccountId === 'guest') return Promise.resolve(false);
+    // Snapshot local metrics BEFORE any normalize (which overwrites global state)
+    const localEarned = state.totalEarned || 0;
+    const localSeen = state.lastSeen || 0;
+    const wasFlagged = !!state.integrityFlag;
+    return db.collection('saves').doc(firebaseUser.uid).get().then(doc => {
+      if(!doc.exists) return false;
+      const data = doc.data();
+      if(!data || !data.state) return false;
+      const cloudRaw = data.state;
+      const cloudEarned = cloudRaw.totalEarned || 0;
+      const cloudSeen = cloudRaw.lastSeen || data.lastSeen || 0;
+      // Prefer cloud when it has meaningfully more progress, or equal progress
+      // but a newer timestamp (another device played more recently).
+      const cloudWins = cloudEarned > localEarned + 0.5
+        || (Math.abs(cloudEarned - localEarned) < 1 && cloudSeen > localSeen + 1000);
+      if(!cloudWins) return false;
+      // normalizeLoadedState assigns the fully-defaulted object to global state
+      normalizeLoadedState(cloudRaw);
+      state.integrityFlag = wasFlagged;
+      // Ensure provider is correct for this Google session
+      if(!state.profile) state.profile = { name: '', age: null, provider: 'google' };
+      state.profile.provider = 'google';
+      if(hasCompleteProfile(state)) state.onboarded = true;
+      // Write the adopted cloud state back to localStorage so offline play
+      // continues from the best known progress.
+      try{
+        state.__checksum = computeChecksum(state);
+        localStorage.setItem(currentSaveKey(), JSON.stringify(state));
+      }catch(e){}
+      return true;
+    }).catch(err => {
+      console.warn('Cloud load failed', err);
+      return false;
+    });
   }
 
   function loadFromKey(key){
@@ -807,24 +900,24 @@
     const next = nextAccountId || 'guest';
     if(next === activeAccountId && !opts.force) return;
 
-    // Persist current account before leaving it
+    // Persist current account before leaving it (forces a cloud flush too)
     try{
       if(state && (state.onboarded || state.totalEarned > 0 || totalCash() > 0)){
         save();
+        if(firebaseUser) scheduleCloudSave(true);
       }
     }catch(e){ console.warn('Pre-switch save failed', e); }
 
     activeAccountId = next;
     clearRuntimeSession();
-    loadFromKey(currentSaveKey());
+    const hadLocal = loadFromKey(currentSaveKey());
 
     // If this is a brand-new Google account and we are carrying guest progress
     // forward (first-time link), opts.seedFromGuest can copy once.
     if(opts.seedFromGuest && next !== 'guest'){
-      const hasOwn = !!localStorage.getItem(currentSaveKey());
       // loadFromKey already ran; if the account key was empty we have fresh state.
-      // Only seed when the account truly had no prior save AND guest had progress.
-      if(!hasOwn){
+      // Only seed when the account truly had no prior local save AND guest had progress.
+      if(!hadLocal){
         const guestRaw = localStorage.getItem(saveKeyFor('guest'));
         if(guestRaw){
           try{
@@ -833,8 +926,8 @@
               normalizeLoadedState(guestLoaded);
               // Still bind profile to the Google identity after seed
               if(opts.googleProfile){
-                state.profile = Object.assign({}, state.profile, opts.googleProfile);
-                state.onboarded = true;
+                state.profile = Object.assign({}, state.profile || {}, opts.googleProfile);
+                if(hasCompleteProfile(state)) state.onboarded = true;
               }
               save();
             }
@@ -843,39 +936,54 @@
       }
     }
 
-    if(opts.googleProfile && state.onboarded){
+    if(opts.googleProfile && state.profile){
       // Keep name/age but ensure provider reflects Google
       state.profile.provider = 'google';
       if(opts.googleProfile.name && !state.profile.name){
         state.profile.name = opts.googleProfile.name;
       }
+      if(hasCompleteProfile(state)) state.onboarded = true;
     } else if(next === 'guest' && state.profile){
       // Logged out: demote provider so UI shows Guest
       if(state.profile.provider === 'google') state.profile.provider = 'guest';
     }
 
-    // Refresh all UI tied to progress
-    try{
-      if(typeof renderEventBanner === 'function') renderEventBanner();
-      if(typeof renderOrderCard === 'function') renderOrderCard();
-      if(typeof renderProfileSettings === 'function') renderProfileSettings();
-      if(typeof renderTapFxBtn === 'function') renderTapFxBtn();
-      if(typeof renderMusicBtn === 'function') renderMusicBtn();
-      if(typeof renderSfxBtn === 'function') renderSfxBtn();
-      if(typeof renderBusinesses === 'function') renderBusinesses();
-      if(typeof renderWorld === 'function') renderWorld();
-      if(typeof renderStats === 'function') renderStats();
-      if(typeof renderAchievements === 'function') renderAchievements();
-      if(typeof applyCosmeticTheme === 'function') applyCosmeticTheme();
-      if(typeof renderSeasonalBanner === 'function') renderSeasonalBanner();
-      if(typeof ensureChallenges === 'function') ensureChallenges();
-      if(typeof ensureWeeklyPeriod === 'function') ensureWeeklyPeriod();
-    }catch(e){ console.warn('Post-switch render failed', e); }
+    function refreshAfterSwitch(){
+      try{
+        if(typeof renderEventBanner === 'function') renderEventBanner();
+        if(typeof renderOrderCard === 'function') renderOrderCard();
+        if(typeof renderProfileSettings === 'function') renderProfileSettings();
+        if(typeof renderTapFxBtn === 'function') renderTapFxBtn();
+        if(typeof renderMusicBtn === 'function') renderMusicBtn();
+        if(typeof renderSfxBtn === 'function') renderSfxBtn();
+        if(typeof renderBusinesses === 'function') renderBusinesses();
+        if(typeof renderWorld === 'function') renderWorld();
+        if(typeof renderStats === 'function') renderStats();
+        if(typeof renderAchievements === 'function') renderAchievements();
+        if(typeof applyCosmeticTheme === 'function') applyCosmeticTheme();
+        if(typeof renderSeasonalBanner === 'function') renderSeasonalBanner();
+        if(typeof ensureChallenges === 'function') ensureChallenges();
+        if(typeof ensureWeeklyPeriod === 'function') ensureWeeklyPeriod();
+      }catch(e){ console.warn('Post-switch render failed', e); }
+    }
+
+    // For Google accounts, also pull any newer cloud save (other device).
+    // Fire-and-forget; re-render if cloud was adopted.
+    if(next !== 'guest'){
+      maybeLoadCloudSave().then(adopted => {
+        if(adopted) refreshAfterSwitch();
+      });
+    }
+
+    refreshAfterSwitch();
   }
 
   function resetCurrentAccountProgress(){
     // Wipe this account's save entirely and start a new blank run
     try{ localStorage.removeItem(currentSaveKey()); }catch(e){}
+    if(firebaseUser){
+      db.collection('saves').doc(firebaseUser.uid).delete().catch(err => console.warn('Cloud save delete failed', err));
+    }
     clearRuntimeSession();
     state = createFreshState();
     // Keep audio/settings preferences if present in memory — actually fresh is fine
@@ -2408,30 +2516,14 @@
   }
   function beginGoogleLogin(){
     authError.style.display = 'none';
-    auth.signInWithPopup(googleProvider).then(result => {
-      const user = result.user;
+    // onAuthStateChanged is the single source of truth after the popup.
+    // It switches the save, loads any cloud progress, and either starts the
+    // game (returning players) or opens the name+age step exactly once.
+    // Doing the form logic here raced with the auth callback and caused the
+    // age prompt to reappear on every login.
+    auth.signInWithPopup(googleProvider).then(() => {
       pendingProvider = 'google';
-      // onAuthStateChanged switches to this account's save first. If name+age
-      // were already stored for this account, skip the profile form entirely.
-      if(hasCompleteProfile(state)){
-        state.profile.provider = 'google';
-        if(!state.profile.name && user.displayName){
-          state.profile.name = user.displayName.slice(0, 24);
-        }
-        state.onboarded = true;
-        save();
-        renderProfileSettings();
-        closeModal(authOverlay);
-        startGame();
-        return;
-      }
-      // First time on this account — collect name + age once, then never again.
-      authNameInput.value = (state.profile.name || user.displayName || '').slice(0, 24);
-      authAgeInput.value = state.profile.age || '';
-      authStepProvider.style.display = 'none';
-      authStepProfile.style.display = 'block';
-      authCancelBtn.style.display = 'none';
-      authAgeInput.focus();
+      // Overlay / startGame decisions happen inside onAuthStateChanged.
     }).catch(err => {
       console.warn('Google sign-in failed', err);
       showAuthError('Google sign-in failed. Please try again.');
@@ -2449,12 +2541,14 @@
     state.profile = {
       name: name.slice(0, 24),
       age,
-      provider: pendingProvider || (firebaseUser ? 'google' : null) || state.profile.provider || 'guest'
+      provider: pendingProvider || (firebaseUser ? 'google' : null) || (state.profile && state.profile.provider) || 'guest'
     };
     state.onboarded = true;
     // Persist immediately under the active account key (guest or Google uid)
     if(firebaseUser) activeAccountId = firebaseUser.uid;
     save();
+    // First-time profile: push to cloud right away so other devices see it
+    if(firebaseUser) scheduleCloudSave(true);
     renderProfileSettings();
     closeModal(authOverlay);
     startGame();
@@ -2520,28 +2614,11 @@
       alert("You're already signed in with Google.");
       return;
     }
-    auth.signInWithPopup(googleProvider).then(result => {
-      const user = result.user;
+    // Same as beginGoogleLogin: let onAuthStateChanged switch the account
+    // save, load cloud progress, and decide whether the age form is needed.
+    // Avoids the race that re-showed the age prompt on every login.
+    auth.signInWithPopup(googleProvider).then(() => {
       pendingProvider = 'google';
-      // Account save is loaded by onAuthStateChanged. If name+age already
-      // stored for this Google account, do not show the form again.
-      if(hasCompleteProfile(state)){
-        state.profile.provider = 'google';
-        state.onboarded = true;
-        save();
-        renderProfileSettings();
-        closeModal(authOverlay);
-        startGame();
-        return;
-      }
-      authError.style.display = 'none';
-      authStepProvider.style.display = 'none';
-      authStepProfile.style.display = 'block';
-      authCancelBtn.style.display = 'block';
-      authNameInput.value = (state.profile.name || user.displayName || '').slice(0, 24);
-      authAgeInput.value = state.profile.age || '';
-      openModal(authOverlay);
-      authAgeInput.focus();
     }).catch(err => {
       console.warn('Google sign-in failed', err);
       alert('Google sign-in failed. Please try again.');
@@ -2560,16 +2637,17 @@
       alert("You're playing as a guest — there's no account to log out of.");
       return;
     }
-    // Save this Google account's progress under its own key, then sign out.
-    // onAuthStateChanged will switch the live game to the guest save so the
-    // next person on this device does not see this account's empire.
+    // Save this Google account's progress under its own key (and cloud), then
+    // sign out. onAuthStateChanged will switch the live game to the guest
+    // save so the next person on this device does not see this account's empire.
     save();
+    scheduleCloudSave(true);
     auth.signOut().then(() => {
       // switchAccount is also triggered by onAuthStateChanged(null); call
       // defensively in case the stub auth path does not fire.
       switchAccount('guest');
       renderProfileSettings();
-      alert('Logged out. This account\'s progress is saved separately — guest mode will not show it.');
+      alert('Logged out. This account\'s progress is saved (including cloud) — guest mode will not show it.');
     }).catch(err => {
       console.warn('Sign out failed', err);
       alert('Log out failed — check your connection and try again.');
@@ -2580,20 +2658,30 @@
   // Only signed-in Google players get a leaderboard entry — guests have no
   // Firebase auth session, so firebaseUser stays null for them and
   // submitScore()/renderLeaderboard() below simply skip writing for them.
-  let firebaseUser = null;
-  // cached uids this player follows; refreshed each time the Friends tab
-  // opens. Declared here (rather than down by loadFriends()) because
-  // onAuthStateChanged below can in principle fire before that later
-  // declaration is reached, which would otherwise throw a "Cannot access
-  // 'myFriends' before initialization" error.
-  let myFriends = [];
-  let authInitDone = false;
+  // (firebaseUser / myFriends / authInitDone are declared near the top of
+  // the persistence section so cloud helpers can use them safely.)
   auth.onAuthStateChanged(user => {
     const prevId = activeAccountId;
     firebaseUser = user;
     myFriends = []; // stale for a new session/account — reloaded on next Friends tab open
 
     const nextId = user ? user.uid : 'guest';
+
+    // Helper: open the profile step directly when already authenticated
+    // (skip the "Continue with Google" provider screen — they already did).
+    function openProfileGateForUser(u){
+      pendingProvider = 'google';
+      authError.style.display = 'none';
+      authStepProvider.style.display = 'none';
+      authStepProfile.style.display = 'block';
+      authCancelBtn.style.display = 'none';
+      authNameInput.value = (state.profile && state.profile.name || (u && u.displayName) || '').slice(0, 24);
+      authAgeInput.value = (state.profile && state.profile.age) || '';
+      openModal(authOverlay);
+      // Prefer focusing the empty field
+      if(!authNameInput.value) authNameInput.focus();
+      else authAgeInput.focus();
+    }
 
     if(!authInitDone){
       // First auth callback of this page load: migrate legacy shared save,
@@ -2603,20 +2691,31 @@
       activeAccountId = nextId;
       migrateLegacySaveOnce();
       loadFromKey(currentSaveKey());
-      // If signed in with Google and this account has never onboarded, keep
-      // onboarded false so the profile gate still runs when needed.
-      if(user && state.profile){
+      // Pull cloud progress for returning Google users (other devices).
+      const finishInit = () => {
+        if(user && state.profile){
+          if(hasCompleteProfile(state)){
+            state.onboarded = true;
+            state.profile.provider = 'google';
+          }
+        }
+        renderProfileSettings();
         if(hasCompleteProfile(state)){
           state.onboarded = true;
-          state.profile.provider = 'google';
+          startGame();
+          // Best-effort: push local to cloud so the other device has a baseline
+          if(user) scheduleCloudSave(true);
+        } else if(user){
+          // Already signed in but this account never finished name+age
+          openProfileGateForUser(user);
+        } else {
+          openAuthOverlay('onboard');
         }
-      }
-      renderProfileSettings();
-      if(hasCompleteProfile(state)){
-        state.onboarded = true;
-        startGame();
+      };
+      if(user){
+        maybeLoadCloudSave().then(() => finishInit());
       } else {
-        openAuthOverlay('onboard');
+        finishInit();
       }
       return;
     }
@@ -2627,15 +2726,23 @@
       googleProfile: user ? {
         name: (user.displayName || '').slice(0, 24),
         provider: 'google'
-      } : null
+      } : null,
+      // Carry guest progress into a brand-new Google account the first time
+      // the player links one on this device.
+      seedFromGuest: (prevId === 'guest' && !!user)
     });
     renderProfileSettings();
-    // Only ask name/age if THIS account has never completed a profile
+    // Only ask name/age if THIS account has never completed a profile.
+    // Cloud load inside switchAccount may have already filled it.
     if(hasCompleteProfile(state)){
       state.onboarded = true;
       if(user) state.profile.provider = 'google';
       save();
+      if(user) scheduleCloudSave(true);
       startGame();
+      closeModal(authOverlay);
+    } else if(user){
+      openProfileGateForUser(user);
     } else {
       openAuthOverlay('onboard');
     }
@@ -3796,9 +3903,11 @@
     else openAuthOverlay('onboard');
   }, 2000);
 
-  window.addEventListener('beforeunload', save);
-  window.addEventListener('pagehide', save);
-  document.addEventListener('visibilitychange', () => { if(document.hidden) save(); });
+  window.addEventListener('beforeunload', () => { save(); scheduleCloudSave(true); });
+  window.addEventListener('pagehide', () => { save(); scheduleCloudSave(true); });
+  document.addEventListener('visibilitychange', () => {
+    if(document.hidden){ save(); scheduleCloudSave(true); }
+  });
 
   if('serviceWorker' in navigator){
     window.addEventListener('load', () => {

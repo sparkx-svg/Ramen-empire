@@ -248,6 +248,22 @@ service cloud.firestore {
       allow update: if false;
     }
 
+    // ---------- Full game saves (cloud sync for signed-in Google accounts) ----------
+    // LocalStorage is still the primary fast store. This collection lets the
+    // same Google account resume progress on another device/browser. Owner-
+    // only; no shape validation beyond basic size (Firestore 1 MiB limit is
+    // the real backstop). Client throttles writes.
+    match /saves/{uid} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && request.resource.data.keys().hasAll(['state', 'updatedAt', 'lastSeen', 'totalEarned'])
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.lastSeen is number
+        && request.resource.data.totalEarned is number
+        && request.resource.data.totalEarned >= 0;
+      allow delete: if isOwner(uid);
+    }
+
     // Deny everything else by default
     match /{document=**} {
       allow read, write: if false;
