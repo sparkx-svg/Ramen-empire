@@ -25,7 +25,91 @@
   function activeRecipeBoost(kind){
     if(!state.activeRecipe || state.activeRecipe.endsAt <= Date.now()) return 0;
     const def = RECIPES.find(r => r.id === state.activeRecipe.id);
-    return (def && def.boost && def.boost[kind]) || 0;
+    if(!def || !def.boost) return 0;
+    const base = def.boost[kind] || 0;
+    const mult = state.activeRecipe.mult || 1;
+    return base * mult;
+  }
+  function totalStationLevels(){
+    let n = 0;
+    COOKING_STATIONS.forEach(st => { n += (state.stations && state.stations[st.id]) || 0; });
+    return n;
+  }
+  function stationIncomeBonus(){
+    return 1 + totalStationLevels() * CONFIG.STATION_INCOME_BOOST;
+  }
+  function researchLevel(id){ return (state.research && state.research[id]) || 0; }
+  function researchIncomeBonus(){
+    const br = RESEARCH_BRANCHES.find(b => b.id === 'cooking');
+    return 1 + researchLevel('cooking') * (br ? br.boost : 0.03);
+  }
+  function researchCostBonus(){
+    const br = RESEARCH_BRANCHES.find(b => b.id === 'business');
+    return Math.max(0.5, 1 - researchLevel('business') * (br ? br.boost : 0.02));
+  }
+  function researchTapBonus(){
+    const br = RESEARCH_BRANCHES.find(b => b.id === 'marketing');
+    return 1 + researchLevel('marketing') * (br ? br.boost : 0.04);
+  }
+  function researchOfflineBonus(){
+    const br = RESEARCH_BRANCHES.find(b => b.id === 'delivery');
+    return 1 + researchLevel('delivery') * (br ? br.boost : 0.05);
+  }
+  function michelinBonus(){
+    return 1 + (state.michelinStars || 0) * CONFIG.MICHELIN_INCOME_PER_STAR;
+  }
+  function chefActiveIncomeMult(){
+    if(!state.chefSkillEndsAt || state.chefSkillEndsAt <= Date.now()) return 1;
+    const chef = LEGENDARY_CHEFS.find(c => c.id === state.equippedChef);
+    if(!chef) return 1;
+    if(chef.skill === 'double_profit' || chef.skill === 'empire_aura') return 2;
+    if(chef.skill === 'customer_rush') return 1.5;
+    return 1;
+  }
+  // ---- GDD Part 2 helpers ----
+  function sumLevels(map){
+    let n = 0;
+    if(!map) return 0;
+    Object.values(map).forEach(v => { n += v || 0; });
+    return n;
+  }
+  function layoutIncomeBonus(){
+    return 1 + sumLevels(state.layout) * CONFIG.LAYOUT_INCOME_BOOST;
+  }
+  function queueIncomeBonus(){
+    return 1 + sumLevels(state.queue) * CONFIG.QUEUE_INCOME_BOOST;
+  }
+  function deliveryIncomeBonus(){
+    return 1 + sumLevels(state.delivery) * CONFIG.DELIVERY_INCOME_PER_LEVEL;
+  }
+  function serviceModeBonus(){
+    let m = 1;
+    if(state.serviceModes && state.serviceModes.takeaway) m += CONFIG.TAKEAWAY_INCOME_BONUS;
+    if(state.serviceModes && state.serviceModes.driveThrough) m += CONFIG.DRIVETHRU_INCOME_BONUS;
+    return m;
+  }
+  function cleaningDecayReduction(){
+    // each cleaning level reduces cleanliness decay by 5%, capped at 80%
+    return Math.min(0.8, (state.cleaningLevel || 0) * 0.05);
+  }
+  function restaurantRating(s){
+    s = s || state;
+    // Composite 0–100 from food quality (shop quality upgrades), stations,
+    // cleanliness, layout, reputation, and Michelin stars.
+    let qualityPts = 0, qualityN = 0;
+    allBusinessStates(s).forEach(b => {
+      if((b.level||0) > 0){ qualityPts += (b.quality||0); qualityN++; }
+    });
+    const food = qualityN ? Math.min(25, (qualityPts / (qualityN * 20)) * 25) : 0;
+    const stations = Math.min(20, (sumLevels(s.stations) / (COOKING_STATIONS.length * 10)) * 20);
+    const clean = Math.min(20, ((s.cleanliness||0) / 100) * 20);
+    const layout = Math.min(15, (sumLevels(s.layout) / (LAYOUT_UPGRADES.length * 8)) * 15);
+    const rep = Math.min(15, ((s.reputation||0) / 100) * 15);
+    const stars = Math.min(5, (s.michelinStars||0) * (5/3));
+    return Math.round(Math.min(100, food + stations + clean + layout + rep + stars));
+  }
+  function ratingIncomeBonus(){
+    return 1 + restaurantRating() * CONFIG.RATING_INCOME_PER_POINT;
   }
   function globalMultiplier(){
     return prestigeMultiplier()
@@ -34,12 +118,68 @@
       * reputationMultiplier()
       * (1 + activeRecipeBoost('income'))
       * (typeof giftBoostMultiplier === 'function' ? giftBoostMultiplier() : 1)
-      * powerupMult('income');
+      * powerupMult('income')
+      * stationIncomeBonus()
+      * researchIncomeBonus()
+      * michelinBonus()
+      * chefActiveIncomeMult()
+      * layoutIncomeBonus()
+      * queueIncomeBonus()
+      * deliveryIncomeBonus()
+      * serviceModeBonus()
+      * ratingIncomeBonus()
+      * (1 + masteryIncomeBonus())
+      * staffIncomeBonus()
+      * automationBonus()
+      * staffEquipBonus();
   }
-  function businessCost(def, level){ return def.baseCost * Math.pow(CONFIG.COST_GROWTH, level); }
+  function staffIncomeBonus(){
+    let mult = 1;
+    if(!state.staff) return 1;
+    Object.keys(state.staff).forEach(roleId => {
+      const role = STAFF_ROLES.find(r => r.id === roleId);
+      const st = state.staff[roleId];
+      if(!role || !st) return;
+      const lvl = st.level || 1;
+      const happy = Math.max(0.2, (st.happiness == null ? 70 : st.happiness) / 100);
+      const burnout = (st.happiness == null ? 70 : st.happiness) < CONFIG.STAFF_BURNOUT_THRESHOLD ? 0.7 : 1;
+      mult += role.incomeBoost * (0.5 + lvl * 0.15) * happy * burnout;
+    });
+    const cook = (state.staffSkills && state.staffSkills.cooking) || 0;
+    const serv = (state.staffSkills && state.staffSkills.service) || 0;
+    mult += cook * 0.02 + serv * 0.015;
+    return mult;
+  }
+  function staffOfflineBonus(){
+    const del = (state.staffSkills && state.staffSkills.delivery) || 0;
+    const scooters = (state.staffEquip && state.staffEquip.scooters) || 0;
+    return 1 + del * 0.03 + scooters * 0.04;
+  }
+  function staffSalaryMult(){
+    const mgmt = (state.staffSkills && state.staffSkills.management) || 0;
+    return Math.max(0.4, 1 - mgmt * 0.03);
+  }
+  function totalStaffLevels(){
+    let n = 0;
+    if(!state.staff) return 0;
+    Object.values(state.staff).forEach(st => { n += st.level || 1; });
+    return n;
+  }
+  function automationBonus(){
+    return 1 + (state.automationLevel || 0) * CONFIG.AUTOMATION_INCOME_BOOST;
+  }
+  function staffEquipBonus(){
+    let m = 1;
+    const eq = state.staffEquip || {};
+    m += (eq.knives || 0) * 0.03;
+    m += (eq.uniforms || 0) * 0.02;
+    m += (eq.tools || 0) * 0.03;
+    return m;
+  }
+  function businessCost(def, level){ return def.baseCost * Math.pow(CONFIG.COST_GROWTH, level) * researchCostBonus(); }
   function upgradeCost(def, type, level){
     const t = UPGRADE_TYPES[type];
-    return def.baseCost * t.costMult * Math.pow(t.costGrowth, level);
+    return def.baseCost * t.costMult * Math.pow(t.costGrowth, level) * researchCostBonus();
   }
   function businessUpgradeMult(b){
     return (1 + b.speed*UPGRADE_TYPES.speed.boost) * (1 + b.capacity*UPGRADE_TYPES.capacity.boost) * (1 + b.quality*UPGRADE_TYPES.quality.boost);
@@ -47,15 +187,21 @@
   function businessIncome(def, b){
     return def.baseIncome * b.level * (1 + b.level*CONFIG.LEVEL_INCOME_SCALING) * businessUpgradeMult(b);
   }
+  function managerTypeDef(b){
+    if(!b || !b.managerType) return null;
+    return MANAGER_TYPES.find(t => t.id === b.managerType) || null;
+  }
   function businessIncomeWithManager(def, b){
     if(!b.manager) return businessIncome(def, b);
     const level = Math.max(1, b.managerLevel || 1);
     const levelBoost = 1 + (level - 1) * CONFIG.MANAGER_LEVEL_INCOME_BOOST;
-    return businessIncome(def, b) * CONFIG.MANAGER_INCOME_MULT * levelBoost;
+    const typeDef = managerTypeDef(b);
+    const typeMult = typeDef ? typeDef.incomeMult : CONFIG.MANAGER_INCOME_MULT;
+    return businessIncome(def, b) * typeMult * levelBoost;
   }
   // Manager Training (Shards) discounts hiring cost, capped so a maxed line
   // can never make managers free.
-  function managerCost(def){ return def.baseCost * CONFIG.MANAGER_COST_MULT * (1 - Math.min(0.8, metaBonus('manager'))); }
+  function managerCost(def){ return def.baseCost * CONFIG.MANAGER_COST_MULT * (1 - Math.min(0.8, metaBonus('manager'))) * researchCostBonus(); }
   function managerTrainCost(def, currentLevel){
     // currentLevel is the level BEFORE training (1 = just hired)
     return def.baseCost * CONFIG.MANAGER_TRAIN_COST_MULT * Math.pow(CONFIG.MANAGER_TRAIN_COST_GROWTH, Math.max(0, currentLevel - 1));
@@ -96,7 +242,8 @@
       * luckyMult
       * (1 + metaBonus('tap'))
       * (1 + activeRecipeBoost('tap'))
-      * powerupMult('tap');
+      * powerupMult('tap')
+      * researchTapBonus();
   }
   function potentialPrestigePoints(){
     return Math.floor(Math.sqrt(state.totalEarned / CONFIG.PRESTIGE_EARNINGS_DIVISOR));
@@ -471,20 +618,86 @@
 
   // ---------- crafting / ingredients ----------
   function ingredientCount(id){ return (state.ingredients && state.ingredients[id]) || 0; }
+  function storageCapacity(){
+    return CONFIG.STORAGE_BASE + (state.storageLevel || 0) * CONFIG.STORAGE_PER_LEVEL;
+  }
   function addIngredient(id, n){
     if(!state.ingredients) state.ingredients = {};
-    state.ingredients[id] = (state.ingredients[id] || 0) + (n || 1);
+    const cap = storageCapacity();
+    const cur = state.ingredients[id] || 0;
+    const add = Math.min(n || 1, Math.max(0, cap - cur));
+    if(add <= 0) return 0;
+    state.ingredients[id] = cur + add;
+    // Quality roll
+    if(Math.random() < CONFIG.INGREDIENT_QUALITY_CHANCE){
+      const qIdx = Math.min(INGREDIENT_QUALITIES.length - 1, 1 + Math.floor(Math.random() * 3));
+      if(!state.ingredientQuality) state.ingredientQuality = {};
+      state.ingredientQuality[id] = Math.max(state.ingredientQuality[id] || 0, qIdx);
+    }
+    return add;
   }
   function tryDropIngredient(countryId){
     if(Math.random() > CONFIG.INGREDIENT_DROP_CHANCE) return null;
-    const pool = INGREDIENTS.filter(ing => ing.country === countryId && isUnlocked(ing.country));
-    // Also allow japan ingredients always once unlocked (always is)
+    const pool = INGREDIENTS.filter(ing => {
+      if(ing.rare) return false;
+      return ing.country === countryId && isUnlocked(ing.country);
+    });
     if(!pool.length) return null;
     const pick = pool[Math.floor(Math.random() * pool.length)];
-    addIngredient(pick.id, 1);
-    return pick;
+    if(addIngredient(pick.id, 1) > 0) return pick;
+    return null;
+  }
+  function recipeUnlocked(recipe){
+    if(!recipe) return false;
+    const u = recipe.unlock || {};
+    if(u.country && !isUnlocked(u.country)) return false;
+    if(u.prestige && (state.prestigeCount || 0) < u.prestige) return false;
+    if(u.michelin && (state.michelinStars || 0) < u.michelin) return false;
+    if(u.secret){
+      // Secret recipes unlock after enough prestige + having crafted 5+ normal recipes
+      if((state.prestigeCount || 0) < (u.prestige || 4)) return false;
+      if((state.recipesCrafted || 0) < 5) return false;
+    }
+    if(u.seasonal){
+      // Seasonal recipes available if player has unlocked that seasonal skin or always during "season"
+      // For simplicity: unlock once any seasonal skin is owned, or always show as locked with label
+      const hasSeasonal = state.seasonal && state.seasonal.skinUnlocked && Object.keys(state.seasonal.skinUnlocked).length > 0;
+      if(!hasSeasonal && (state.prestigeCount || 0) < 1) return false;
+    }
+    return true;
+  }
+  function masteryTier(recipeId){
+    const count = (state.recipeMastery && state.recipeMastery[recipeId]) || 0;
+    const thresholds = CONFIG.RECIPE_MASTERY_THRESHOLDS;
+    let tier = 0;
+    for(let i = 0; i < thresholds.length; i++){
+      if(count >= thresholds[i]) tier = i;
+    }
+    return tier;
+  }
+  function masteryIncomeBonus(){
+    let bonus = 0;
+    RECIPES.forEach(r => {
+      const tier = masteryTier(r.id);
+      bonus += CONFIG.RECIPE_MASTERY_INCOME[tier] || 0;
+    });
+    return bonus;
+  }
+  function recipeDurationMs(recipe){
+    const up = (state.recipeUpgrades && state.recipeUpgrades[recipe.id]) || {};
+    const speedLv = up.speed || 0;
+    // Each speed upgrade shortens duration by 5%, min 40% of base
+    return CONFIG.RECIPE_DURATION_MS * Math.max(0.4, 1 - speedLv * 0.05);
+  }
+  function recipeBoostMult(recipe){
+    const up = (state.recipeUpgrades && state.recipeUpgrades[recipe.id]) || {};
+    const priceLv = up.price || 0;
+    const popLv = up.popularity || 0;
+    const qualityBonus = 1; // reserved for quality ingredient bonus
+    return (1 + priceLv * 0.05 + popLv * 0.03) * qualityBonus;
   }
   function canCraft(recipe){
+    if(!recipeUnlocked(recipe)) return false;
     return Object.keys(recipe.cost).every(id => ingredientCount(id) >= recipe.cost[id]);
   }
   function craftRecipe(recipeId){
@@ -494,12 +707,84 @@
     Object.keys(recipe.cost).forEach(id => {
       state.ingredients[id] -= recipe.cost[id];
     });
-    state.activeRecipe = { id: recipe.id, endsAt: Date.now() + CONFIG.RECIPE_DURATION_MS };
+    const duration = recipeDurationMs(recipe);
+    const mult = recipeBoostMult(recipe);
+    state.activeRecipe = { id: recipe.id, endsAt: Date.now() + duration, mult };
     state.recipesCrafted = (state.recipesCrafted || 0) + 1;
-    if(recipe.boost.rep) adjustReputation(recipe.boost.rep);
+    if(!state.recipeMastery) state.recipeMastery = {};
+    state.recipeMastery[recipe.id] = (state.recipeMastery[recipe.id] || 0) + CONFIG.RECIPE_MASTERY_PER_CRAFT;
+    if(recipe.rarity === 'secret'){
+      if(!state.secretsCrafted) state.secretsCrafted = {};
+      state.secretsCrafted[recipe.id] = true;
+    }
+    if(recipe.boost.rep) adjustReputation(Math.round(recipe.boost.rep * mult));
+    playBuySfx && playBuySfx();
     renderKitchen();
     renderStats();
     checkAchievements();
+  }
+  function upgradeRecipeStat(recipeId, stat){
+    const recipe = RECIPES.find(r => r.id === recipeId);
+    if(!recipe || !recipeUnlocked(recipe)) return;
+    if(!state.recipeUpgrades) state.recipeUpgrades = {};
+    if(!state.recipeUpgrades[recipeId]) state.recipeUpgrades[recipeId] = {price:0, speed:0, popularity:0};
+    const cur = state.recipeUpgrades[recipeId][stat] || 0;
+    if(cur >= CONFIG.RECIPE_UPGRADE_MAX) return;
+    // Cost: spend first required ingredient
+    const ingId = Object.keys(recipe.cost)[0];
+    const need = CONFIG.RECIPE_UPGRADE_COST_BASE + cur;
+    if(ingredientCount(ingId) < need){ playErrorSfx(); return; }
+    state.ingredients[ingId] -= need;
+    state.recipeUpgrades[recipeId][stat] = cur + 1;
+    playBuySfx();
+    save();
+    renderKitchen();
+    checkAchievements();
+  }
+  function upgradeStorage(){
+    const lvl = state.storageLevel || 0;
+    if(lvl >= CONFIG.STORAGE_MAX_LEVEL) return;
+    const cost = CONFIG.STORAGE_UPGRADE_COST * Math.pow(CONFIG.STORAGE_COST_GROWTH, lvl) * researchCostBonus();
+    if(getCountryCash(state.activeCountry) < cost){ playErrorSfx(); return; }
+    if(!spendCountryCash(state.activeCountry, cost)){ playErrorSfx(); return; }
+    playBuySfx();
+    state.storageLevel = lvl + 1;
+    save();
+    renderKitchen();
+    checkAchievements();
+  }
+  function orderFromSupplier(supplierId){
+    const sup = SUPPLIERS.find(s => s.id === supplierId);
+    if(!sup) return;
+    if((state.unlockedCountries || []).length < sup.unlockCountries){ playErrorSfx(); return; }
+    if(state.supplierCooldownUntil && state.supplierCooldownUntil > Date.now()){ playErrorSfx(); return; }
+    // Pick ingredients
+    let pool = INGREDIENTS.filter(ing => {
+      if(sup.rareOnly) return !!ing.rare;
+      if(ing.rare) return false;
+      if(sup.country) return ing.country === sup.country;
+      return isUnlocked(ing.country);
+    });
+    if(!pool.length) pool = INGREDIENTS.filter(ing => !ing.rare && isUnlocked(ing.country));
+    if(!pool.length) return;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    const unitPrice = 50 * Math.pow(1.15, state.prestigeCount || 0);
+    const totalCost = unitPrice * sup.qty * sup.priceMult * researchCostBonus();
+    if(getCountryCash(state.activeCountry) < totalCost){ playErrorSfx(); return; }
+    if(!spendCountryCash(state.activeCountry, totalCost)){ playErrorSfx(); return; }
+    const added = addIngredient(pick.id, sup.qty);
+    state.supplierCooldownUntil = Date.now() + CONFIG.SUPPLIER_ORDER_COOLDOWN_MS;
+    state.supplierOrders = (state.supplierOrders || 0) + 1;
+    if(sup.rareOnly && pick.rare){
+      if(!state.ingredientQuality) state.ingredientQuality = {};
+      state.ingredientQuality[pick.id] = Math.max(state.ingredientQuality[pick.id] || 0, 3);
+    }
+    playBuySfx();
+    save();
+    renderKitchen();
+    renderStats();
+    checkAchievements();
+    return {pick, added, totalCost};
   }
   function tickRecipe(){
     if(state.activeRecipe && state.activeRecipe.endsAt <= Date.now()){
@@ -543,40 +828,301 @@
       html += `<p class="rep-hint">Craft a signature dish for a temporary boost. Ingredients drop when you level shops.</p>`;
     }
 
-    // Ingredient inventory
-    html += `<div class="chal-section-label" style="margin-top:12px;">Ingredients</div><div class="ing-grid">`;
+    // Ingredient inventory + storage
+    const cap = storageCapacity();
+    const storCost = CONFIG.STORAGE_UPGRADE_COST * Math.pow(CONFIG.STORAGE_COST_GROWTH, state.storageLevel || 0) * researchCostBonus();
+    html += `<div class="chal-section-label" style="margin-top:12px;">Ingredients · cap ${cap}/stack · storage Lv${state.storageLevel||0}</div>`;
+    html += `<button class="modal-btn" data-action="upgrade-storage" style="margin-bottom:8px;" ${(state.storageLevel||0) >= CONFIG.STORAGE_MAX_LEVEL || getCountryCash(state.activeCountry) < storCost ? 'disabled' : ''}>Expand Storage · ${(state.storageLevel||0) >= CONFIG.STORAGE_MAX_LEVEL ? 'MAX' : fmt(storCost)}</button>`;
+    html += `<div class="ing-grid">`;
     INGREDIENTS.forEach(ing => {
       const locked = !isUnlocked(ing.country);
       const count = ingredientCount(ing.id);
-      html += `<div class="ing-chip${locked ? ' locked' : ''}${count ? ' has' : ''}" title="${ing.name}">
+      const qIdx = (state.ingredientQuality && state.ingredientQuality[ing.id]) || 0;
+      const q = INGREDIENT_QUALITIES[qIdx];
+      html += `<div class="ing-chip${locked ? ' locked' : ''}${count ? ' has' : ''}" title="${ing.name}${ing.rare ? ' (rare)' : ''} · ${q.name}">
         <span class="ing-icon">${ing.icon}</span>
         <span class="ing-count">${locked ? '🔒' : count}</span>
-        <span class="ing-name">${ing.name}</span>
+        <span class="ing-name">${q.icon} ${ing.name}</span>
       </div>`;
     });
     html += `</div>`;
 
-    // Recipes
-    html += `<div class="chal-section-label" style="margin-top:14px;">Recipes</div>`;
+    // Supply chain
+    html += `<div class="chal-section-label" style="margin-top:14px;">Supply Chain</div>`;
+    html += `<p class="rep-hint">Order bulk ingredients from world suppliers (60s cooldown).</p>`;
+    const onCd = state.supplierCooldownUntil && state.supplierCooldownUntil > Date.now();
+    SUPPLIERS.forEach(sup => {
+      const unlocked = (state.unlockedCountries || []).length >= sup.unlockCountries;
+      const unitPrice = 50 * Math.pow(1.15, state.prestigeCount || 0);
+      const totalCost = unitPrice * sup.qty * sup.priceMult;
+      html += `<div class="recipe-card${!unlocked || onCd ? ' dim' : ''}">
+        <div class="recipe-icon">${sup.icon}</div>
+        <div class="recipe-info">
+          <div class="recipe-name">${sup.name}</div>
+          <div class="recipe-desc">${sup.qty}× ingredients · ${Math.round(sup.priceMult*100)}% market price${sup.rareOnly ? ' · rare only' : ''}</div>
+        </div>
+        <button class="claim-btn" data-action="supplier" data-id="${sup.id}" ${!unlocked || onCd || getCountryCash(state.activeCountry) < totalCost ? 'disabled' : ''}>${onCd ? 'Cooldown' : !unlocked ? 'Locked' : fmt(totalCost)}</button>
+      </div>`;
+    });
+
+    // Recipes with mastery & upgrades
+    html += `<div class="chal-section-label" style="margin-top:14px;">Recipes & Mastery</div>`;
+    html += `<p class="rep-hint">Craft for temporary boosts. Mastery grants permanent income. Upgrade price/speed/popularity with ingredients.</p>`;
     RECIPES.forEach(recipe => {
+      const unlocked = recipeUnlocked(recipe);
       const ok = canCraft(recipe);
       const busy = state.activeRecipe && state.activeRecipe.endsAt > Date.now();
+      const tier = masteryTier(recipe.id);
+      const crafts = (state.recipeMastery && state.recipeMastery[recipe.id]) || 0;
+      const up = (state.recipeUpgrades && state.recipeUpgrades[recipe.id]) || {price:0, speed:0, popularity:0};
       const costParts = Object.keys(recipe.cost).map(id => {
         const ing = INGREDIENTS.find(i => i.id === id);
         const have = ingredientCount(id);
         const need = recipe.cost[id];
         return `<span class="${have >= need ? 'have' : 'need'}">${ing ? ing.icon : '?'} ${have}/${need}</span>`;
       }).join(' ');
-      html += `<div class="recipe-card${!ok || busy ? ' dim' : ''}">
+      let lockHint = '';
+      if(!unlocked){
+        const u = recipe.unlock || {};
+        if(u.country && !isUnlocked(u.country)) lockHint = `Unlock ${u.country}`;
+        else if(u.michelin) lockHint = `Need ${u.michelin}★ Michelin`;
+        else if(u.secret) lockHint = `Secret · Prestige ${u.prestige||4}`;
+        else if(u.seasonal) lockHint = `Seasonal · ${u.seasonal}`;
+        else if(u.prestige) lockHint = `Prestige ${u.prestige}`;
+        else lockHint = 'Locked';
+      }
+      html += `<div class="recipe-card${!unlocked || !ok || busy ? ' dim' : ''}">
         <div class="recipe-icon" aria-hidden="true">${recipe.icon}</div>
         <div class="recipe-info">
-          <div class="recipe-name">${recipe.name}</div>
+          <div class="recipe-name">${recipe.name} <small>(${recipe.rarity||'common'})</small></div>
           <div class="recipe-desc">${recipe.desc}</div>
           <div class="recipe-cost">${costParts}</div>
+          <div class="recipe-desc">Mastery: ${RECIPE_MASTERY_NAMES[tier]} (${crafts}) · Upgrades P${up.price||0}/S${up.speed||0}/Pop${up.popularity||0}</div>
         </div>
-        <button class="claim-btn" data-action="craft" data-id="${recipe.id}" ${!ok || busy ? 'disabled' : ''}>Craft</button>
+        ${unlocked
+          ? `<button class="claim-btn" data-action="craft" data-id="${recipe.id}" ${!ok || busy ? 'disabled' : ''}>Craft</button>`
+          : `<button class="claim-btn" disabled>${lockHint}</button>`}
+      </div>`;
+      if(unlocked){
+        const ingId = Object.keys(recipe.cost)[0];
+        ['price','speed','popularity'].forEach(stat => {
+          const cur = up[stat] || 0;
+          const need = CONFIG.RECIPE_UPGRADE_COST_BASE + cur;
+          const maxed = cur >= CONFIG.RECIPE_UPGRADE_MAX;
+          html += `<div style="display:flex;gap:6px;margin:2px 0 6px 48px;align-items:center;font-size:12px;">
+            <span style="min-width:70px;text-transform:capitalize;">${stat}</span>
+            <button class="claim-btn" data-action="recipe-upgrade" data-id="${recipe.id}" data-stat="${stat}" ${maxed || ingredientCount(ingId) < need ? 'disabled' : ''} style="padding:4px 8px;">
+              ${maxed ? 'MAX' : `+1 (${need}×)`}
+            </button>
+          </div>`;
+        });
+      }
+    });
+
+    // ---- Cooking Stations (GDD) ----
+    html += `<div class="chal-section-label" style="margin-top:16px;">Cooking Stations</div>`;
+    html += `<p class="rep-hint">Upgrade production lines for permanent empire-wide income (+${Math.round(CONFIG.STATION_INCOME_BOOST*100)}% per level).</p>`;
+    COOKING_STATIONS.forEach(st => {
+      const lvl = (state.stations && state.stations[st.id]) || 0;
+      const cost = stationCost(st.id);
+      const maxed = lvl >= CONFIG.STATION_MAX_LEVEL;
+      html += `<div class="recipe-card">
+        <div class="recipe-icon">${st.icon}</div>
+        <div class="recipe-info">
+          <div class="recipe-name">${st.name} · Lv${lvl}</div>
+          <div class="recipe-desc">${st.desc}</div>
+        </div>
+        <button class="claim-btn" data-action="station" data-id="${st.id}" ${maxed || getCountryCash(state.activeCountry) < cost ? 'disabled' : ''}>${maxed ? 'MAX' : fmt(cost)}</button>
       </div>`;
     });
+
+    // ---- Research Tree (GDD) ----
+    html += `<div class="chal-section-label" style="margin-top:16px;">Research · ${state.researchPoints||0} pts</div>`;
+    html += `<p class="rep-hint">Earn research points from Prestige and milestones. Permanent empire bonuses.</p>`;
+    RESEARCH_BRANCHES.forEach(br => {
+      const lvl = researchLevel(br.id);
+      const cost = researchUpgradeCost(br.id);
+      const maxed = lvl >= CONFIG.RESEARCH_MAX_LEVEL;
+      html += `<div class="recipe-card">
+        <div class="recipe-icon">${br.icon}</div>
+        <div class="recipe-info">
+          <div class="recipe-name">${br.name} · Lv${lvl}</div>
+          <div class="recipe-desc">${br.desc}</div>
+        </div>
+        <button class="claim-btn" data-action="research" data-id="${br.id}" ${maxed || (state.researchPoints||0) < cost ? 'disabled' : ''}>${maxed ? 'MAX' : cost + ' pts'}</button>
+      </div>`;
+    });
+
+    // ---- Legendary Chefs (GDD) ----
+    unlockAvailableChefs();
+    html += `<div class="chal-section-label" style="margin-top:16px;">Legendary Chefs</div>`;
+    LEGENDARY_CHEFS.forEach(c => {
+      const owned = !!(state.chefsOwned && state.chefsOwned[c.id]);
+      const equipped = state.equippedChef === c.id;
+      const locked = !owned && (state.prestigeCount||0) < c.unlockPrestige;
+      let action = '';
+      if(locked) action = `<button class="claim-btn" disabled>Prestige ${c.unlockPrestige}</button>`;
+      else if(!owned) action = `<button class="claim-btn" disabled>Locked</button>`;
+      else if(!equipped) action = `<button class="claim-btn" data-action="equip-chef" data-id="${c.id}">Equip</button>`;
+      else {
+        const now = Date.now();
+        const onCd = state.chefSkillCooldownUntil > now;
+        const active = state.chefSkillEndsAt > now;
+        if(active) action = `<button class="claim-btn" disabled>Active…</button>`;
+        else if(onCd) action = `<button class="claim-btn" disabled>Cooldown</button>`;
+        else action = `<button class="claim-btn" data-action="chef-skill">Use Skill</button>`;
+      }
+      html += `<div class="recipe-card${locked ? ' dim' : ''}">
+        <div class="recipe-icon">${c.icon}</div>
+        <div class="recipe-info">
+          <div class="recipe-name">${c.name}${equipped ? ' ★' : ''}</div>
+          <div class="recipe-desc">${c.desc} · ${c.skillLabel}</div>
+        </div>
+        ${action}
+      </div>`;
+    });
+
+    // ---- Michelin Challenge (GDD) ----
+    html += `<div class="chal-section-label" style="margin-top:16px;">Michelin Stars · ${'⭐'.repeat(state.michelinStars||0)}${'☆'.repeat(Math.max(0, CONFIG.MICHELIN_MAX_STARS - (state.michelinStars||0)))}</div>`;
+    if((state.michelinStars||0) >= CONFIG.MICHELIN_MAX_STARS){
+      html += `<p class="rep-hint">Three-star empire! +${Math.round(CONFIG.MICHELIN_INCOME_PER_STAR*CONFIG.MICHELIN_MAX_STARS*100)}% permanent income.</p>`;
+    } else if(state.michelinChallenge){
+      const ch = state.michelinChallenge;
+      const pct = Math.min(100, Math.floor((ch.earned / ch.targetCash) * 100));
+      const left = Math.max(0, Math.ceil((ch.durationMs - (Date.now() - ch.startedAt)) / 1000));
+      html += `<div class="rep-panel-card"><div class="rep-panel-top"><span>Challenge in progress</span><span>${pct}% · ${left}s</span></div>
+        <div class="rep-track big"><div class="rep-fill" style="width:${pct}%"></div></div>
+        <p class="rep-hint">Earn ${fmt(ch.targetCash)} before time runs out.</p></div>`;
+    } else {
+      const canStart = (state.reputation||0) >= CONFIG.MICHELIN_REP_REQ;
+      html += `<p class="rep-hint">Need ${CONFIG.MICHELIN_REP_REQ}+ reputation. Earn a huge cash burst in 2 minutes for a permanent star (+${Math.round(CONFIG.MICHELIN_INCOME_PER_STAR*100)}% income each).</p>
+        <button class="modal-btn" data-action="michelin-start" ${canStart ? '' : 'disabled'}>Begin Michelin Challenge</button>`;
+    }
+
+    // ---- Restaurant Rating (GDD Part 2) ----
+    const rating = restaurantRating();
+    html += `<div class="chal-section-label" style="margin-top:16px;">Restaurant Rating · ${rating}/100</div>`;
+    html += `<div class="rep-panel-card">
+      <div class="rep-track big"><div class="rep-fill" style="width:${rating}%"></div></div>
+      <p class="rep-hint">Food quality, stations, cleanliness, layout, reputation & Michelin stars. +${(rating * CONFIG.RATING_INCOME_PER_POINT * 100).toFixed(1)}% income.</p>
+    </div>`;
+
+    // ---- Layout (GDD Part 2) ----
+    html += `<div class="chal-section-label" style="margin-top:16px;">Restaurant Layout</div>`;
+    html += `<p class="rep-hint">Seating, kitchen size, VIP area & serving lanes. +${Math.round(CONFIG.LAYOUT_INCOME_BOOST*100)}% income per level.</p>`;
+    LAYOUT_UPGRADES.forEach(u => {
+      const lvl = (state.layout && state.layout[u.id]) || 0;
+      const cost = scaledUpgradeCost(CONFIG.LAYOUT_BASE_COST, CONFIG.LAYOUT_COST_GROWTH, lvl);
+      const maxed = lvl >= CONFIG.LAYOUT_MAX_LEVEL;
+      html += `<div class="recipe-card"><div class="recipe-icon">${u.icon}</div><div class="recipe-info"><div class="recipe-name">${u.name} · Lv${lvl}</div><div class="recipe-desc">${u.desc}</div></div>
+        <button class="claim-btn" data-action="layout" data-id="${u.id}" ${maxed || getCountryCash(state.activeCountry) < cost ? 'disabled' : ''}>${maxed ? 'MAX' : fmt(cost)}</button></div>`;
+    });
+
+    // ---- Queue / Service Speed (GDD Part 2) ----
+    html += `<div class="chal-section-label" style="margin-top:16px;">Customer Queue</div>`;
+    html += `<p class="rep-hint">Reduce wait times and walk-aways. +${Math.round(CONFIG.QUEUE_INCOME_BOOST*100)}% income per level.</p>`;
+    QUEUE_UPGRADES.forEach(u => {
+      const lvl = (state.queue && state.queue[u.id]) || 0;
+      const cost = scaledUpgradeCost(CONFIG.QUEUE_BASE_COST, CONFIG.QUEUE_COST_GROWTH, lvl);
+      const maxed = lvl >= CONFIG.QUEUE_MAX_LEVEL;
+      html += `<div class="recipe-card"><div class="recipe-icon">${u.icon}</div><div class="recipe-info"><div class="recipe-name">${u.name} · Lv${lvl}</div><div class="recipe-desc">${u.desc}</div></div>
+        <button class="claim-btn" data-action="queue" data-id="${u.id}" ${maxed || getCountryCash(state.activeCountry) < cost ? 'disabled' : ''}>${maxed ? 'MAX' : fmt(cost)}</button></div>`;
+    });
+
+    // ---- Delivery Fleet (GDD Part 2) ----
+    html += `<div class="chal-section-label" style="margin-top:16px;">Delivery Fleet</div>`;
+    html += `<p class="rep-hint">Passive delivery income. +${Math.round(CONFIG.DELIVERY_INCOME_PER_LEVEL*100)}% per vehicle level.</p>`;
+    DELIVERY_FLEET.forEach(u => {
+      const lvl = (state.delivery && state.delivery[u.id]) || 0;
+      const cost = scaledUpgradeCost(CONFIG.DELIVERY_BASE_COST, CONFIG.DELIVERY_COST_GROWTH, lvl);
+      const maxed = lvl >= CONFIG.DELIVERY_MAX_LEVEL;
+      html += `<div class="recipe-card"><div class="recipe-icon">${u.icon}</div><div class="recipe-info"><div class="recipe-name">${u.name} · Lv${lvl}</div><div class="recipe-desc">${u.desc}</div></div>
+        <button class="claim-btn" data-action="delivery" data-id="${u.id}" ${maxed || getCountryCash(state.activeCountry) < cost ? 'disabled' : ''}>${maxed ? 'MAX' : fmt(cost)}</button></div>`;
+    });
+
+    // ---- Takeaway & Drive-Through (GDD Part 2) ----
+    html += `<div class="chal-section-label" style="margin-top:16px;">Service Modes</div>`;
+    const hasTakeaway = !!(state.serviceModes && state.serviceModes.takeaway);
+    const hasDrive = !!(state.serviceModes && state.serviceModes.driveThrough);
+    html += `<div class="recipe-card"><div class="recipe-icon">🥡</div><div class="recipe-info"><div class="recipe-name">Takeaway Orders</div><div class="recipe-desc">+${Math.round(CONFIG.TAKEAWAY_INCOME_BONUS*100)}% income · no seating needed</div></div>
+      <button class="claim-btn" data-action="unlock-takeaway" ${hasTakeaway || getCountryCash(state.activeCountry) < CONFIG.TAKEAWAY_UNLOCK_COST * researchCostBonus() ? 'disabled' : ''}>${hasTakeaway ? 'Unlocked' : fmt(CONFIG.TAKEAWAY_UNLOCK_COST)}</button></div>`;
+    html += `<div class="recipe-card"><div class="recipe-icon">🚗</div><div class="recipe-info"><div class="recipe-name">Drive-Through</div><div class="recipe-desc">+${Math.round(CONFIG.DRIVETHRU_INCOME_BONUS*100)}% income · requires takeaway</div></div>
+      <button class="claim-btn" data-action="unlock-drivethru" ${hasDrive || !hasTakeaway || getCountryCash(state.activeCountry) < CONFIG.DRIVETHRU_UNLOCK_COST * researchCostBonus() ? 'disabled' : ''}>${hasDrive ? 'Unlocked' : fmt(CONFIG.DRIVETHRU_UNLOCK_COST)}</button></div>`;
+
+    // ---- Cleaning (GDD Part 2) ----
+    const clean = Math.round(state.cleanliness || 0);
+    const cLvl = state.cleaningLevel || 0;
+    const cCost = scaledUpgradeCost(CONFIG.CLEANING_BASE_COST, CONFIG.CLEANING_COST_GROWTH, cLvl);
+    const polishCost = Math.max(50, totalRatePerSec() * CONFIG.CLEANLINESS_REPAIR_COST_MULT * ((100 - clean) / 100));
+    html += `<div class="chal-section-label" style="margin-top:16px;">Cleaning · ${clean}/100</div>`;
+    html += `<div class="rep-panel-card">
+      <div class="rep-track big"><div class="rep-fill" style="width:${clean}%"></div></div>
+      <p class="rep-hint">Dirty shops hurt rating. Cleaning staff level ${cLvl} slows decay by ${Math.round(cleaningDecayReduction()*100)}%.</p>
+      <button class="modal-btn" data-action="upgrade-cleaning" ${cLvl >= CONFIG.CLEANING_MAX_LEVEL || getCountryCash(state.activeCountry) < cCost ? 'disabled' : ''}>Hire Cleaning Staff · ${cLvl >= CONFIG.CLEANING_MAX_LEVEL ? 'MAX' : fmt(cCost)}</button>
+      <button class="modal-btn secondary" data-action="polish-clean" style="margin-top:8px;" ${clean >= 100 || getCountryCash(state.activeCountry) < polishCost ? 'disabled' : ''}>Deep Clean · ${fmt(polishCost)}</button>
+    </div>`;
+
+    // Workflow overview (informational)
+    html += `<div class="chal-section-label" style="margin-top:16px;">Kitchen Workflow</div>`;
+    html += `<p class="rep-hint">Order → Noodles → Broth → Toppings → Quality → Serve. Upgrade Cooking Stations above to speed each stage.</p>`;
+    html += `<div class="ing-grid">`;
+    WORKFLOW_STAGES.forEach(w => {
+      html += `<div class="ing-chip has" title="${w.name}"><span class="ing-icon">${w.icon}</span><span class="ing-name">${w.name}</span></div>`;
+    });
+    html += `</div>`;
+
+    // ---- Staff System (GDD Part 4) ----
+    html += `<div class="chal-section-label" style="margin-top:16px;">Staff Roster</div>`;
+    html += `<p class="rep-hint">Hire empire staff. Happy workers earn more; burnout hurts. Salaries scale with levels.</p>`;
+    STAFF_ROLES.forEach(role => {
+      const hired = state.staff && state.staff[role.id];
+      if(!hired){
+        const cost = role.hireCost * researchCostBonus();
+        html += `<div class="recipe-card"><div class="recipe-icon">${role.icon}</div><div class="recipe-info"><div class="recipe-name">${role.name}</div><div class="recipe-desc">${role.desc} · +${Math.round(role.incomeBoost*100)}%/lvl</div></div>
+          <button class="claim-btn" data-action="hire-staff" data-id="${role.id}" ${getCountryCash(state.activeCountry) < cost ? 'disabled' : ''}>Hire · ${fmt(cost)}</button></div>`;
+      } else {
+        const happy = Math.round(hired.happiness == null ? 70 : hired.happiness);
+        const burned = happy < CONFIG.STAFF_BURNOUT_THRESHOLD;
+        const trainCost = CONFIG.STAFF_TRAIN_COST_BASE * Math.pow(CONFIG.STAFF_TRAIN_COST_GROWTH, hired.level || 1);
+        const maxed = (hired.level || 1) >= CONFIG.STAFF_MAX_LEVEL;
+        html += `<div class="recipe-card"><div class="recipe-icon">${role.icon}</div><div class="recipe-info">
+          <div class="recipe-name">${role.name} · Lv${hired.level||1}${hired.promoted ? ' ★'+hired.promoted : ''}</div>
+          <div class="recipe-desc">😊 ${happy}%${burned ? ' · BURNOUT' : ''} · ${role.desc}</div>
+        </div>
+          <button class="claim-btn" data-action="train-staff" data-id="${role.id}" ${maxed || getCountryCash(state.activeCountry) < trainCost ? 'disabled' : ''}>${maxed ? 'MAX' : 'Train · '+fmt(trainCost)}</button></div>`;
+      }
+    });
+    html += `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+      <button class="modal-btn" data-action="reward-staff" ${!state.staff || !Object.keys(state.staff).length ? 'disabled' : ''}>🎉 Reward Staff</button>
+      <button class="modal-btn secondary" data-action="break-room">☕ Break Room · Lv${state.breakRoomLevel||0}</button>
+    </div>`;
+
+    // Culinary Academy
+    html += `<div class="chal-section-label" style="margin-top:16px;">Culinary Academy</div>`;
+    html += `<p class="rep-hint">Train global skills that boost the whole team.</p>`;
+    STAFF_SKILLS.forEach(sk => {
+      const lvl = (state.staffSkills && state.staffSkills[sk.id]) || 0;
+      const cost = CONFIG.STAFF_TRAIN_COST_BASE * Math.pow(CONFIG.STAFF_TRAIN_COST_GROWTH, lvl) * 2;
+      html += `<div class="recipe-card"><div class="recipe-icon">${sk.icon}</div><div class="recipe-info"><div class="recipe-name">${sk.name} · Lv${lvl}</div><div class="recipe-desc">${sk.desc}</div></div>
+        <button class="claim-btn" data-action="academy" data-id="${sk.id}" ${lvl >= 15 || getCountryCash(state.activeCountry) < cost ? 'disabled' : ''}>${lvl >= 15 ? 'MAX' : fmt(cost)}</button></div>`;
+    });
+
+    // Equipment
+    html += `<div class="chal-section-label" style="margin-top:16px;">Staff Equipment</div>`;
+    STAFF_EQUIPMENT.forEach(eq => {
+      const lvl = (state.staffEquip && state.staffEquip[eq.id]) || 0;
+      const cost = CONFIG.STAFF_EQUIP_COST_BASE * Math.pow(CONFIG.STAFF_EQUIP_COST_GROWTH, lvl);
+      html += `<div class="recipe-card"><div class="recipe-icon">${eq.icon}</div><div class="recipe-info"><div class="recipe-name">${eq.name} · Lv${lvl}</div><div class="recipe-desc">${eq.desc}</div></div>
+        <button class="claim-btn" data-action="staff-equip" data-id="${eq.id}" ${lvl >= CONFIG.STAFF_EQUIP_MAX || getCountryCash(state.activeCountry) < cost ? 'disabled' : ''}>${lvl >= CONFIG.STAFF_EQUIP_MAX ? 'MAX' : fmt(cost)}</button></div>`;
+    });
+
+    // Automation
+    const autoLv = state.automationLevel || 0;
+    const autoCost = CONFIG.AUTOMATION_BASE_COST * Math.pow(CONFIG.AUTOMATION_COST_GROWTH, autoLv);
+    html += `<div class="chal-section-label" style="margin-top:16px;">Automation · Lv${autoLv}</div>`;
+    html += `<p class="rep-hint">AI managers handle routine work. +${Math.round(CONFIG.AUTOMATION_INCOME_BOOST*100)}% income/level and less burnout.</p>`;
+    html += `<button class="modal-btn" data-action="automation" ${autoLv >= CONFIG.AUTOMATION_MAX_LEVEL || getCountryCash(state.activeCountry) < autoCost ? 'disabled' : ''}>${autoLv >= CONFIG.AUTOMATION_MAX_LEVEL ? 'MAX Automation' : 'Upgrade Automation · '+fmt(autoCost)}</button>`;
+
     panel.innerHTML = html;
     const repairBtn = document.getElementById('repairRepBtn');
     if(repairBtn) repairBtn.addEventListener('click', repairReputation);
@@ -639,12 +1185,13 @@
       const buyLabel = `${b.level === 0 ? 'Open' : 'Upgrade'} ${def.name} for ${fmt(cost)}`;
 
       const mLvl = b.manager ? (b.managerLevel || 1) : 0;
+      const mType = managerTypeDef(b);
       const mBadge = b.manager
-        ? `<span class="manager-badge">${MANAGER_BONUS_LABEL} · Lv${mLvl}</span>`
+        ? `<span class="manager-badge">${mType ? mType.icon + ' ' + mType.name : MANAGER_BONUS_LABEL} · Lv${mLvl}</span>`
         : '';
       let staffBtn = '';
       if(!b.manager && b.level >= CONFIG.MANAGER_UNLOCK_LEVEL){
-        staffBtn = `<button class="buy-btn manager-btn" data-action="manager" data-id="${def.id}" aria-label="Hire manager for ${def.name}, cost ${fmt(mCost)}" ${getCountryCash(state.activeCountry) < mCost ? 'disabled' : ''}>${MANAGER_BONUS_LABEL}<small>${fmt(mCost)}</small></button>`;
+        staffBtn = `<button class="buy-btn manager-btn" data-action="manager" data-id="${def.id}" aria-label="Hire manager for ${def.name}, cost ${fmt(mCost)}" ${getCountryCash(state.activeCountry) < mCost ? 'disabled' : ''}>Hire<small>${fmt(mCost)}</small></button>`;
       } else if(b.manager && mLvl < CONFIG.MANAGER_MAX_LEVEL){
         const tCost = managerTrainCost(def, mLvl);
         staffBtn = `<button class="buy-btn manager-btn train-btn" data-action="train" data-id="${def.id}" aria-label="Train manager for ${def.name} to level ${mLvl+1}, cost ${fmt(tCost)}" ${getCountryCash(state.activeCountry) < tCost ? 'disabled' : ''}>Train Lv${mLvl+1}<small>${fmt(tCost)}</small></button>`;
@@ -1212,18 +1759,365 @@
     }
     renderBusinesses(); renderStats(); checkAchievements();
   }
-  function hireManager(id){
+  function hireManager(id, typeId){
     const country = activeCountryDef();
     const def = country.businesses.find(d => d.id === id);
     const b = state.countries[country.id][id];
+    if(b.manager) return;
     const cost = managerCost(def);
     if(getCountryCash(country.id) < cost){ playErrorSfx(); return; }
+    const type = MANAGER_TYPES.find(t => t.id === typeId) || MANAGER_TYPES[0];
     if(!spendCountryCash(country.id, cost)){ playErrorSfx(); return; }
     playBuySfx();
     b.manager = true;
     b.managerLevel = 1;
+    b.managerType = type.id;
     renderBusinesses(); renderStats(); checkAchievements();
   }
+  function showManagerTypePicker(bizId){
+    const country = activeCountryDef();
+    const def = country.businesses.find(d => d.id === bizId);
+    if(!def) return;
+    const cost = managerCost(def);
+    const choices = MANAGER_TYPES.map(t =>
+      `${t.icon} ${t.name} — ${t.desc}`
+    ).join('\n');
+    const pick = prompt(
+      `Hire a manager for ${def.name} (${fmt(cost)})\n\nEnter number:\n` +
+      MANAGER_TYPES.map((t,i) => `${i+1}) ${t.icon} ${t.name} — ${t.desc}`).join('\n')
+    );
+    const idx = parseInt(pick, 10) - 1;
+    if(isNaN(idx) || idx < 0 || idx >= MANAGER_TYPES.length) return;
+    hireManager(bizId, MANAGER_TYPES[idx].id);
+  }
+  function stationCost(id){
+    const lvl = (state.stations && state.stations[id]) || 0;
+    return CONFIG.STATION_BASE_COST * Math.pow(CONFIG.STATION_COST_GROWTH, lvl) * researchCostBonus();
+  }
+  function upgradeStation(id){
+    const st = COOKING_STATIONS.find(s => s.id === id);
+    if(!st) return;
+    const lvl = (state.stations && state.stations[id]) || 0;
+    if(lvl >= CONFIG.STATION_MAX_LEVEL) return;
+    const cost = stationCost(id);
+    if(getCountryCash(state.activeCountry) < cost){ playErrorSfx(); return; }
+    if(!spendCountryCash(state.activeCountry, cost)){ playErrorSfx(); return; }
+    playBuySfx();
+    if(!state.stations) state.stations = {};
+    state.stations[id] = lvl + 1;
+    save();
+    renderKitchen(); renderStats(); checkAchievements();
+  }
+  function researchUpgradeCost(id){
+    const lvl = researchLevel(id);
+    return 1 + lvl; // research points cost = level+1
+  }
+  function buyResearch(id){
+    const br = RESEARCH_BRANCHES.find(b => b.id === id);
+    if(!br) return;
+    const lvl = researchLevel(id);
+    if(lvl >= CONFIG.RESEARCH_MAX_LEVEL) return;
+    const cost = researchUpgradeCost(id);
+    if((state.researchPoints || 0) < cost){ playErrorSfx(); return; }
+    state.researchPoints -= cost;
+    if(!state.research) state.research = {};
+    state.research[id] = lvl + 1;
+    // Satisfaction branch raises starting/current rep a bit
+    if(br.kind === 'rep'){
+      state.reputation = Math.min(CONFIG.REP_MAX, (state.reputation || 0) + br.boost);
+    }
+    playBuySfx();
+    save();
+    renderKitchen(); renderStats(); checkAchievements();
+  }
+  function unlockAvailableChefs(){
+    let changed = false;
+    LEGENDARY_CHEFS.forEach(c => {
+      if((state.prestigeCount || 0) >= c.unlockPrestige && !state.chefsOwned[c.id]){
+        state.chefsOwned[c.id] = true;
+        changed = true;
+      }
+    });
+    if(changed){ save(); checkAchievements(); }
+  }
+  function equipChef(id){
+    if(!state.chefsOwned || !state.chefsOwned[id]) return;
+    state.equippedChef = id;
+    save();
+    renderKitchen();
+  }
+  function activateChefSkill(){
+    const id = state.equippedChef;
+    if(!id || !state.chefsOwned[id]) return;
+    const now = Date.now();
+    if(state.chefSkillCooldownUntil && state.chefSkillCooldownUntil > now){
+      playErrorSfx();
+      return;
+    }
+    const chef = LEGENDARY_CHEFS.find(c => c.id === id);
+    if(!chef) return;
+    playBuySfx();
+    state.chefSkillEndsAt = now + CONFIG.CHEF_SKILL_DURATION_MS;
+    state.chefSkillCooldownUntil = now + CONFIG.CHEF_SKILL_COOLDOWN_MS;
+    if(chef.skill === 'rep_boost'){
+      state.reputation = Math.min(CONFIG.REP_MAX, (state.reputation || 0) + 15);
+    }
+    if(chef.skill === 'instant_cook'){
+      // free +1 level on the cheapest owned shop in active country
+      const country = activeCountryDef();
+      const bizState = state.countries[country.id];
+      let best = null, bestCost = Infinity;
+      country.businesses.forEach(def => {
+        const b = bizState[def.id];
+        if(b.level > 0){
+          const c = businessCost(def, b.level);
+          if(c < bestCost){ bestCost = c; best = {def, b}; }
+        }
+      });
+      if(best) best.b.level += 1;
+    }
+    save();
+    renderKitchen(); renderStats(); renderBusinesses();
+  }
+  function startMichelinChallenge(){
+    if((state.michelinStars || 0) >= CONFIG.MICHELIN_MAX_STARS) return;
+    if((state.reputation || 0) < CONFIG.MICHELIN_REP_REQ){ playErrorSfx(); return; }
+    if(state.michelinChallenge) return;
+    const rate = typeof totalRatePerSec === 'function' ? totalRatePerSec() : 1;
+    const target = Math.max(1000, rate * CONFIG.MICHELIN_CHALLENGE_CASH_MULT);
+    state.michelinChallenge = { startedAt: Date.now(), targetCash: target, earned: 0, durationMs: 120000 };
+    save();
+    renderKitchen();
+  }
+  function tickMichelinChallenge(amount){
+    if(!state.michelinChallenge) return;
+    state.michelinChallenge.earned = (state.michelinChallenge.earned || 0) + amount;
+    if(state.michelinChallenge.earned >= state.michelinChallenge.targetCash){
+      state.michelinStars = Math.min(CONFIG.MICHELIN_MAX_STARS, (state.michelinStars || 0) + 1);
+      state.michelinChallenge = null;
+      playChimeSfx && playChimeSfx();
+      checkAchievements();
+      save();
+      renderKitchen();
+    } else if(Date.now() - state.michelinChallenge.startedAt > (state.michelinChallenge.durationMs || 120000)){
+      state.michelinChallenge = null;
+      save();
+      renderKitchen();
+    }
+  }
+
+  // ---- GDD Part 2: Layout / Queue / Delivery / Cleaning / Service modes ----
+  function scaledUpgradeCost(base, growth, level){
+    return base * Math.pow(growth, level) * researchCostBonus();
+  }
+  function upgradeLayout(id){
+    const def = LAYOUT_UPGRADES.find(u => u.id === id);
+    if(!def) return;
+    const lvl = (state.layout && state.layout[id]) || 0;
+    if(lvl >= CONFIG.LAYOUT_MAX_LEVEL) return;
+    const cost = scaledUpgradeCost(CONFIG.LAYOUT_BASE_COST, CONFIG.LAYOUT_COST_GROWTH, lvl);
+    if(getCountryCash(state.activeCountry) < cost){ playErrorSfx(); return; }
+    if(!spendCountryCash(state.activeCountry, cost)){ playErrorSfx(); return; }
+    playBuySfx();
+    if(!state.layout) state.layout = {};
+    state.layout[id] = lvl + 1;
+    save(); renderKitchen(); renderStats(); checkAchievements();
+  }
+  function upgradeQueue(id){
+    const def = QUEUE_UPGRADES.find(u => u.id === id);
+    if(!def) return;
+    const lvl = (state.queue && state.queue[id]) || 0;
+    if(lvl >= CONFIG.QUEUE_MAX_LEVEL) return;
+    const cost = scaledUpgradeCost(CONFIG.QUEUE_BASE_COST, CONFIG.QUEUE_COST_GROWTH, lvl);
+    if(getCountryCash(state.activeCountry) < cost){ playErrorSfx(); return; }
+    if(!spendCountryCash(state.activeCountry, cost)){ playErrorSfx(); return; }
+    playBuySfx();
+    if(!state.queue) state.queue = {};
+    state.queue[id] = lvl + 1;
+    save(); renderKitchen(); renderStats(); checkAchievements();
+  }
+  function upgradeDelivery(id){
+    const def = DELIVERY_FLEET.find(u => u.id === id);
+    if(!def) return;
+    const lvl = (state.delivery && state.delivery[id]) || 0;
+    if(lvl >= CONFIG.DELIVERY_MAX_LEVEL) return;
+    const cost = scaledUpgradeCost(CONFIG.DELIVERY_BASE_COST, CONFIG.DELIVERY_COST_GROWTH, lvl);
+    if(getCountryCash(state.activeCountry) < cost){ playErrorSfx(); return; }
+    if(!spendCountryCash(state.activeCountry, cost)){ playErrorSfx(); return; }
+    playBuySfx();
+    if(!state.delivery) state.delivery = {};
+    state.delivery[id] = lvl + 1;
+    save(); renderKitchen(); renderStats(); checkAchievements();
+  }
+  function upgradeCleaning(){
+    const lvl = state.cleaningLevel || 0;
+    if(lvl >= CONFIG.CLEANING_MAX_LEVEL) return;
+    const cost = scaledUpgradeCost(CONFIG.CLEANING_BASE_COST, CONFIG.CLEANING_COST_GROWTH, lvl);
+    if(getCountryCash(state.activeCountry) < cost){ playErrorSfx(); return; }
+    if(!spendCountryCash(state.activeCountry, cost)){ playErrorSfx(); return; }
+    playBuySfx();
+    state.cleaningLevel = lvl + 1;
+    state.cleanliness = Math.min(100, (state.cleanliness || 0) + 10);
+    save(); renderKitchen(); renderStats(); checkAchievements();
+  }
+  function polishCleanliness(){
+    const missing = 100 - (state.cleanliness || 0);
+    if(missing <= 0) return;
+    const cost = Math.max(50, totalRatePerSec() * CONFIG.CLEANLINESS_REPAIR_COST_MULT * (missing / 100));
+    if(getCountryCash(state.activeCountry) < cost){ playErrorSfx(); return; }
+    if(!spendCountryCash(state.activeCountry, cost)){ playErrorSfx(); return; }
+    playBuySfx();
+    state.cleanliness = 100;
+    save(); renderKitchen(); renderStats();
+  }
+  function unlockTakeaway(){
+    if(state.serviceModes && state.serviceModes.takeaway) return;
+    const cost = CONFIG.TAKEAWAY_UNLOCK_COST * researchCostBonus();
+    if(getCountryCash(state.activeCountry) < cost){ playErrorSfx(); return; }
+    if(!spendCountryCash(state.activeCountry, cost)){ playErrorSfx(); return; }
+    playBuySfx();
+    if(!state.serviceModes) state.serviceModes = {};
+    state.serviceModes.takeaway = true;
+    save(); renderKitchen(); renderStats(); checkAchievements();
+  }
+  function unlockDriveThrough(){
+    if(state.serviceModes && state.serviceModes.driveThrough) return;
+    if(!(state.serviceModes && state.serviceModes.takeaway)){ playErrorSfx(); return; }
+    const cost = CONFIG.DRIVETHRU_UNLOCK_COST * researchCostBonus();
+    if(getCountryCash(state.activeCountry) < cost){ playErrorSfx(); return; }
+    if(!spendCountryCash(state.activeCountry, cost)){ playErrorSfx(); return; }
+    playBuySfx();
+    state.serviceModes.driveThrough = true;
+    save(); renderKitchen(); renderStats(); checkAchievements();
+  }
+  function tickCleanliness(dtSec){
+    const decay = CONFIG.CLEANLINESS_DECAY_PER_MIN * (dtSec / 60) * (1 - cleaningDecayReduction());
+    if(decay <= 0) return;
+    state.cleanliness = Math.max(0, (state.cleanliness || 0) - decay);
+  }
+
+  // ---- GDD Part 4: Staff system ----
+  function hireStaff(roleId){
+    const role = STAFF_ROLES.find(r => r.id === roleId);
+    if(!role) return;
+    if(state.staff && state.staff[roleId]) return; // already hired
+    const cost = role.hireCost * researchCostBonus();
+    if(getCountryCash(state.activeCountry) < cost){ playErrorSfx(); return; }
+    if(!spendCountryCash(state.activeCountry, cost)){ playErrorSfx(); return; }
+    playBuySfx();
+    if(!state.staff) state.staff = {};
+    state.staff[roleId] = { level: 1, xp: 0, happiness: 80, promoted: 0 };
+    // HR manager boosts everyone's happiness on hire
+    if(roleId === 'hr'){
+      Object.values(state.staff).forEach(st => { st.happiness = Math.min(100, (st.happiness||70) + 10); });
+    }
+    save(); renderKitchen(); renderStats(); checkAchievements();
+  }
+  function trainStaffRole(roleId){
+    const st = state.staff && state.staff[roleId];
+    if(!st) return;
+    if((st.level || 1) >= CONFIG.STAFF_MAX_LEVEL) return;
+    const cost = CONFIG.STAFF_TRAIN_COST_BASE * Math.pow(CONFIG.STAFF_TRAIN_COST_GROWTH, st.level || 1) * researchCostBonus();
+    if(getCountryCash(state.activeCountry) < cost){ playErrorSfx(); return; }
+    if(!spendCountryCash(state.activeCountry, cost)){ playErrorSfx(); return; }
+    playBuySfx();
+    st.level = (st.level || 1) + 1;
+    st.xp = 0;
+    if([5,10,15,20].includes(st.level)){
+      st.promoted = (st.promoted || 0) + 1;
+      st.happiness = Math.min(100, (st.happiness||70) + 15);
+    }
+    save(); renderKitchen(); renderStats(); checkAchievements();
+  }
+  function trainAcademySkill(skillId){
+    const sk = STAFF_SKILLS.find(s => s.id === skillId);
+    if(!sk) return;
+    if(!state.staffSkills) state.staffSkills = {};
+    const lvl = state.staffSkills[skillId] || 0;
+    if(lvl >= 15) return;
+    const cost = CONFIG.STAFF_TRAIN_COST_BASE * Math.pow(CONFIG.STAFF_TRAIN_COST_GROWTH, lvl) * 2 * researchCostBonus();
+    if(getCountryCash(state.activeCountry) < cost){ playErrorSfx(); return; }
+    if(!spendCountryCash(state.activeCountry, cost)){ playErrorSfx(); return; }
+    playBuySfx();
+    state.staffSkills[skillId] = lvl + 1;
+    save(); renderKitchen(); renderStats(); checkAchievements();
+  }
+  function upgradeStaffEquip(equipId){
+    const eq = STAFF_EQUIPMENT.find(e => e.id === equipId);
+    if(!eq) return;
+    if(!state.staffEquip) state.staffEquip = {};
+    const lvl = state.staffEquip[equipId] || 0;
+    if(lvl >= CONFIG.STAFF_EQUIP_MAX) return;
+    const cost = CONFIG.STAFF_EQUIP_COST_BASE * Math.pow(CONFIG.STAFF_EQUIP_COST_GROWTH, lvl) * researchCostBonus();
+    if(getCountryCash(state.activeCountry) < cost){ playErrorSfx(); return; }
+    if(!spendCountryCash(state.activeCountry, cost)){ playErrorSfx(); return; }
+    playBuySfx();
+    state.staffEquip[equipId] = lvl + 1;
+    if(equipId === 'uniforms'){
+      Object.values(state.staff || {}).forEach(st => { st.happiness = Math.min(100, (st.happiness||70) + 5); });
+    }
+    save(); renderKitchen(); renderStats(); checkAchievements();
+  }
+  function upgradeAutomation(){
+    const lvl = state.automationLevel || 0;
+    if(lvl >= CONFIG.AUTOMATION_MAX_LEVEL) return;
+    const cost = CONFIG.AUTOMATION_BASE_COST * Math.pow(CONFIG.AUTOMATION_COST_GROWTH, lvl) * researchCostBonus();
+    if(getCountryCash(state.activeCountry) < cost){ playErrorSfx(); return; }
+    if(!spendCountryCash(state.activeCountry, cost)){ playErrorSfx(); return; }
+    playBuySfx();
+    state.automationLevel = lvl + 1;
+    // Automation reduces burnout pressure
+    Object.values(state.staff || {}).forEach(st => {
+      st.happiness = Math.min(100, (st.happiness||70) + 3);
+    });
+    save(); renderKitchen(); renderStats(); checkAchievements();
+  }
+  function upgradeBreakRoom(){
+    const cost = CONFIG.BREAK_ROOM_COST * Math.pow(1.5, state.breakRoomLevel || 0) * researchCostBonus();
+    if(getCountryCash(state.activeCountry) < cost){ playErrorSfx(); return; }
+    if(!spendCountryCash(state.activeCountry, cost)){ playErrorSfx(); return; }
+    playBuySfx();
+    state.breakRoomLevel = (state.breakRoomLevel || 0) + 1;
+    Object.values(state.staff || {}).forEach(st => {
+      st.happiness = Math.min(100, (st.happiness||70) + 12);
+    });
+    save(); renderKitchen(); renderStats();
+  }
+  function rewardStaff(){
+    if(!state.staff || !Object.keys(state.staff).length) return;
+    const cost = Math.max(100, totalRatePerSec() * CONFIG.REWARD_STAFF_COST_MULT);
+    if(getCountryCash(state.activeCountry) < cost){ playErrorSfx(); return; }
+    if(!spendCountryCash(state.activeCountry, cost)){ playErrorSfx(); return; }
+    playBuySfx();
+    Object.values(state.staff).forEach(st => {
+      st.happiness = Math.min(100, (st.happiness||70) + 20);
+    });
+    save(); renderKitchen();
+  }
+  function tickStaff(dtSec){
+    if(!state.staff) return;
+    const decayBase = CONFIG.STAFF_HAPPINESS_DECAY_PER_MIN * (dtSec / 60);
+    const serviceSkill = (state.staffSkills && state.staffSkills.service) || 0;
+    const breakBonus = (state.breakRoomLevel || 0) * 0.05;
+    const autoBonus = (state.automationLevel || 0) * 0.03;
+    const decay = decayBase * Math.max(0.2, 1 - serviceSkill * 0.05 - breakBonus - autoBonus);
+    Object.values(state.staff).forEach(st => {
+      st.happiness = Math.max(0, (st.happiness == null ? 70 : st.happiness) - decay);
+      st.xp = (st.xp || 0) + CONFIG.STAFF_XP_PER_MINUTE * (dtSec / 60);
+      // Passive level-up from XP (slow)
+      const need = 10 * (st.level || 1);
+      if(st.xp >= need && (st.level || 1) < CONFIG.STAFF_MAX_LEVEL){
+        st.xp -= need;
+        st.level = (st.level || 1) + 1;
+        if([5,10,15,20].includes(st.level)) st.promoted = (st.promoted || 0) + 1;
+      }
+    });
+    // Cleaner staff slowly restores cleanliness
+    if(state.staff.cleaner){
+      state.cleanliness = Math.min(100, (state.cleanliness || 0) + 0.15 * (state.staff.cleaner.level || 1) * (dtSec / 60));
+    }
+  }
+
   function trainManager(id){
     const country = activeCountryDef();
     const def = country.businesses.find(d => d.id === id);
@@ -1261,6 +2155,8 @@
     state.prestigePoints += potential;
     state.shards += shardsGained;
     state.prestigeCount++;
+    // Research points survive prestige (GDD Research Tree)
+    state.researchPoints = (state.researchPoints || 0) + CONFIG.RESEARCH_POINT_PER_PRESTIGE * Math.max(1, Math.floor(potential));
     state.cash = 0;
     COUNTRIES.forEach(c => setCountryCash(c.id, 0));
     state.totalEarned = 0;
@@ -1270,12 +2166,14 @@
     // unlocked, only their business levels/upgrades/managers reset.
     // Umami Shards and metaUpgrades are untouched: that's the whole point of
     // the second currency, a grind that survives every retirement.
-    // Reputation, ingredients, and craft counters also persist — kitchen
-    // mastery is a long-term layer alongside shards.
+    // Reputation, ingredients, craft counters, stations, research, chefs,
+    // and Michelin stars also persist — long-term kitchen mastery layers.
     COUNTRIES.forEach(c => state.countries[c.id] = initCountryState(c));
     state.activeRecipe = null;
+    state.michelinChallenge = null;
     activeOrder = null;
     renderOrderCard();
+    unlockAvailableChefs();
     save();
     renderBusinesses(); renderWorld(); renderStats(); checkAchievements();
     if(document.getElementById('prestigePanel').classList.contains('active')){ renderPrestige(); renderPowerups(); }
@@ -1311,6 +2209,7 @@
       const bonus = totalRatePerSec() * CONFIG.MILESTONE_BONUS_SECONDS;
       addCountryCash(state.activeCountry, bonus);
       earnDiamonds(1);
+      state.researchPoints = (state.researchPoints || 0) + CONFIG.RESEARCH_POINT_PER_MILESTONE;
       addEarned(bonus);
       milestoneQueue.push({ threshold: MILESTONES[state.milestoneIdx], bonus });
     }
@@ -1450,7 +2349,7 @@
     const id = btn.dataset.id;
     const action = btn.dataset.action;
     if(action === 'buy') buyBusiness(id);
-    else if(action === 'manager') hireManager(id);
+    else if(action === 'manager') showManagerTypePicker(id);
     else if(action === 'train') trainManager(id);
     else if(action === 'upgrade') buyUpgrade(id, btn.dataset.type);
     else if(action === 'toggle'){

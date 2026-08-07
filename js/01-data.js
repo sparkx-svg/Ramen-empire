@@ -172,7 +172,80 @@
     MANAGER_LEVEL_OFFLINE_BOOST: 0.02, // +2% offline rate contribution per level (global soft)
 
     // Seasonal events
-    SEASONAL_CHALLENGE_SCALE: 2.5  // seasonal challenges are harder / richer than daily
+    SEASONAL_CHALLENGE_SCALE: 2.5,  // seasonal challenges are harder / richer than daily
+
+    // ---- GDD systems (Cooking Stations / Research / Chefs / Michelin) ----
+    STATION_BASE_COST: 500,
+    STATION_COST_GROWTH: 1.55,
+    STATION_MAX_LEVEL: 25,
+    STATION_INCOME_BOOST: 0.04,      // +4% global income per total station level
+    STATION_SPEED_BOOST: 0.02,
+
+    // ---- GDD Part 3: Recipes & Ingredients ----
+    RECIPE_MASTERY_PER_CRAFT: 1,
+    RECIPE_MASTERY_THRESHOLDS: [0, 5, 15, 40, 100], // Beginner→Skilled→Expert→Master→Legendary
+    RECIPE_MASTERY_INCOME: [0, 0.02, 0.05, 0.10, 0.18], // permanent income bonus per mastery tier
+    RECIPE_UPGRADE_MAX: 10,
+    RECIPE_UPGRADE_COST_BASE: 3,     // ingredient units spent to upgrade a recipe stat
+    STORAGE_BASE: 50,                // base ingredient stack capacity
+    STORAGE_PER_LEVEL: 25,
+    STORAGE_MAX_LEVEL: 20,
+    STORAGE_UPGRADE_COST: 5000,
+    STORAGE_COST_GROWTH: 1.55,
+    SUPPLIER_ORDER_COOLDOWN_MS: 60000,
+    INGREDIENT_QUALITY_CHANCE: 0.15, // chance a drop is upgraded quality
+
+    // ---- GDD Part 4: Staff system ----
+    STAFF_MAX_LEVEL: 20,
+    STAFF_XP_PER_MINUTE: 1,
+    STAFF_HAPPINESS_DECAY_PER_MIN: 0.4,
+    STAFF_BURNOUT_THRESHOLD: 25,
+    STAFF_SALARY_RATE: 0.008,
+    STAFF_TRAIN_COST_BASE: 2000,
+    STAFF_TRAIN_COST_GROWTH: 1.45,
+    STAFF_EQUIP_COST_BASE: 5000,
+    STAFF_EQUIP_COST_GROWTH: 1.60,
+    STAFF_EQUIP_MAX: 5,
+    AUTOMATION_BASE_COST: 1e6,
+    AUTOMATION_COST_GROWTH: 2.2,
+    AUTOMATION_MAX_LEVEL: 10,
+    AUTOMATION_INCOME_BOOST: 0.04,
+    BREAK_ROOM_COST: 25000,
+    REWARD_STAFF_COST_MULT: 30,
+
+    RESEARCH_POINT_PER_PRESTIGE: 3,
+    RESEARCH_POINT_PER_MILESTONE: 1,
+    RESEARCH_MAX_LEVEL: 15,
+    CHEF_SKILL_DURATION_MS: 30000,
+    CHEF_SKILL_COOLDOWN_MS: 180000,
+    MICHELIN_REP_REQ: 90,
+    MICHELIN_MAX_STARS: 3,
+    MICHELIN_INCOME_PER_STAR: 0.08,
+    MICHELIN_CHALLENGE_CASH_MULT: 500,
+
+    // ---- GDD Part 2: Restaurant systems ----
+    LAYOUT_BASE_COST: 2000,
+    LAYOUT_COST_GROWTH: 1.65,
+    LAYOUT_MAX_LEVEL: 20,
+    LAYOUT_INCOME_BOOST: 0.03,       // +3% income per total layout level
+    QUEUE_BASE_COST: 1500,
+    QUEUE_COST_GROWTH: 1.60,
+    QUEUE_MAX_LEVEL: 15,
+    QUEUE_INCOME_BOOST: 0.035,       // faster turnover → more income
+    DELIVERY_BASE_COST: 8000,
+    DELIVERY_COST_GROWTH: 1.70,
+    DELIVERY_MAX_LEVEL: 12,
+    DELIVERY_INCOME_PER_LEVEL: 0.06, // delivery fleet adds passive income share
+    CLEANING_BASE_COST: 1000,
+    CLEANING_COST_GROWTH: 1.50,
+    CLEANING_MAX_LEVEL: 15,
+    CLEANLINESS_DECAY_PER_MIN: 0.8,  // cleanliness points lost per minute of play
+    CLEANLINESS_REPAIR_COST_MULT: 20,
+    TAKEAWAY_UNLOCK_COST: 5e5,
+    TAKEAWAY_INCOME_BONUS: 0.12,
+    DRIVETHRU_UNLOCK_COST: 5e7,
+    DRIVETHRU_INCOME_BONUS: 0.20,
+    RATING_INCOME_PER_POINT: 0.008   // +0.8% income per rating point (0–100)
   };
 
   // Set to true only once a real rewarded-ad SDK (AdMob, etc.) is wired into
@@ -203,41 +276,187 @@
     {id:'luck',    icon:'🍀', name:"Fortune's Favor",  desc:'+1% random event chance per level',   boost:0.01, baseCost:3, costGrowth:1.50, max:8},
   ];
 
+  // GDD: Cooking Stations — independent production lines that boost the whole empire
+  const COOKING_STATIONS = [
+    {id:'noodles',  icon:'🍜', name:'Noodle Station',  desc:'Faster noodle prep · +income'},
+    {id:'broth',    icon:'🍲', name:'Broth Station',    desc:'Richer stock · +income'},
+    {id:'toppings', icon:'🥢', name:'Toppings Station', desc:'Premium garnishes · +income'},
+    {id:'drinks',   icon:'🍵', name:'Drinks Station',   desc:'Tea & soft drinks · +income'},
+    {id:'desserts', icon:'🍡', name:'Dessert Station',  desc:'Sweet finishers · +income'},
+  ];
+
+  // GDD: Manager types — chosen when hiring per-shop; each gives a different shop bonus
+  const MANAGER_TYPES = [
+    {id:'head_chef',  icon:'👨‍🍳', name:'Head Chef',       incomeMult:1.50, offlineBoost:0.00, desc:'+50% shop income'},
+    {id:'waiter',     icon:'🛎️', name:'Waiter Manager',  incomeMult:1.25, offlineBoost:0.05, desc:'+25% income, +5% offline'},
+    {id:'cashier',    icon:'💵', name:'Cashier Manager', incomeMult:1.35, offlineBoost:0.00, desc:'+35% shop income'},
+    {id:'delivery',   icon:'🛵', name:'Delivery Manager',incomeMult:1.20, offlineBoost:0.10, desc:'+20% income, +10% offline'},
+    {id:'marketing',  icon:'📢', name:'Marketing Manager',incomeMult:1.15, offlineBoost:0.00, luckBoost:0.03, desc:'+15% income, +3% event luck'},
+  ];
+
+  // GDD Part 4: Empire-wide staff roles (hired once, level up globally)
+  const STAFF_ROLES = [
+    {id:'head_chef',   icon:'👨‍🍳', name:'Head Chef',        hireCost:5000,   skill:'cooking',    incomeBoost:0.04, desc:'Leads the kitchen'},
+    {id:'asst_chef',   icon:'🔪', name:'Assistant Chef',   hireCost:2500,   skill:'cooking',    incomeBoost:0.02, desc:'Prep & plating'},
+    {id:'waiter',      icon:'🛎️', name:'Waiter',           hireCost:1500,   skill:'service',    incomeBoost:0.02, desc:'Table service'},
+    {id:'cashier',     icon:'💵', name:'Cashier',          hireCost:1200,   skill:'service',    incomeBoost:0.015,desc:'Handles the till'},
+    {id:'cleaner',     icon:'🧹', name:'Cleaner',          hireCost:1000,   skill:'service',    incomeBoost:0.01, desc:'Keeps the floor spotless'},
+    {id:'driver',      icon:'🛵', name:'Delivery Driver',  hireCost:3000,   skill:'delivery',   incomeBoost:0.025,desc:'On the road'},
+    {id:'marketing',   icon:'📢', name:'Marketing Manager',hireCost:8000,   skill:'management', incomeBoost:0.03, desc:'Brings in crowds'},
+    {id:'finance',     icon:'📊', name:'Finance Manager',  hireCost:10000,  skill:'management', incomeBoost:0.03, desc:'Optimizes margins'},
+    {id:'hr',          icon:'🤝', name:'HR Manager',       hireCost:7000,   skill:'management', incomeBoost:0.02, desc:'Keeps staff happy'},
+  ];
+
+  // Culinary Academy training tracks
+  const STAFF_SKILLS = [
+    {id:'cooking',     icon:'🍳', name:'Cooking',          desc:'+2% income per skill level'},
+    {id:'service',     icon:'😊', name:'Customer Service', desc:'+1.5% income & slower happiness decay'},
+    {id:'delivery',    icon:'🚚', name:'Delivery',         desc:'+3% offline earnings per level'},
+    {id:'management',  icon:'📋', name:'Management',       desc:'-3% salary cost per level'},
+  ];
+
+  // Staff equipment
+  const STAFF_EQUIPMENT = [
+    {id:'knives',    icon:'🔪', name:'Chef Knives',      desc:'+3% income · cooking staff', skill:'cooking'},
+    {id:'uniforms',  icon:'👔', name:'Premium Uniforms', desc:'+2% income · all staff · +happiness'},
+    {id:'scooters',  icon:'🛵', name:'Fast Scooters',    desc:'+4% offline · delivery'},
+    {id:'tools',     icon:'🛠️', name:'Pro Tools',        desc:'+3% income · all staff'},
+  ];
+
+  // GDD: Legendary Chefs — rare unlockable characters with active skills
+  const LEGENDARY_CHEFS = [
+    {id:'ichiro',   icon:'🥋', name:'Ichiro the Swift',   unlockPrestige:1,  skill:'double_profit', skillLabel:'Double profits 30s', desc:'A Tokyo street legend.'},
+    {id:'nonna',    icon:'👵', name:'Nonna Rosa',         unlockPrestige:3,  skill:'instant_cook',  skillLabel:'Instant shop levels burst', desc:'Nonna\'s secret sauce.'},
+    {id:'diego',    icon:'🔥', name:'Diego del Fuego',    unlockPrestige:5,  skill:'customer_rush', skillLabel:'Customer rush 30s', desc:'Brings the heat.'},
+    {id:'priya',    icon:'✨', name:'Priya of Spices',    unlockPrestige:8,  skill:'rep_boost',     skillLabel:'+15 reputation', desc:'Spice routes mastery.'},
+    {id:'emperor',  icon:'👑', name:'The Ramen Emperor',  unlockPrestige:15, skill:'empire_aura',   skillLabel:'+100% income 30s', desc:'The final legend.'},
+  ];
+
+  // GDD: Research Tree — permanent upgrades bought with Research Points
+  const RESEARCH_BRANCHES = [
+    {id:'cooking',    icon:'🍳', name:'Cooking',    desc:'+3% income per level',           boost:0.03, kind:'income'},
+    {id:'business',   icon:'📈', name:'Business',   desc:'-2% shop upgrade cost per level', boost:0.02, kind:'cost'},
+    {id:'marketing',  icon:'📣', name:'Marketing',  desc:'+4% tap gain per level',          boost:0.04, kind:'tap'},
+    {id:'delivery',   icon:'🚚', name:'Delivery',   desc:'+5% offline rate per level',      boost:0.05, kind:'offline'},
+    {id:'satisfaction',icon:'😊', name:'Satisfaction', desc:'+2 starting reputation per level', boost:2, kind:'rep'},
+  ];
+
+  // GDD Part 2: Restaurant Layout upgrades
+  const LAYOUT_UPGRADES = [
+    {id:'seating',   icon:'🪑', name:'More Seating',      desc:'Extra tables & chairs · capacity'},
+    {id:'kitchen',   icon:'🏠', name:'Bigger Kitchen',    desc:'More prep space · throughput'},
+    {id:'vip',       icon:'💎', name:'VIP Dining Area',   desc:'Premium seats · higher spend'},
+    {id:'lanes',     icon:'➡️', name:'Serving Lanes',     desc:'Faster service lines · speed'},
+    {id:'outdoor',   icon:'🌳', name:'Outdoor Seating',   desc:'Patio tables · capacity'},
+  ];
+
+  // GDD Part 2: Queue / service upgrades
+  const QUEUE_UPGRADES = [
+    {id:'patience',  icon:'⏳', name:'Queue Comfort',     desc:'Seats & menus in line · less walk-away'},
+    {id:'express',   icon:'⚡', name:'Express Lane',      desc:'Quick orders · faster turnover'},
+    {id:'host',      icon:'🎫', name:'Host Desk',         desc:'Smart seating · less wait'},
+    {id:'display',   icon:'📺', name:'Order Display',     desc:'Digital boards · fewer mistakes'},
+  ];
+
+  // GDD Part 2: Delivery fleet (passive income)
+  const DELIVERY_FLEET = [
+    {id:'scooter', icon:'🛵', name:'Delivery Scooters', desc:'Neighborhood deliveries'},
+    {id:'van',     icon:'🚐', name:'Delivery Vans',     desc:'Bulk lunch runs'},
+    {id:'drone',   icon:'🚁', name:'Delivery Drones',   desc:'Premium express drops'},
+  ];
+
+  // GDD Part 2: Kitchen workflow stages (maps onto stations conceptually)
+  const WORKFLOW_STAGES = [
+    {id:'order',    icon:'🧾', name:'Order Intake',   station:'noodles'},
+    {id:'noodles',  icon:'🍜', name:'Noodle Cook',    station:'noodles'},
+    {id:'broth',    icon:'🍲', name:'Broth Prep',     station:'broth'},
+    {id:'toppings', icon:'🥢', name:'Toppings',       station:'toppings'},
+    {id:'quality',  icon:'✅', name:'Quality Check',  station:'desserts'},
+    {id:'serve',    icon:'🍽️', name:'Serve',          station:'drinks'},
+  ];
+
   // Ingredients drop when you level businesses (themed by country). Used only
   // for crafting signature ramen — no other economy touchpoints.
-  const INGREDIENTS = [
-    {id:'noodles',   icon:'🍜', name:'Fresh Noodles',   country:'japan'},
-    {id:'broth',     icon:'🍲', name:'Rich Broth',      country:'japan'},
-    {id:'chashu',    icon:'🥓', name:'Chashu Pork',     country:'japan'},
-    {id:'nori',      icon:'🍙', name:'Nori Sheets',     country:'japan'},
-    {id:'dough',     icon:'🥖', name:'Pasta Dough',     country:'italy'},
-    {id:'tomato',    icon:'🍅', name:'San Marzano',     country:'italy'},
-    {id:'basil',     icon:'🌿', name:'Fresh Basil',     country:'italy'},
-    {id:'cheese',    icon:'🧀', name:'Aged Parmesan',   country:'italy'},
-    {id:'tortilla',  icon:'🌮', name:'Corn Tortilla',   country:'mexico'},
-    {id:'salsa',     icon:'🌶️', name:'Fire Salsa',      country:'mexico'},
-    {id:'avocado',   icon:'🥑', name:'Ripe Avocado',    country:'mexico'},
-    {id:'lime',      icon:'🍋', name:'Zesty Lime',      country:'mexico'},
-    {id:'spice',     icon:'🧂', name:'Garam Masala',    country:'india'},
-    {id:'naan',      icon:'🫓', name:'Warm Naan',       country:'india'},
-    {id:'paneer',    icon:'🧈', name:'Fresh Paneer',    country:'india'},
-    {id:'chai',      icon:'🍵', name:'Masala Chai',     country:'india'},
+  // Quality tiers for ingredients (GDD Part 3)
+  const INGREDIENT_QUALITIES = [
+    {id:'common',    icon:'⚪', name:'Common',    mult:1.0},
+    {id:'uncommon',  icon:'🟢', name:'Uncommon',  mult:1.15},
+    {id:'rare',      icon:'🔵', name:'Rare',      mult:1.35},
+    {id:'epic',      icon:'🟣', name:'Epic',      mult:1.60},
+    {id:'legendary', icon:'🟠', name:'Legendary', mult:2.00},
   ];
-  // Signature recipes: consume ingredients for a temporary global boost.
-  // boost: { income?: number, tap?: number, rep?: number } — additive multipliers / flat rep.
+  const RECIPE_MASTERY_NAMES = ['Beginner','Skilled','Expert','Master','Legendary'];
+
+  // Ingredients — country-themed; quality is tracked per stack in state
+  const INGREDIENTS = [
+    {id:'noodles',   icon:'🍜', name:'Fresh Noodles',   country:'japan',  category:'wheat'},
+    {id:'broth',     icon:'🍲', name:'Rich Broth',      country:'japan',  category:'base'},
+    {id:'chashu',    icon:'🥓', name:'Chashu Pork',     country:'japan',  category:'pork'},
+    {id:'nori',      icon:'🍙', name:'Nori Sheets',     country:'japan',  category:'seaweed'},
+    {id:'egg',       icon:'🥚', name:'Ajitsuke Egg',    country:'japan',  category:'eggs'},
+    {id:'mushroom',  icon:'🍄', name:'Shiitake',        country:'japan',  category:'mushrooms'},
+    {id:'dough',     icon:'🥖', name:'Pasta Dough',     country:'italy',  category:'wheat'},
+    {id:'tomato',    icon:'🍅', name:'San Marzano',     country:'italy',  category:'vegetables'},
+    {id:'basil',     icon:'🌿', name:'Fresh Basil',     country:'italy',  category:'vegetables'},
+    {id:'cheese',    icon:'🧀', name:'Aged Parmesan',   country:'italy',  category:'dairy'},
+    {id:'tortilla',  icon:'🌮', name:'Corn Tortilla',   country:'mexico', category:'wheat'},
+    {id:'salsa',     icon:'🌶️', name:'Fire Salsa',      country:'mexico', category:'vegetables'},
+    {id:'avocado',   icon:'🥑', name:'Ripe Avocado',    country:'mexico', category:'vegetables'},
+    {id:'lime',      icon:'🍋', name:'Zesty Lime',      country:'mexico', category:'vegetables'},
+    {id:'chicken',   icon:'🍗', name:'Grilled Chicken', country:'mexico', category:'chicken'},
+    {id:'spice',     icon:'🧂', name:'Garam Masala',    country:'india',  category:'spices'},
+    {id:'naan',      icon:'🫓', name:'Warm Naan',       country:'india',  category:'wheat'},
+    {id:'paneer',    icon:'🧈', name:'Fresh Paneer',    country:'india',  category:'dairy'},
+    {id:'chai',      icon:'🍵', name:'Masala Chai',     country:'india',  category:'spices'},
+    {id:'seafood',   icon:'🦐', name:'Fresh Prawns',    country:'japan',  category:'seafood'},
+    {id:'truffle',   icon:'✨', name:'Black Truffle',   country:'italy',  category:'spices', rare:true},
+    {id:'saffron',   icon:'🌺', name:'Saffron Threads', country:'india',  category:'spices', rare:true},
+  ];
+
+  // Suppliers (GDD Part 3 supply chain) — buy bulk ingredients with cash
+  const SUPPLIERS = [
+    {id:'local',    icon:'🏪', name:'Local Market',     country:null,     priceMult:1.0,  qty:3,  unlockCountries:0},
+    {id:'tokyo',    icon:'🇯🇵', name:'Tokyo Wholesaler', country:'japan',  priceMult:0.85, qty:5,  unlockCountries:1},
+    {id:'rome',     icon:'🇮🇹', name:'Roman Importer',  country:'italy',  priceMult:0.80, qty:5,  unlockCountries:2},
+    {id:'global',   icon:'🌍', name:'Global Foods Co.', country:null,     priceMult:0.70, qty:8,  unlockCountries:3},
+    {id:'premium',  icon:'💎', name:'Premium Spices',   country:null,     priceMult:1.4,  qty:2,  unlockCountries:2, rareOnly:true},
+  ];
+
+  // Signature recipes: cost, boost, rarity, unlock rules, seasonal/secret flags
+  // unlock: {country?, prestige?, michelin?, secret?, seasonal?}
   const RECIPES = [
-    {id:'tonkotsu',   icon:'🍜', name:'Signature Tonkotsu', desc:'+40% income for 90s',
-      cost:{noodles:2, broth:2, chashu:1}, boost:{income:0.40}},
-    {id:'miso_bomb',  icon:'🍥', name:'Miso Umami Bomb',   desc:'+60% tap gain for 90s',
-      cost:{noodles:1, broth:1, nori:2}, boost:{tap:0.60}},
-    {id:'carbonara',  icon:'🍝', name:'Ramen Carbonara',   desc:'+25% income & +5 rep',
-      cost:{dough:2, cheese:1, basil:1}, boost:{income:0.25, rep:5}},
-    {id:'spicy_taco', icon:'🌶️', name:'Spicy Taco Ramen',  desc:'+50% income for 90s',
-      cost:{tortilla:1, salsa:2, lime:1}, boost:{income:0.50}},
-    {id:'curry_bowl', icon:'🍛', name:'Curry Ramen Bowl',  desc:'+30% income & +20% tap',
-      cost:{spice:2, naan:1, paneer:1}, boost:{income:0.30, tap:0.20}},
-    {id:'legend',     icon:'👑', name:'Empire Special',    desc:'+75% income for 90s',
-      cost:{noodles:2, broth:1, tomato:1, salsa:1, spice:1, cheese:1}, boost:{income:0.75}},
+    {id:'tonkotsu',   icon:'🍜', name:'Signature Tonkotsu', desc:'+40% income for 90s', rarity:'common',
+      cost:{noodles:2, broth:2, chashu:1}, boost:{income:0.40}, unlock:{}},
+    {id:'miso_bomb',  icon:'🍥', name:'Miso Umami Bomb',   desc:'+60% tap gain for 90s', rarity:'common',
+      cost:{noodles:1, broth:1, nori:2}, boost:{tap:0.60}, unlock:{}},
+    {id:'egg_shoyu',  icon:'🥚', name:'Shoyu Egg Bowl',    desc:'+20% income & +10% tap', rarity:'common',
+      cost:{noodles:1, broth:1, egg:2}, boost:{income:0.20, tap:0.10}, unlock:{}},
+    {id:'carbonara',  icon:'🍝', name:'Ramen Carbonara',   desc:'+25% income & +5 rep', rarity:'uncommon',
+      cost:{dough:2, cheese:1, basil:1}, boost:{income:0.25, rep:5}, unlock:{country:'italy'}},
+    {id:'spicy_taco', icon:'🌶️', name:'Spicy Taco Ramen',  desc:'+50% income for 90s', rarity:'uncommon',
+      cost:{tortilla:1, salsa:2, lime:1}, boost:{income:0.50}, unlock:{country:'mexico'}},
+    {id:'curry_bowl', icon:'🍛', name:'Curry Ramen Bowl',  desc:'+30% income & +20% tap', rarity:'uncommon',
+      cost:{spice:2, naan:1, paneer:1}, boost:{income:0.30, tap:0.20}, unlock:{country:'india'}},
+    {id:'seafood',    icon:'🦐', name:'Seafood Deluxe',    desc:'+45% income for 90s', rarity:'rare',
+      cost:{noodles:2, seafood:2, nori:1}, boost:{income:0.45}, unlock:{country:'japan', prestige:1}},
+    {id:'truffle',    icon:'✨', name:'Truffle Ramen',     desc:'+55% income & +8 rep', rarity:'epic',
+      cost:{dough:2, truffle:1, cheese:1}, boost:{income:0.55, rep:8}, unlock:{country:'italy', prestige:3}},
+    {id:'saffron',    icon:'🌺', name:'Saffron Royal',     desc:'+65% income for 90s', rarity:'epic',
+      cost:{spice:2, saffron:1, naan:1}, boost:{income:0.65}, unlock:{country:'india', prestige:5}},
+    {id:'legend',     icon:'👑', name:'Empire Special',    desc:'+75% income for 90s', rarity:'legendary',
+      cost:{noodles:2, broth:1, tomato:1, salsa:1, spice:1, cheese:1}, boost:{income:0.75}, unlock:{prestige:2}},
+    {id:'michelin_bowl', icon:'⭐', name:'Michelin Bowl',  desc:'+90% income for 90s', rarity:'legendary',
+      cost:{noodles:3, broth:2, chashu:1, truffle:1, saffron:1}, boost:{income:0.90}, unlock:{michelin:1}},
+    // Secret
+    {id:'midnight',   icon:'🌙', name:'Midnight Ramen',    desc:'+50% income & +40% offline feel', rarity:'secret',
+      cost:{noodles:2, broth:2, mushroom:2, egg:1}, boost:{income:0.50}, unlock:{secret:true, prestige:4}},
+    // Seasonal (always craftable once seasonal skin/event seen; treated as unlocked if seasonal flag)
+    {id:'sakura_ramen', icon:'🌸', name:'Cherry Blossom Ramen', desc:'+35% income & +15% tap', rarity:'seasonal',
+      cost:{noodles:2, broth:1, nori:1, basil:1}, boost:{income:0.35, tap:0.15}, unlock:{seasonal:'sakura'}},
+    {id:'spooky_ramen', icon:'🎃', name:'Halloween Spicy Ramen', desc:'+40% income for 90s', rarity:'seasonal',
+      cost:{noodles:1, salsa:2, spice:1, egg:1}, boost:{income:0.40}, unlock:{seasonal:'halloween'}},
+    {id:'feast_ramen',  icon:'🎄', name:'Christmas Seafood Ramen', desc:'+50% income & +10 rep', rarity:'seasonal',
+      cost:{noodles:2, seafood:2, cheese:1}, boost:{income:0.50, rep:10}, unlock:{seasonal:'holiday'}},
   ];
   // Customer order templates — short timed requests the player can fulfill with a tap.
   const ORDER_TYPES = [
@@ -339,6 +558,25 @@
     {id:'story_all',   icon:'📚', name:'Full Saga',         desc:'Complete every story chapter',      reward:0.05, cond: s => STORY_CHAPTERS.every(ch => isChapterComplete(s, ch.id))},
     {id:'staff_train', icon:'🎓', name:'Staff Trainer',     desc:'Train any manager to level 5',      reward:0.03, cond: s => allBusinessStates(s).some(b => (b.managerLevel||0) >= 5)},
     {id:'staff_max',   icon:'🏅', name:'Head Chef',         desc:'Max a manager to level 10',         reward:0.04, cond: s => allBusinessStates(s).some(b => (b.managerLevel||0) >= 10)},
+    {id:'stations_5',  icon:'🏭', name:'Full Kitchen',      desc:'Reach level 5 on every cooking station', reward:0.03, cond: s => COOKING_STATIONS.every(st => (s.stations&&s.stations[st.id]||0) >= 5)},
+    {id:'research_10', icon:'🔬', name:'Lab Rat',           desc:'Spend 10 research levels total',    reward:0.03, cond: s => Object.values(s.research||{}).reduce((a,b)=>a+b,0) >= 10},
+    {id:'first_chef',  icon:'🌟', name:'Star Recruit',      desc:'Unlock a legendary chef',          reward:0.03, cond: s => Object.keys(s.chefsOwned||{}).length >= 1},
+    {id:'michelin_1',  icon:'⭐', name:'Michelin Star',     desc:'Earn your first Michelin star',    reward:0.05, cond: s => (s.michelinStars||0) >= 1},
+    {id:'michelin_3',  icon:'🌟', name:'Three Stars',       desc:'Earn all 3 Michelin stars',        reward:0.08, cond: s => (s.michelinStars||0) >= 3},
+    {id:'layout_10',   icon:'🏗️', name:'Master Builder',    desc:'Reach 10 total layout upgrade levels', reward:0.03, cond: s => Object.values(s.layout||{}).reduce((a,b)=>a+b,0) >= 10},
+    {id:'delivery_5',  icon:'🛵', name:'Fleet Commander',   desc:'Reach level 5 on any delivery vehicle', reward:0.03, cond: s => Object.values(s.delivery||{}).some(v => v >= 5)},
+    {id:'takeaway',    icon:'🥡', name:'Takeaway King',     desc:'Unlock takeaway service',          reward:0.02, cond: s => !!(s.serviceModes&&s.serviceModes.takeaway)},
+    {id:'drivethru',   icon:'🚗', name:'Drive-Thru Pro',    desc:'Unlock drive-through',             reward:0.04, cond: s => !!(s.serviceModes&&s.serviceModes.driveThrough)},
+    {id:'rating_80',   icon:'📊', name:'Highly Rated',      desc:'Reach restaurant rating 80',       reward:0.04, cond: s => (typeof restaurantRating === 'function' ? restaurantRating(s) : 0) >= 80},
+    {id:'mastery_expert', icon:'📖', name:'Recipe Expert',  desc:'Reach Expert mastery on any recipe', reward:0.03, cond: s => Object.values(s.recipeMastery||{}).some(m => (m||0) >= 15)},
+    {id:'mastery_legend', icon:'🏅', name:'Recipe Legend',  desc:'Reach Legendary mastery on any recipe', reward:0.06, cond: s => Object.values(s.recipeMastery||{}).some(m => (m||0) >= 100)},
+    {id:'secret_craft', icon:'🤫', name:'Secret Menu',     desc:'Craft a secret recipe',            reward:0.04, cond: s => !!(s.secretsCrafted&&s.secretsCrafted.midnight)},
+    {id:'storage_5',   icon:'📦', name:'Stocked Up',       desc:'Upgrade ingredient storage to level 5', reward:0.02, cond: s => (s.storageLevel||0) >= 5},
+    {id:'supplier',    icon:'🚚', name:'Supply Chain',     desc:'Place an order with any supplier',  reward:0.02, cond: s => (s.supplierOrders||0) >= 1},
+    {id:'hire_staff',  icon:'👥', name:'First Hire',       desc:'Hire your first empire staff member', reward:0.02, cond: s => Object.keys(s.staff||{}).length >= 1},
+    {id:'staff_team',  icon:'🏢', name:'Full Team',        desc:'Hire 5 different staff roles',      reward:0.04, cond: s => Object.keys(s.staff||{}).length >= 5},
+    {id:'staff_promo', icon:'🎖️', name:'Promotion',        desc:'Promote any staff member to level 10', reward:0.03, cond: s => Object.values(s.staff||{}).some(st => (st.level||0) >= 10)},
+    {id:'automation',  icon:'🤖', name:'Fully Automated',  desc:'Reach automation level 3',           reward:0.05, cond: s => (s.automationLevel||0) >= 3},
   ];
   // Cash-earned thresholds that trigger a celebratory milestone popup (confetti
   // + chime + a small bonus). Independent of ACHIEVEMENTS above: these are

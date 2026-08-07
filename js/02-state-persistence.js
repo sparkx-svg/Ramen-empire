@@ -51,7 +51,38 @@
     // Social (v1.8)
     guildId: null,        // Firestore guild doc id, if joined
     guildName: null,
-    gifts: { lastGiftDate: null, giftedToday: {}, pendingClaimed: {} }
+    gifts: { lastGiftDate: null, giftedToday: {}, pendingClaimed: {} },
+    // GDD systems (v2.0)
+    stations: {},
+    research: {},
+    researchPoints: 0,
+    chefsOwned: {},
+    equippedChef: null,
+    chefSkillEndsAt: 0,
+    chefSkillCooldownUntil: 0,
+    michelinStars: 0,
+    michelinChallenge: null,
+    // GDD Part 2: Restaurant systems
+    layout: {},
+    queue: {},
+    delivery: {},
+    serviceModes: { takeaway: false, driveThrough: false },
+    cleaningLevel: 0,
+    cleanliness: 80,
+    // GDD Part 3: Recipes & ingredients
+    recipeMastery: {},
+    recipeUpgrades: {},
+    storageLevel: 0,
+    ingredientQuality: {},
+    supplierCooldownUntil: 0,
+    supplierOrders: 0,
+    secretsCrafted: {},
+    // GDD Part 4: Staff
+    staff: {},
+    staffSkills: {},
+    staffEquip: {},
+    automationLevel: 0,
+    breakRoomLevel: 0
   };
 
   // Every source of cash gain (tap, tick, offline, milestone, challenge/daily
@@ -61,9 +92,10 @@
   function addEarned(amount){
     state.totalEarned += amount;
     state.weeklyEarned = (state.weeklyEarned || 0) + amount;
+    if(typeof tickMichelinChallenge === 'function') tickMichelinChallenge(amount);
   }
 
-  function freshBusiness(){ return {level:0, manager:false, managerLevel:0, speed:0, capacity:0, quality:0}; }
+  function freshBusiness(){ return {level:0, manager:false, managerLevel:0, managerType:null, speed:0, capacity:0, quality:0}; }
   function initCountryState(country){
     const obj = {};
     country.businesses.forEach(b => obj[b.id] = freshBusiness());
@@ -293,13 +325,51 @@
       seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
       guildId: null,
       guildName: null,
-      gifts: { lastGiftDate: null, giftedToday: {}, pendingClaimed: {} }
+      gifts: { lastGiftDate: null, giftedToday: {}, pendingClaimed: {} },
+      // GDD systems
+      stations: {},           // stationId -> level
+      research: {},           // branchId -> level
+      researchPoints: 0,
+      chefsOwned: {},         // chefId -> true
+      equippedChef: null,
+      chefSkillEndsAt: 0,
+      chefSkillCooldownUntil: 0,
+      michelinStars: 0,
+      michelinChallenge: null, // {startedAt, targetCash, earned} while active
+      // GDD Part 2
+      layout: {},
+      queue: {},
+      delivery: {},
+      serviceModes: { takeaway: false, driveThrough: false },
+      cleaningLevel: 0,
+      cleanliness: 80,
+      // GDD Part 3
+      recipeMastery: {},
+      recipeUpgrades: {},
+      storageLevel: 0,
+      ingredientQuality: {},
+      supplierCooldownUntil: 0,
+      supplierOrders: 0,
+      secretsCrafted: {},
+      // GDD Part 4
+      staff: {},
+      staffSkills: {},
+      staffEquip: {},
+      automationLevel: 0,
+      breakRoomLevel: 0
     };
     COUNTRIES.forEach(c => {
       s.countries[c.id] = initCountryState(c);
       s.countryCash[c.id] = 0;
     });
     META_UPGRADES.forEach(m => { s.metaUpgrades[m.id] = 0; });
+    COOKING_STATIONS.forEach(st => { s.stations[st.id] = 0; });
+    RESEARCH_BRANCHES.forEach(br => { s.research[br.id] = 0; });
+    LAYOUT_UPGRADES.forEach(u => { s.layout[u.id] = 0; });
+    QUEUE_UPGRADES.forEach(u => { s.queue[u.id] = 0; });
+    DELIVERY_FLEET.forEach(u => { s.delivery[u.id] = 0; });
+    STAFF_SKILLS.forEach(sk => { s.staffSkills[sk.id] = 0; });
+    STAFF_EQUIPMENT.forEach(eq => { s.staffEquip[eq.id] = 0; });
     return s;
   }
 
@@ -327,6 +397,7 @@
         if(biz.capacity === undefined) biz.capacity = 0;
         if(biz.quality === undefined) biz.quality = 0;
         if(biz.managerLevel === undefined) biz.managerLevel = biz.manager ? 1 : 0;
+        if(biz.managerType === undefined) biz.managerType = biz.manager ? 'head_chef' : null;
       });
     });
     if(typeof loaded.cash === 'number' && loaded.cash > 0 && !loaded.countryCash){
@@ -371,6 +442,43 @@
     if(!state.gifts) state.gifts = { lastGiftDate: null, giftedToday: {}, pendingClaimed: {} };
     if(!state.gifts.giftedToday) state.gifts.giftedToday = {};
     if(!state.gifts.pendingClaimed) state.gifts.pendingClaimed = {};
+    // GDD systems
+    if(!state.stations) state.stations = {};
+    COOKING_STATIONS.forEach(st => { if(state.stations[st.id] === undefined) state.stations[st.id] = 0; });
+    if(!state.research) state.research = {};
+    RESEARCH_BRANCHES.forEach(br => { if(state.research[br.id] === undefined) state.research[br.id] = 0; });
+    if(state.researchPoints === undefined) state.researchPoints = 0;
+    if(!state.chefsOwned) state.chefsOwned = {};
+    if(state.equippedChef === undefined) state.equippedChef = null;
+    if(state.chefSkillEndsAt === undefined) state.chefSkillEndsAt = 0;
+    if(state.chefSkillCooldownUntil === undefined) state.chefSkillCooldownUntil = 0;
+    if(state.michelinStars === undefined) state.michelinStars = 0;
+    if(state.michelinChallenge === undefined) state.michelinChallenge = null;
+    if(!state.layout) state.layout = {};
+    LAYOUT_UPGRADES.forEach(u => { if(state.layout[u.id] === undefined) state.layout[u.id] = 0; });
+    if(!state.queue) state.queue = {};
+    QUEUE_UPGRADES.forEach(u => { if(state.queue[u.id] === undefined) state.queue[u.id] = 0; });
+    if(!state.delivery) state.delivery = {};
+    DELIVERY_FLEET.forEach(u => { if(state.delivery[u.id] === undefined) state.delivery[u.id] = 0; });
+    if(!state.serviceModes) state.serviceModes = { takeaway: false, driveThrough: false };
+    if(state.serviceModes.takeaway === undefined) state.serviceModes.takeaway = false;
+    if(state.serviceModes.driveThrough === undefined) state.serviceModes.driveThrough = false;
+    if(state.cleaningLevel === undefined) state.cleaningLevel = 0;
+    if(state.cleanliness === undefined) state.cleanliness = 80;
+    if(!state.recipeMastery) state.recipeMastery = {};
+    if(!state.recipeUpgrades) state.recipeUpgrades = {};
+    if(state.storageLevel === undefined) state.storageLevel = 0;
+    if(!state.ingredientQuality) state.ingredientQuality = {};
+    if(state.supplierCooldownUntil === undefined) state.supplierCooldownUntil = 0;
+    if(state.supplierOrders === undefined) state.supplierOrders = 0;
+    if(!state.secretsCrafted) state.secretsCrafted = {};
+    if(!state.staff) state.staff = {};
+    if(!state.staffSkills) state.staffSkills = {};
+    STAFF_SKILLS.forEach(sk => { if(state.staffSkills[sk.id] === undefined) state.staffSkills[sk.id] = 0; });
+    if(!state.staffEquip) state.staffEquip = {};
+    STAFF_EQUIPMENT.forEach(eq => { if(state.staffEquip[eq.id] === undefined) state.staffEquip[eq.id] = 0; });
+    if(state.automationLevel === undefined) state.automationLevel = 0;
+    if(state.breakRoomLevel === undefined) state.breakRoomLevel = 0;
   }
 
   function clearRuntimeSession(){

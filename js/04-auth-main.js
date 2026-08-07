@@ -1279,10 +1279,34 @@
     const dot = document.getElementById('moreDot');
     if(dot) dot.classList.toggle('show', achOn || collOn);
   }
-  // Kitchen craft buttons (delegated — panel is rebuilt on each open)
+  // Kitchen panel actions (delegated — panel is rebuilt on each open)
   document.getElementById('kitchenPanel').addEventListener('click', e => {
-    const btn = e.target.closest('[data-action="craft"]');
-    if(btn) craftRecipe(btn.dataset.id);
+    const btn = e.target.closest('[data-action]');
+    if(!btn) return;
+    const action = btn.dataset.action;
+    if(action === 'craft') craftRecipe(btn.dataset.id);
+    else if(action === 'station') upgradeStation(btn.dataset.id);
+    else if(action === 'research') buyResearch(btn.dataset.id);
+    else if(action === 'equip-chef') equipChef(btn.dataset.id);
+    else if(action === 'chef-skill') activateChefSkill();
+    else if(action === 'michelin-start') startMichelinChallenge();
+    else if(action === 'layout') upgradeLayout(btn.dataset.id);
+    else if(action === 'queue') upgradeQueue(btn.dataset.id);
+    else if(action === 'delivery') upgradeDelivery(btn.dataset.id);
+    else if(action === 'upgrade-cleaning') upgradeCleaning();
+    else if(action === 'polish-clean') polishCleanliness();
+    else if(action === 'unlock-takeaway') unlockTakeaway();
+    else if(action === 'unlock-drivethru') unlockDriveThrough();
+    else if(action === 'upgrade-storage') upgradeStorage();
+    else if(action === 'supplier') orderFromSupplier(btn.dataset.id);
+    else if(action === 'recipe-upgrade') upgradeRecipeStat(btn.dataset.id, btn.dataset.stat);
+    else if(action === 'hire-staff') hireStaff(btn.dataset.id);
+    else if(action === 'train-staff') trainStaffRole(btn.dataset.id);
+    else if(action === 'academy') trainAcademySkill(btn.dataset.id);
+    else if(action === 'staff-equip') upgradeStaffEquip(btn.dataset.id);
+    else if(action === 'automation') upgradeAutomation();
+    else if(action === 'break-room') upgradeBreakRoom();
+    else if(action === 'reward-staff') rewardStaff();
   });
   // Order card fulfill button
   const fulfillBtn = document.getElementById('orderFulfillBtn');
@@ -1307,7 +1331,18 @@
     if(elapsedSec < CONFIG.OFFLINE_MIN_SEC) return false;
     const rate = totalRatePerSec();
     if(rate <= 0) return false;
-    pendingOfflineGain = rate * elapsedSec * CONFIG.OFFLINE_EARN_MULT * (1 + metaBonus('offline') + totalManagerOfflineBoost()) * powerupMult('offline');
+    // Manager-type offline boosts (delivery/waiter) + research delivery branch
+    let typeOffline = 0;
+    allBusinessStates(state).forEach(b => {
+      if(!b.manager) return;
+      const t = MANAGER_TYPES.find(x => x.id === b.managerType);
+      if(t && t.offlineBoost) typeOffline += t.offlineBoost;
+    });
+    pendingOfflineGain = rate * elapsedSec * CONFIG.OFFLINE_EARN_MULT
+      * (1 + metaBonus('offline') + totalManagerOfflineBoost() + typeOffline)
+      * powerupMult('offline')
+      * researchOfflineBonus()
+      * (typeof staffOfflineBonus === 'function' ? staffOfflineBonus() : 1);
     if(pendingOfflineGain < CONFIG.OFFLINE_MIN_GAIN) return false;
     document.getElementById('offlineText').textContent =
       `While you were away for ${Math.round(elapsedSec/60)} min, your shops earned ${fmt(pendingOfflineGain)}.`;
@@ -1389,7 +1424,18 @@
     requestAnimationFrame(tick);
   }
 
-  setInterval(() => { refreshBusinessAffordability(); checkAchievements(); checkMilestones(); checkCollectionNotif(); ensureChallenges(); ensureWeeklyPeriod(); }, CONFIG.AFFORDABILITY_REFRESH_MS);
+  setInterval(() => {
+    refreshBusinessAffordability();
+    checkAchievements();
+    checkMilestones();
+    checkCollectionNotif();
+    ensureChallenges();
+    ensureWeeklyPeriod();
+    // Cleanliness slowly decays while the game is open (GDD cleaning system)
+    if(typeof tickCleanliness === 'function') tickCleanliness(CONFIG.AFFORDABILITY_REFRESH_MS / 1000);
+    // Staff XP, happiness decay, cleaner passive
+    if(typeof tickStaff === 'function') tickStaff(CONFIG.AFFORDABILITY_REFRESH_MS / 1000);
+  }, CONFIG.AFFORDABILITY_REFRESH_MS);
   setInterval(save, CONFIG.AUTOSAVE_INTERVAL_MS);
 
   // ---------- init ----------
