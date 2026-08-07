@@ -1281,6 +1281,8 @@
   }
   // Kitchen panel actions (delegated — panel is rebuilt on each open)
   document.getElementById('kitchenPanel').addEventListener('click', e => {
+    const tabBtn = e.target.closest('[data-kitchen-tab]');
+    if(tabBtn){ setKitchenTab(tabBtn.dataset.kitchenTab); return; }
     const btn = e.target.closest('[data-action]');
     if(!btn) return;
     const action = btn.dataset.action;
