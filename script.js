@@ -149,6 +149,14 @@
     REP_INCOME_MIN: 0.55,
     REP_INCOME_MAX: 1.45,
 
+    // GDD Part 6 — Economy
+    MENU_PRICE_MIN: 0.6,
+    MENU_PRICE_MAX: 1.8,
+    MENU_PRICE_DEFAULT: 1.0,
+    MENU_PRICE_STEP: 0.1,
+    WHEEL_FREE_SPINS_PER_DAY: 1,
+    WHEEL_EXTRA_SPIN_DIAMOND_COST: 8,
+
     // Customer orders (active-play requests near the bowl)
     ORDER_CHECK_INTERVAL_MS: 20000,
     ORDER_TRIGGER_CHANCE: 0.32,
@@ -607,6 +615,10 @@
     {id:'staff_team',  icon:'🏢', name:'Full Team',        desc:'Hire 5 different staff roles',      reward:0.04, cond: s => Object.keys(s.staff||{}).length >= 5},
     {id:'staff_promo', icon:'🎖️', name:'Promotion',        desc:'Promote any staff member to level 10', reward:0.03, cond: s => Object.values(s.staff||{}).some(st => (st.level||0) >= 10)},
     {id:'automation',  icon:'🤖', name:'Fully Automated',  desc:'Reach automation level 3',           reward:0.05, cond: s => (s.automationLevel||0) >= 3},
+    {id:'wheel_spin',  icon:'🎡', name:'Feeling Lucky',    desc:'Spin the Lucky Wheel once',         reward:0.02, cond: s => (s.wheelSpins||0) >= 1},
+    {id:'wheel_10',    icon:'🎰', name:'High Roller',      desc:'Spin the Lucky Wheel 10 times',     reward:0.04, cond: s => (s.wheelSpins||0) >= 10},
+    {id:'price_high',  icon:'📈', name:'Premium Menu',     desc:'Set menu price to 1.5× or higher',   reward:0.02, cond: s => (s.menuPrice||1) >= 1.5},
+
   ];
   // Cash-earned thresholds that trigger a celebratory milestone popup (confetti
   // + chime + a small bonus). Independent of ACHIEVEMENTS above: these are
@@ -689,6 +701,11 @@
     reviewsPositive: 0,
     reviewsTotal: 0,
     customerTypeStats: {},    // customerTypeId -> {served, missed}
+    // GDD Part 6 — Economy
+    menuPrice: 1.0,           // dynamic pricing multiplier (0.6–1.8)
+    wheelSpins: 0,            // lifetime spins
+    wheelLastFreeDate: null,  // YYYY-MM-DD of last free spin
+    wheelExtraSpins: 0,       // paid extras remaining today
     // Story / seasonal / staff (v1.7)
     storyClaimed: {},     // questId -> true once reward claimed
     seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
@@ -795,7 +812,7 @@
     return totalCash() >= cost;
   }
 
-  // ---------- powerups (bought with global diamonds) ----------
+  // ---------- powerups / boosters (bought with global diamonds) — GDD Part 6 ----------
   const POWERUPS = [
     {id:'double_income', icon:'💰', name:'Double Income',   desc:'2× passive income for 10 min', durationMs:10*60*1000, cost:25, effect:'income', mult:2},
     {id:'tap_frenzy',    icon:'👆', name:'Tap Frenzy',      desc:'5× tap gain for 5 min',         durationMs:5*60*1000,  cost:20, effect:'tap',    mult:5},
@@ -803,6 +820,24 @@
     {id:'lucky_charm',   icon:'🍀', name:'Lucky Charm',     desc:'+25% event chance for 15 min',  durationMs:15*60*1000, cost:15, effect:'luck',   mult:0.25},
     {id:'cash_burst',    icon:'💥', name:'Cash Burst',      desc:'Instant 60s of active-country income', durationMs:0, cost:18, effect:'burst', mult:60},
     {id:'rep_boost',     icon:'⭐', name:'Star Chef',       desc:'+20 reputation instantly',      durationMs:0, cost:12, effect:'rep', mult:20},
+    // New boosters (GDD Part 6)
+    {id:'rush_hour',     icon:'🚦', name:'Rush Hour',       desc:'+50% customer traffic for 12 min', durationMs:12*60*1000, cost:22, effect:'traffic', mult:1.5},
+    {id:'fast_delivery', icon:'🛵', name:'Express Fleet',   desc:'2× delivery income for 15 min',  durationMs:15*60*1000, cost:20, effect:'delivery', mult:2},
+    {id:'instant_cook',  icon:'⚡', name:'Instant Cook',    desc:'Instant 90s of income + free order fill', durationMs:0, cost:28, effect:'instant_cook', mult:90},
+    {id:'triple_income', icon:'🏆', name:'Golden Hour',     desc:'3× passive income for 5 min',    durationMs:5*60*1000,  cost:45, effect:'income', mult:3},
+  ];
+
+  // Lucky Wheel prize table (weighted). kind: cashSec | diamonds | research | ingredient | booster | loyalty
+  const WHEEL_PRIZES = [
+    {id:'cash_s',   icon:'💴', label:'Cash pile',       weight:22, kind:'cashSec',   amount:45},
+    {id:'cash_m',   icon:'💰', label:'Big cash',        weight:14, kind:'cashSec',   amount:120},
+    {id:'cash_l',   icon:'🤑', label:'Jackpot cash',    weight:4,  kind:'cashSec',   amount:300},
+    {id:'gem_1',    icon:'💎', label:'1 Diamond',       weight:16, kind:'diamonds',  amount:1},
+    {id:'gem_3',    icon:'💎', label:'3 Diamonds',      weight:6,  kind:'diamonds',  amount:3},
+    {id:'rp',       icon:'🔬', label:'Research Points', weight:12, kind:'research',  amount:2},
+    {id:'ing',      icon:'🧅', label:'Rare ingredients',weight:10, kind:'ingredient',amount:3},
+    {id:'boost',    icon:'⚡', label:'Free booster',    weight:8,  kind:'booster',   amount:1},
+    {id:'loyalty',  icon:'❤️', label:'Loyalty points',  weight:8,  kind:'loyalty',   amount:5},
   ];
   function powerupActive(id){
     const ends = state.activePowerups && state.activePowerups[id];
@@ -822,6 +857,13 @@
     });
     return b;
   }
+  function powerupTrafficMult(){
+    let m = 1;
+    POWERUPS.forEach(p => {
+      if(p.effect === 'traffic' && powerupActive(p.id)) m *= p.mult;
+    });
+    return m;
+  }
   function buyPowerup(id){
     const def = POWERUPS.find(p => p.id === id);
     if(!def) return;
@@ -829,11 +871,14 @@
     if(def.durationMs > 0 && powerupActive(id)){ playErrorSfx(); return; } // already active
     state.diamonds -= def.cost;
     playBuySfx();
-    if(def.effect === 'burst'){
+    if(def.effect === 'burst' || def.effect === 'instant_cook'){
       const gain = Math.max(1, countryRatePerSec(activeCountryDef()) * globalMultiplier() * eventMultiplier() * def.mult);
       addCountryCash(state.activeCountry, gain);
       addEarned(gain);
       spawnFloatingGain(gain);
+      if(def.effect === 'instant_cook' && typeof activeOrder !== 'undefined' && activeOrder && typeof fulfillOrder === 'function'){
+        fulfillOrder();
+      }
     } else if(def.effect === 'rep'){
       adjustReputation(def.mult);
     } else {
@@ -841,6 +886,7 @@
       state.activePowerups[id] = Date.now() + def.durationMs;
     }
     save(); renderStats(); renderPowerups();
+    if(typeof renderEconomy === 'function') renderEconomy();
   }
   function earnDiamonds(n){
     if(n <= 0) return;
@@ -973,6 +1019,10 @@
       reviewsPositive: 0,
       reviewsTotal: 0,
       customerTypeStats: {},
+      menuPrice: CONFIG.MENU_PRICE_DEFAULT || 1.0,
+      wheelSpins: 0,
+      wheelLastFreeDate: null,
+      wheelExtraSpins: 0,
       storyClaimed: {},
       seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
       guildId: null,
@@ -1090,6 +1140,10 @@
     if(state.reviewsPositive === undefined) state.reviewsPositive = 0;
     if(state.reviewsTotal === undefined) state.reviewsTotal = 0;
     if(!state.customerTypeStats) state.customerTypeStats = {};
+    if(state.menuPrice === undefined) state.menuPrice = CONFIG.MENU_PRICE_DEFAULT || 1.0;
+    if(state.wheelSpins === undefined) state.wheelSpins = 0;
+    if(state.wheelLastFreeDate === undefined) state.wheelLastFreeDate = null;
+    if(state.wheelExtraSpins === undefined) state.wheelExtraSpins = 0;
     if(state.tapFxEnabled === undefined) state.tapFxEnabled = true;
     if(state.musicEnabled === undefined) state.musicEnabled = true;
     if(state.sfxEnabled === undefined) state.sfxEnabled = true;
@@ -1477,7 +1531,17 @@
     return 1 + sumLevels(state.queue) * CONFIG.QUEUE_INCOME_BOOST;
   }
   function deliveryIncomeBonus(){
-    return 1 + sumLevels(state.delivery) * CONFIG.DELIVERY_INCOME_PER_LEVEL;
+    return (1 + sumLevels(state.delivery) * CONFIG.DELIVERY_INCOME_PER_LEVEL) * powerupMult('delivery');
+  }
+  function menuPriceMult(){
+    const p = state.menuPrice == null ? (CONFIG.MENU_PRICE_DEFAULT || 1) : state.menuPrice;
+    return Math.max(CONFIG.MENU_PRICE_MIN || 0.6, Math.min(CONFIG.MENU_PRICE_MAX || 1.8, p));
+  }
+  // Higher prices → fewer orders; lower prices → more traffic
+  function menuPriceTrafficMult(){
+    const p = menuPriceMult();
+    // at 0.6 → ~1.35 traffic, at 1.0 → 1.0, at 1.8 → ~0.55
+    return Math.max(0.4, 1.55 - p * 0.55);
   }
   function serviceModeBonus(){
     let m = 1;
@@ -1529,7 +1593,8 @@
       * (1 + masteryIncomeBonus())
       * staffIncomeBonus()
       * automationBonus()
-      * staffEquipBonus();
+      * staffEquipBonus()
+      * menuPriceMult();
   }
   function staffIncomeBonus(){
     let mult = 1;
@@ -1681,10 +1746,13 @@
     const seconds = 20 + Math.min(streakDay, 30) * 8; // grows with streak, caps around day 30
     let cash = rate * seconds;
     let miso = 0;
-    if(streakDay % 30 === 0) miso = 3;
-    else if(streakDay % 7 === 0) miso = 1;
-    else if(streakDay % 3 === 0) cash *= 1.5;
-    return { cash, miso };
+    let research = 0;
+    let diamonds = 0;
+    if(streakDay % 30 === 0){ miso = 3; research = 5; diamonds = 5; }
+    else if(streakDay % 7 === 0){ miso = 1; research = 2; diamonds = 3; }
+    else if(streakDay % 3 === 0){ cash *= 1.5; research = 1; }
+    else if(streakDay % 5 === 0) research = 1;
+    return { cash, miso, research, diamonds };
   }
   // Returns true if today's reward hasn't been claimed yet (and updates the
   // streak count), so the caller knows whether to show the modal.
@@ -1704,7 +1772,9 @@
   function showDailyStreakModal(){
     document.getElementById('dailyStreakSubtitle').textContent = `Streak day ${state.daily.streak}`;
     let text = fmt(pendingDailyReward.cash);
-    if(pendingDailyReward.miso > 0) text += ` + ${pendingDailyReward.miso} Miso Point${pendingDailyReward.miso > 1 ? 's' : ''}`;
+    if(pendingDailyReward.miso > 0) text += ` + ${pendingDailyReward.miso} Miso`;
+    if(pendingDailyReward.research > 0) text += ` + ${pendingDailyReward.research} 🔬`;
+    if(pendingDailyReward.diamonds > 0) text += ` + ${pendingDailyReward.diamonds} 💎`;
     document.getElementById('dailyStreakReward').textContent = '+' + text;
     openModal(document.getElementById('dailyStreakModal'));
   }
@@ -1717,9 +1787,14 @@
     if(!pendingDailyReward) return;
     addCountryCash(state.activeCountry, pendingDailyReward.cash);
     addEarned(pendingDailyReward.cash);
-    state.prestigePoints += pendingDailyReward.miso;
-    if(state.daily.streak % 7 === 0) earnDiamonds(3);
-    else if(state.daily.streak % 3 === 0) earnDiamonds(1);
+    state.prestigePoints += pendingDailyReward.miso || 0;
+    if(pendingDailyReward.research) state.researchPoints = (state.researchPoints || 0) + pendingDailyReward.research;
+    if(pendingDailyReward.diamonds) earnDiamonds(pendingDailyReward.diamonds);
+    // Legacy diamond bonuses kept for non-milestone days
+    if(!pendingDailyReward.diamonds){
+      if(state.daily.streak % 7 === 0) earnDiamonds(3);
+      else if(state.daily.streak % 3 === 0) earnDiamonds(1);
+    }
     pendingDailyReward = null;
     closeModal(document.getElementById('dailyStreakModal'));
     save(); renderStats(); checkMilestones();
@@ -2045,10 +2120,11 @@
     if(Date.now() < nextOrderCheck) return;
     nextOrderCheck = Date.now() + CONFIG.ORDER_CHECK_INTERVAL_MS;
 
-    // Satisfaction slightly affects spawn chance (happy customers = more traffic)
+    // Satisfaction, menu price, and traffic boosters affect spawn chance
     const sat = (state.satisfaction || CONFIG.SATISFACTION_START) / 100;
-    const chance = (CONFIG.ORDER_TRIGGER_CHANCE || 0.28) * (0.75 + sat * 0.5);
-    if(Math.random() >= chance) return;
+    const traffic = (typeof powerupTrafficMult === 'function' ? powerupTrafficMult() : 1) * menuPriceTrafficMult();
+    const chance = (CONFIG.ORDER_TRIGGER_CHANCE || 0.28) * (0.75 + sat * 0.5) * traffic;
+    if(Math.random() >= Math.min(0.85, chance)) return;
 
     const def = pickCustomerType();
     if(!def) return;
@@ -2234,6 +2310,216 @@
       fill.classList.toggle('patience-mid', pct >= 30 && pct < 55);
     }
     if(remain <= 0) missOrder();
+  }
+
+  // ---------- GDD Part 6: Lucky Wheel + Dynamic Pricing + Economy panel ----------
+  function wheelFreeAvailable(){
+    return state.wheelLastFreeDate !== todayKey();
+  }
+  function wheelSpinsLeft(){
+    let n = 0;
+    if(wheelFreeAvailable()) n += CONFIG.WHEEL_FREE_SPINS_PER_DAY || 1;
+    n += state.wheelExtraSpins || 0;
+    return n;
+  }
+  function pickWheelPrize(){
+    const total = WHEEL_PRIZES.reduce((s, p) => s + p.weight, 0);
+    let roll = Math.random() * total;
+    for(const p of WHEEL_PRIZES){
+      roll -= p.weight;
+      if(roll <= 0) return p;
+    }
+    return WHEEL_PRIZES[0];
+  }
+  function grantWheelPrize(prize){
+    const rate = Math.max(totalRatePerSec(), 1);
+    let msg = prize.label;
+    if(prize.kind === 'cashSec'){
+      const gain = rate * prize.amount;
+      addCountryCash(state.activeCountry, gain);
+      addEarned(gain);
+      spawnFloatingGain(gain);
+      msg = `+${fmt(gain)} cash`;
+    } else if(prize.kind === 'diamonds'){
+      earnDiamonds(prize.amount);
+      msg = `+${prize.amount} 💎`;
+    } else if(prize.kind === 'research'){
+      state.researchPoints = (state.researchPoints || 0) + prize.amount;
+      msg = `+${prize.amount} 🔬 Research`;
+    } else if(prize.kind === 'ingredient'){
+      const ids = Object.keys(typeof INGREDIENTS !== 'undefined' ? INGREDIENTS : {}).length
+        ? Object.keys(INGREDIENTS)
+        : ['noodles','broth','egg','nori','spice'];
+      // Prefer common ingredient ids used in the game
+      const pool = ['noodles','broth','egg','nori','spice','mushroom','basil','seafood'].filter(id => true);
+      for(let i = 0; i < prize.amount; i++){
+        const id = pool[Math.floor(Math.random() * pool.length)];
+        if(typeof addIngredient === 'function') addIngredient(id, 1);
+      }
+      msg = `+${prize.amount} ingredients`;
+    } else if(prize.kind === 'booster'){
+      // Grant a short free double-income boost
+      if(!state.activePowerups) state.activePowerups = {};
+      const ends = Date.now() + 5 * 60 * 1000;
+      state.activePowerups.double_income = Math.max(state.activePowerups.double_income || 0, ends);
+      msg = 'Free 5 min Double Income!';
+    } else if(prize.kind === 'loyalty'){
+      state.loyaltyPoints = (state.loyaltyPoints || 0) + prize.amount;
+      msg = `+${prize.amount} ❤️ Loyalty`;
+    }
+    return msg;
+  }
+  function spinLuckyWheel(paid){
+    if(paid){
+      const cost = CONFIG.WHEEL_EXTRA_SPIN_DIAMOND_COST || 8;
+      if((state.diamonds || 0) < cost){ playErrorSfx(); return null; }
+      state.diamonds -= cost;
+    } else {
+      if(!wheelFreeAvailable() && !(state.wheelExtraSpins > 0)){ playErrorSfx(); return null; }
+      if(wheelFreeAvailable()){
+        state.wheelLastFreeDate = todayKey();
+      } else {
+        state.wheelExtraSpins = Math.max(0, (state.wheelExtraSpins || 0) - 1);
+      }
+    }
+    const prize = pickWheelPrize();
+    const msg = grantWheelPrize(prize);
+    state.wheelSpins = (state.wheelSpins || 0) + 1;
+    playBuySfx();
+    save();
+    renderStats();
+    renderEconomy();
+    renderPowerups();
+    checkAchievements();
+    return { prize, msg };
+  }
+  function setMenuPrice(val){
+    const step = CONFIG.MENU_PRICE_STEP || 0.1;
+    const min = CONFIG.MENU_PRICE_MIN || 0.6;
+    const max = CONFIG.MENU_PRICE_MAX || 1.8;
+    let p = Math.round(val / step) * step;
+    p = Math.max(min, Math.min(max, p));
+    state.menuPrice = Math.round(p * 10) / 10;
+    // Soft satisfaction nudge when changing price
+    if(state.menuPrice >= 1.4) adjustSatisfaction(-0.5);
+    else if(state.menuPrice <= 0.8) adjustSatisfaction(0.3);
+    save();
+    renderStats();
+    renderEconomy();
+    checkAchievements();
+  }
+  function renderEconomy(){
+    const panel = document.getElementById('economyPanel');
+    if(!panel || !panel.classList.contains('active')) return;
+    const price = menuPriceMult();
+    const traffic = menuPriceTrafficMult();
+    const trafficBoost = typeof powerupTrafficMult === 'function' ? powerupTrafficMult() : 1;
+    let html = '';
+
+    // Currencies overview
+    html += `<div class="chal-section-label">Currencies</div>`;
+    html += `<div class="rep-panel-card">
+      <div style="display:flex; flex-wrap:wrap; gap:10px 16px; font-size:12.5px;">
+        <span>💴 Cash <b>${fmt(getCountryCash(state.activeCountry))}</b></span>
+        <span>💎 Diamonds <b>${Math.floor(state.diamonds||0)}</b></span>
+        <span>🔬 Research <b>${Math.floor(state.researchPoints||0)}</b></span>
+        <span>⭐ Miso <b>${Math.floor(state.prestigePoints||0)}</b></span>
+        <span>❤️ Loyalty <b>${Math.floor(state.loyaltyPoints||0)}</b></span>
+      </div>
+      <p class="rep-hint">Cash upgrades shops. Diamonds buy boosters. Research unlocks permanent tree. Miso is prestige. Loyalty boosts order rewards.</p>
+    </div>`;
+
+    // Dynamic pricing
+    html += `<div class="chal-section-label" style="margin-top:16px;">Menu Pricing</div>`;
+    html += `<div class="rep-panel-card">
+      <div class="rep-panel-top">
+        <span class="rep-panel-score">${price.toFixed(1)}×</span>
+        <span class="rep-panel-mult">Income ×${price.toFixed(2)} · Traffic ×${traffic.toFixed(2)}</span>
+      </div>
+      <input type="range" id="menuPriceSlider" min="${CONFIG.MENU_PRICE_MIN}" max="${CONFIG.MENU_PRICE_MAX}" step="${CONFIG.MENU_PRICE_STEP}" value="${price}"
+        style="width:100%; margin:10px 0 6px; accent-color:var(--gold);">
+      <div style="display:flex; justify-content:space-between; font-size:10.5px; opacity:0.7;">
+        <span>Budget (busy)</span><span>Balanced</span><span>Premium (rich)</span>
+      </div>
+      <p class="rep-hint">Higher prices earn more per bowl but fewer customers visit. Lower prices pack the house.</p>
+    </div>`;
+
+    // Lucky Wheel
+    const free = wheelFreeAvailable();
+    const left = wheelSpinsLeft();
+    const spinCost = CONFIG.WHEEL_EXTRA_SPIN_DIAMOND_COST || 8;
+    html += `<div class="chal-section-label" style="margin-top:16px;">Lucky Wheel</div>`;
+    html += `<div class="rep-panel-card wheel-card">
+      <div class="wheel-visual" id="wheelVisual" aria-hidden="true">🎡</div>
+      <div class="wheel-result" id="wheelResult">${left ? 'Spin for a prize!' : 'Come back tomorrow for a free spin'}</div>
+      <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+        <button class="modal-btn" id="wheelSpinBtn" ${left ? '' : 'disabled'}>${free ? 'Free Spin' : (state.wheelExtraSpins > 0 ? 'Spin' : 'No spins left')}</button>
+        <button class="modal-btn secondary" id="wheelBuySpinBtn" ${(state.diamonds||0) >= spinCost ? '' : 'disabled'}>+1 Spin · 💎${spinCost}</button>
+      </div>
+      <p class="rep-hint">Lifetime daily spin. Extra spins cost diamonds. Prizes: cash, gems, research, ingredients, boosters, loyalty. Spins: ${state.wheelSpins||0}</p>
+    </div>`;
+
+    // Boosters (mirror of prestige panel, quick access)
+    html += `<div class="chal-section-label" style="margin-top:16px;">Boosters</div>`;
+    html += `<div id="economyPowerupsList"></div>`;
+    html += `<p class="rep-hint" style="margin-top:6px;">Traffic boost +${Math.round((trafficBoost-1)*100)}% customer orders while active.</p>`;
+
+    panel.innerHTML = html;
+
+    // Wire slider
+    const slider = document.getElementById('menuPriceSlider');
+    if(slider){
+      slider.addEventListener('input', () => {
+        // Live preview only
+        const v = parseFloat(slider.value);
+        const multEl = slider.parentElement.querySelector('.rep-panel-score');
+        if(multEl) multEl.textContent = v.toFixed(1) + '×';
+      });
+      slider.addEventListener('change', () => setMenuPrice(parseFloat(slider.value)));
+    }
+    const spinBtn = document.getElementById('wheelSpinBtn');
+    if(spinBtn) spinBtn.addEventListener('click', () => {
+      const res = spinLuckyWheel(false);
+      if(res){
+        const el = document.getElementById('wheelResult');
+        if(el) el.textContent = res.prize.icon + ' ' + res.msg;
+        const vis = document.getElementById('wheelVisual');
+        if(vis){ vis.classList.remove('spinning'); void vis.offsetWidth; vis.classList.add('spinning'); }
+      }
+    });
+    const buyBtn = document.getElementById('wheelBuySpinBtn');
+    if(buyBtn) buyBtn.addEventListener('click', () => {
+      const cost = CONFIG.WHEEL_EXTRA_SPIN_DIAMOND_COST || 8;
+      if((state.diamonds || 0) < cost){ playErrorSfx(); return; }
+      state.diamonds -= cost;
+      state.wheelExtraSpins = (state.wheelExtraSpins || 0) + 1;
+      playBuySfx();
+      save();
+      renderEconomy();
+      renderStats();
+    });
+
+    // Render powerups into economy list
+    const list = document.getElementById('economyPowerupsList');
+    if(list){
+      list.innerHTML = '';
+      POWERUPS.forEach(def => {
+        const active = powerupActive(def.id);
+        const remain = active ? Math.ceil((state.activePowerups[def.id] - Date.now()) / 1000) : 0;
+        const canBuy = (state.diamonds || 0) >= def.cost && !(def.durationMs > 0 && active);
+        const card = document.createElement('div');
+        card.className = 'ach-card' + (active ? ' claimed' : '');
+        card.innerHTML = `
+          <div class="ach-icon${active ? ' done' : ''}" aria-hidden="true">${def.icon}</div>
+          <div class="ach-info">
+            <div class="ach-name">${def.name}</div>
+            <div class="ach-desc">${def.desc}</div>
+            <div class="ach-reward">${active ? 'Active · ' + remain + 's left' : '💎 ' + def.cost}</div>
+          </div>
+          <button class="claim-btn" data-action="buy-powerup" data-id="${def.id}" ${canBuy ? '' : 'disabled'}>${active ? 'Active' : 'Buy'}</button>`;
+        list.appendChild(card);
+      });
+    }
   }
 
   // ---------- crafting / ingredients ----------
@@ -3270,6 +3556,14 @@
     const puBtn = e.target.closest('[data-action="buy-powerup"]');
     if(puBtn) buyPowerup(puBtn.dataset.id);
   });
+  // Economy panel (boosters + wheel buy buttons use same data-action)
+  const economyPanelEl = document.getElementById('economyPanel');
+  if(economyPanelEl){
+    economyPanelEl.addEventListener('click', e => {
+      const puBtn = e.target.closest('[data-action="buy-powerup"]');
+      if(puBtn) buyPowerup(puBtn.dataset.id);
+    });
+  }
 
   // ---------- collection (cosmetic bowl skins) ----------
   // Purely visual — see COSMETICS above. Unlock state is derived entirely
@@ -5317,6 +5611,7 @@
     if(panelId === 'kitchenStationsPanel') renderKitchenStations();
     if(panelId === 'kitchenStaffPanel') renderKitchenStaff();
     if(panelId === 'kitchenFacilityPanel') renderKitchenFacility();
+    if(panelId === 'economyPanel') renderEconomy();
   }
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => activatePanel(btn.dataset.panel));

@@ -416,6 +416,22 @@
   .order-vip .order-fulfill{background:linear-gradient(135deg,#a78bfa,#7c5cbf); color:#fff;}
   .order-celebrity .order-fulfill{background:linear-gradient(135deg,#f5c542,#e8940a); color:#2a1c04;}
 
+  /* Economy / Lucky Wheel (GDD Part 6) */
+  .wheel-card{text-align:center;}
+  .wheel-visual{
+    font-size:48px; line-height:1; margin:4px auto 8px;
+    display:inline-block; transition:transform 0.8s cubic-bezier(0.2,0.8,0.2,1);
+  }
+  .wheel-visual.spinning{animation:wheelSpin 0.9s ease-out;}
+  @keyframes wheelSpin{
+    from{transform:rotate(0deg) scale(1);}
+    40%{transform:rotate(280deg) scale(1.12);}
+    to{transform:rotate(720deg) scale(1);}
+  }
+  .wheel-result{font-size:14px; font-weight:700; min-height:1.4em; color:var(--gold);}
+  #economyPanel{padding:12px 14px 80px;}
+  #economyPanel .ach-card{margin-bottom:8px;}
+
   /* Review toast */
   .review-toast{
     display:none; position:fixed; left:50%; bottom:88px; transform:translateX(-50%) translateY(12px);

@@ -1255,6 +1255,7 @@
     if(panelId === 'kitchenStationsPanel') renderKitchenStations();
     if(panelId === 'kitchenStaffPanel') renderKitchenStaff();
     if(panelId === 'kitchenFacilityPanel') renderKitchenFacility();
+    if(panelId === 'economyPanel') renderEconomy();
   }
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => activatePanel(btn.dataset.panel));

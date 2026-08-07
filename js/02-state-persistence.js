@@ -52,6 +52,11 @@
     reviewsPositive: 0,
     reviewsTotal: 0,
     customerTypeStats: {},    // customerTypeId -> {served, missed}
+    // GDD Part 6 — Economy
+    menuPrice: 1.0,           // dynamic pricing multiplier (0.6–1.8)
+    wheelSpins: 0,            // lifetime spins
+    wheelLastFreeDate: null,  // YYYY-MM-DD of last free spin
+    wheelExtraSpins: 0,       // paid extras remaining today
     // Story / seasonal / staff (v1.7)
     storyClaimed: {},     // questId -> true once reward claimed
     seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
@@ -158,7 +163,7 @@
     return totalCash() >= cost;
   }
 
-  // ---------- powerups (bought with global diamonds) ----------
+  // ---------- powerups / boosters (bought with global diamonds) — GDD Part 6 ----------
   const POWERUPS = [
     {id:'double_income', icon:'💰', name:'Double Income',   desc:'2× passive income for 10 min', durationMs:10*60*1000, cost:25, effect:'income', mult:2},
     {id:'tap_frenzy',    icon:'👆', name:'Tap Frenzy',      desc:'5× tap gain for 5 min',         durationMs:5*60*1000,  cost:20, effect:'tap',    mult:5},
@@ -166,6 +171,24 @@
     {id:'lucky_charm',   icon:'🍀', name:'Lucky Charm',     desc:'+25% event chance for 15 min',  durationMs:15*60*1000, cost:15, effect:'luck',   mult:0.25},
     {id:'cash_burst',    icon:'💥', name:'Cash Burst',      desc:'Instant 60s of active-country income', durationMs:0, cost:18, effect:'burst', mult:60},
     {id:'rep_boost',     icon:'⭐', name:'Star Chef',       desc:'+20 reputation instantly',      durationMs:0, cost:12, effect:'rep', mult:20},
+    // New boosters (GDD Part 6)
+    {id:'rush_hour',     icon:'🚦', name:'Rush Hour',       desc:'+50% customer traffic for 12 min', durationMs:12*60*1000, cost:22, effect:'traffic', mult:1.5},
+    {id:'fast_delivery', icon:'🛵', name:'Express Fleet',   desc:'2× delivery income for 15 min',  durationMs:15*60*1000, cost:20, effect:'delivery', mult:2},
+    {id:'instant_cook',  icon:'⚡', name:'Instant Cook',    desc:'Instant 90s of income + free order fill', durationMs:0, cost:28, effect:'instant_cook', mult:90},
+    {id:'triple_income', icon:'🏆', name:'Golden Hour',     desc:'3× passive income for 5 min',    durationMs:5*60*1000,  cost:45, effect:'income', mult:3},
+  ];
+
+  // Lucky Wheel prize table (weighted). kind: cashSec | diamonds | research | ingredient | booster | loyalty
+  const WHEEL_PRIZES = [
+    {id:'cash_s',   icon:'💴', label:'Cash pile',       weight:22, kind:'cashSec',   amount:45},
+    {id:'cash_m',   icon:'💰', label:'Big cash',        weight:14, kind:'cashSec',   amount:120},
+    {id:'cash_l',   icon:'🤑', label:'Jackpot cash',    weight:4,  kind:'cashSec',   amount:300},
+    {id:'gem_1',    icon:'💎', label:'1 Diamond',       weight:16, kind:'diamonds',  amount:1},
+    {id:'gem_3',    icon:'💎', label:'3 Diamonds',      weight:6,  kind:'diamonds',  amount:3},
+    {id:'rp',       icon:'🔬', label:'Research Points', weight:12, kind:'research',  amount:2},
+    {id:'ing',      icon:'🧅', label:'Rare ingredients',weight:10, kind:'ingredient',amount:3},
+    {id:'boost',    icon:'⚡', label:'Free booster',    weight:8,  kind:'booster',   amount:1},
+    {id:'loyalty',  icon:'❤️', label:'Loyalty points',  weight:8,  kind:'loyalty',   amount:5},
   ];
   function powerupActive(id){
     const ends = state.activePowerups && state.activePowerups[id];
@@ -185,6 +208,13 @@
     });
     return b;
   }
+  function powerupTrafficMult(){
+    let m = 1;
+    POWERUPS.forEach(p => {
+      if(p.effect === 'traffic' && powerupActive(p.id)) m *= p.mult;
+    });
+    return m;
+  }
   function buyPowerup(id){
     const def = POWERUPS.find(p => p.id === id);
     if(!def) return;
@@ -192,11 +222,14 @@
     if(def.durationMs > 0 && powerupActive(id)){ playErrorSfx(); return; } // already active
     state.diamonds -= def.cost;
     playBuySfx();
-    if(def.effect === 'burst'){
+    if(def.effect === 'burst' || def.effect === 'instant_cook'){
       const gain = Math.max(1, countryRatePerSec(activeCountryDef()) * globalMultiplier() * eventMultiplier() * def.mult);
       addCountryCash(state.activeCountry, gain);
       addEarned(gain);
       spawnFloatingGain(gain);
+      if(def.effect === 'instant_cook' && typeof activeOrder !== 'undefined' && activeOrder && typeof fulfillOrder === 'function'){
+        fulfillOrder();
+      }
     } else if(def.effect === 'rep'){
       adjustReputation(def.mult);
     } else {
@@ -204,6 +237,7 @@
       state.activePowerups[id] = Date.now() + def.durationMs;
     }
     save(); renderStats(); renderPowerups();
+    if(typeof renderEconomy === 'function') renderEconomy();
   }
   function earnDiamonds(n){
     if(n <= 0) return;
@@ -336,6 +370,10 @@
       reviewsPositive: 0,
       reviewsTotal: 0,
       customerTypeStats: {},
+      menuPrice: CONFIG.MENU_PRICE_DEFAULT || 1.0,
+      wheelSpins: 0,
+      wheelLastFreeDate: null,
+      wheelExtraSpins: 0,
       storyClaimed: {},
       seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
       guildId: null,
@@ -453,6 +491,10 @@
     if(state.reviewsPositive === undefined) state.reviewsPositive = 0;
     if(state.reviewsTotal === undefined) state.reviewsTotal = 0;
     if(!state.customerTypeStats) state.customerTypeStats = {};
+    if(state.menuPrice === undefined) state.menuPrice = CONFIG.MENU_PRICE_DEFAULT || 1.0;
+    if(state.wheelSpins === undefined) state.wheelSpins = 0;
+    if(state.wheelLastFreeDate === undefined) state.wheelLastFreeDate = null;
+    if(state.wheelExtraSpins === undefined) state.wheelExtraSpins = 0;
     if(state.tapFxEnabled === undefined) state.tapFxEnabled = true;
     if(state.musicEnabled === undefined) state.musicEnabled = true;
     if(state.sfxEnabled === undefined) state.sfxEnabled = true;
