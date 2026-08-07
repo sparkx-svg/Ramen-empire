@@ -429,8 +429,8 @@
     to{transform:rotate(720deg) scale(1);}
   }
   .wheel-result{font-size:14px; font-weight:700; min-height:1.4em; color:var(--gold);}
-  #economyPanel{padding:12px 14px 80px;}
-  #economyPanel .ach-card{margin-bottom:8px;}
+  #economyPanel,#eventsPanel{padding:12px 14px 80px;}
+  #economyPanel .ach-card,#eventsPanel .ach-card{margin-bottom:8px;}
 
   /* Review toast */
   .review-toast{

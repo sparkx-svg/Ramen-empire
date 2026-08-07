@@ -59,6 +59,16 @@
     wheelExtraSpins: 0,       // paid extras remaining today
     // GDD Part 7 — Progression
     fame: 0,                  // 0–1000 popularity
+    // GDD Part 8 — Events
+    eventTokens: 0,
+    eventTokensEarned: 0,
+    eventPassClaimed: {},
+    eventPassWeekId: null,
+    eventPassCompletes: 0,
+    championshipWins: 0,
+    championshipRace: null,
+    championshipCooldownUntil: 0,
+    communityClaimed: {},
     // Story / seasonal / staff (v1.7)
     storyClaimed: {},     // questId -> true once reward claimed
     seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
@@ -108,6 +118,12 @@
     state.totalEarned += amount;
     state.weeklyEarned = (state.weeklyEarned || 0) + amount;
     if(typeof tickMichelinChallenge === 'function') tickMichelinChallenge(amount);
+    if(typeof addChampionshipScore === 'function') addChampionshipScore(amount);
+    if(typeof contributeCommunity === 'function' && amount > 0){
+      // Feed community cash goal
+      contributeCommunity('fest_cash', amount);
+      contributeCommunity('bowls_1b', Math.max(1, Math.floor(amount / Math.max(totalRatePerSec(), 1))));
+    }
   }
 
   function freshBusiness(){ return {level:0, manager:false, managerLevel:0, managerType:null, speed:0, capacity:0, quality:0}; }
@@ -377,6 +393,15 @@
       wheelLastFreeDate: null,
       wheelExtraSpins: 0,
       fame: CONFIG.FAME_START || 0,
+      eventTokens: 0,
+      eventTokensEarned: 0,
+      eventPassClaimed: {},
+      eventPassWeekId: null,
+      eventPassCompletes: 0,
+      championshipWins: 0,
+      championshipRace: null,
+      championshipCooldownUntil: 0,
+      communityClaimed: {},
       storyClaimed: {},
       seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
       guildId: null,
@@ -499,6 +524,15 @@
     if(state.wheelLastFreeDate === undefined) state.wheelLastFreeDate = null;
     if(state.wheelExtraSpins === undefined) state.wheelExtraSpins = 0;
     if(state.fame === undefined) state.fame = CONFIG.FAME_START || 0;
+    if(state.eventTokens === undefined) state.eventTokens = 0;
+    if(state.eventTokensEarned === undefined) state.eventTokensEarned = 0;
+    if(!state.eventPassClaimed) state.eventPassClaimed = {};
+    if(state.eventPassWeekId === undefined) state.eventPassWeekId = null;
+    if(state.eventPassCompletes === undefined) state.eventPassCompletes = 0;
+    if(state.championshipWins === undefined) state.championshipWins = 0;
+    if(state.championshipRace === undefined) state.championshipRace = null;
+    if(state.championshipCooldownUntil === undefined) state.championshipCooldownUntil = 0;
+    if(!state.communityClaimed) state.communityClaimed = {};
     if(state.tapFxEnabled === undefined) state.tapFxEnabled = true;
     if(state.musicEnabled === undefined) state.musicEnabled = true;
     if(state.sfxEnabled === undefined) state.sfxEnabled = true;

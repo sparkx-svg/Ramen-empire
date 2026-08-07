@@ -177,6 +177,13 @@
     CITY_UNLOCK_RATING: { italy: 35, mexico: 50, india: 65 },
     CITY_UNLOCK_SHOP_LEVELS: { italy: 8, mexico: 20, india: 40 },
 
+    // GDD Part 8 — Events
+    EVENT_TOKEN_PER_ORDER: 0.15,
+    EVENT_TOKEN_PER_CHALLENGE: 5,
+    EVENT_TOKEN_SEASONAL_CLAIM: 12,
+    CHAMPIONSHIP_DURATION_MS: 90 * 1000,
+    CHAMPIONSHIP_COOLDOWN_MS: 30 * 60 * 1000,
+
     // Customer orders (active-play requests near the bowl)
     ORDER_CHECK_INTERVAL_MS: 20000,
     ORDER_TRIGGER_CHANCE: 0.32,
@@ -577,11 +584,61 @@
   // challengeType mirrors daily challenge types for progress tracking.
   const SEASONAL_EVENTS = [
     {id:'newyear',   icon:'🎆', name:'New Year Noodles',   month:1,  startDay:1,  endDay:7,   skinId:'newyear',   challengeType:'taps', challengeTarget:200, rewardMiso:1, blurb:'Ring in the year with a thousand bowls.'},
-    {id:'valentine', icon:'💝', name:'Hearty Broth',       month:2,  startDay:10, endDay:16,  skinId:'valentine',challengeType:'earn', challengeTarget:0, rewardMiso:1, blurb:'Serve love by the ladle.'}, // target scaled at runtime
+    {id:'valentine', icon:'💝', name:'Hearty Broth',       month:2,  startDay:10, endDay:16,  skinId:'valentine',challengeType:'earn', challengeTarget:0, rewardMiso:1, blurb:'Serve love by the ladle.'},
     {id:'spring',    icon:'🌸', name:'Sakura Season',      month:3,  startDay:20, endDay:31,  skinId:'sakura_s', challengeType:'buy',  challengeTarget:15, rewardMiso:1, blurb:'Petals in the steam.'},
     {id:'summer',    icon:'☀️', name:'Summer Festival',    month:7,  startDay:1,  endDay:21,  skinId:'summer',   challengeType:'taps', challengeTarget:300, rewardMiso:1, blurb:'Festival stalls and fireworks.'},
     {id:'halloween', icon:'🎃', name:'Spooky Ramen',       month:10, startDay:24, endDay:31,  skinId:'halloween',challengeType:'earn', challengeTarget:0, rewardMiso:1, blurb:'A little fear, a lot of umami.'},
     {id:'holiday',   icon:'🎄', name:'Winter Feast',       month:12, startDay:15, endDay:31,  skinId:'holiday',  challengeType:'buy',  challengeTarget:20, rewardMiso:2, blurb:'The empire\'s warmest week.'},
+  ];
+
+  // GDD Part 8 — Weekly Food Festivals (rotate by ISO week number)
+  const WEEKLY_FESTIVALS = [
+    {id:'spicy',    icon:'🌶️', name:'Spicy Bowl Festival',   blurb:'Heat seekers welcome.',        tokenBonus:1.2},
+    {id:'classic',  icon:'🍜', name:'Classic Ramen Week',    blurb:'Back to tradition.',           tokenBonus:1.0},
+    {id:'seafood',  icon:'🦐', name:'Seafood Splash',        blurb:'Ocean in every bowl.',         tokenBonus:1.1},
+    {id:'veggie',   icon:'🥬', name:'Garden Ramen Week',     blurb:'Green and clean.',             tokenBonus:1.0},
+    {id:'fusion',   icon:'🌍', name:'World Fusion Fest',     blurb:'Borders? What borders?',       tokenBonus:1.3},
+    {id:'midnight', icon:'🌙', name:'Midnight Noodle Run',   blurb:'After-hours empire.',          tokenBonus:1.15},
+    {id:'premium',  icon:'💎', name:'Premium Tasting Week',  blurb:'Only the finest.',             tokenBonus:1.4},
+  ];
+
+  // Event Pass tiers — claim sequentially during an active seasonal or weekly event
+  const EVENT_PASS_TIERS = [
+    {id:'p1',  icon:'💴', label:'Cash Drop',       cost:0,  reward:{cashSec:30}},
+    {id:'p2',  icon:'🎫', label:'Event Tokens',    cost:5,  reward:{tokens:8}},
+    {id:'p3',  icon:'💎', label:'Diamond Pinch',   cost:12, reward:{diamonds:2}},
+    {id:'p4',  icon:'🔬', label:'Research Pack',   cost:20, reward:{research:3}},
+    {id:'p5',  icon:'⚡', label:'Booster Voucher', cost:30, reward:{booster:true}},
+    {id:'p6',  icon:'🎫', label:'Token Bundle',    cost:40, reward:{tokens:15}},
+    {id:'p7',  icon:'💎', label:'Gem Cache',       cost:55, reward:{diamonds:5}},
+    {id:'p8',  icon:'👑', label:'Grand Prize',     cost:75, reward:{tokens:25, diamonds:3, cashSec:120}},
+  ];
+
+  // Event Shop — spend event tokens
+  const EVENT_SHOP = [
+    {id:'tok_cash',   icon:'💴', name:'Cash Crate',        cost:10, kind:'cashSec', amount:90},
+    {id:'tok_gem',    icon:'💎', name:'Diamond Shard',     cost:25, kind:'diamonds', amount:3},
+    {id:'tok_rp',     icon:'🔬', name:'Lab Notes',         cost:15, kind:'research', amount:4},
+    {id:'tok_ing',    icon:'🧅', name:'Ingredient Box',    cost:12, kind:'ingredient', amount:5},
+    {id:'tok_boost',  icon:'⚡', name:'Rush Hour Voucher', cost:30, kind:'booster', amount:1},
+    {id:'tok_loy',    icon:'❤️', name:'Fan Club Pack',     cost:18, kind:'loyalty', amount:10},
+    {id:'tok_fame',   icon:'📣', name:'PR Campaign',       cost:20, kind:'fame', amount:15},
+  ];
+
+  // World Food Championship AI rivals
+  const CHAMPIONSHIP_RIVALS = [
+    {id:'tokyo_tiger',  icon:'🐯', name:'Tokyo Tiger Ramen',   skill:0.85},
+    {id:'rome_fox',     icon:'🦊', name:'Rome Fox Trattoria',  skill:0.95},
+    {id:'osaka_owl',    icon:'🦉', name:'Osaka Owl Stand',     skill:0.75},
+    {id:'seoul_dragon', icon:'🐲', name:'Seoul Dragon Bowl',   skill:1.05},
+    {id:'sf_phoenix',   icon:'🔥', name:'SF Phoenix Noodles',  skill:1.15},
+  ];
+
+  // Community challenge templates (global simulated goals)
+  const COMMUNITY_GOALS = [
+    {id:'bowls_1b',   icon:'🍜', name:'Serve 1B Bowls',      unit:'bowls',    target:1e9,  rewardTokens:20, rewardDiamonds:3},
+    {id:'deliver_10m',icon:'🛵', name:'10M Deliveries',      unit:'delivery', target:1e7,  rewardTokens:15, rewardDiamonds:2},
+    {id:'fest_cash',  icon:'💴', name:'Festival Earnings',   unit:'cash',     target:1e12, rewardTokens:25, rewardDiamonds:4},
   ];
 
   const ACHIEVEMENTS = [
@@ -643,6 +700,9 @@
     {id:'fame_500',    icon:'🎬', name:'Household Name',   desc:'Reach 500 fame',                    reward:0.05, cond: s => (s.fame||0) >= 500},
     {id:'empire_10',   icon:'🏯', name:'Franchise Boss',   desc:'Reach Empire Level 10',             reward:0.03, cond: s => empireLevel(s) >= 10},
     {id:'empire_25',   icon:'🌐', name:'Global Operator',  desc:'Reach Empire Level 25',             reward:0.05, cond: s => empireLevel(s) >= 25},
+    {id:'event_tokens',icon:'🎫', name:'Token Collector',  desc:'Earn 50 event tokens',              reward:0.03, cond: s => (s.eventTokensEarned||0) >= 50},
+    {id:'champ_win',   icon:'🏆', name:'Champion',         desc:'Win a World Food Championship',     reward:0.04, cond: s => (s.championshipWins||0) >= 1},
+    {id:'pass_full',   icon:'📜', name:'Pass Complete',    desc:'Finish an Event Pass',              reward:0.04, cond: s => (s.eventPassCompletes||0) >= 1},
 
   ];
 

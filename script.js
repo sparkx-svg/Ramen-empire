@@ -173,6 +173,13 @@
     CITY_UNLOCK_RATING: { italy: 35, mexico: 50, india: 65 },
     CITY_UNLOCK_SHOP_LEVELS: { italy: 8, mexico: 20, india: 40 },
 
+    // GDD Part 8 — Events
+    EVENT_TOKEN_PER_ORDER: 0.15,
+    EVENT_TOKEN_PER_CHALLENGE: 5,
+    EVENT_TOKEN_SEASONAL_CLAIM: 12,
+    CHAMPIONSHIP_DURATION_MS: 90 * 1000,
+    CHAMPIONSHIP_COOLDOWN_MS: 30 * 60 * 1000,
+
     // Customer orders (active-play requests near the bowl)
     ORDER_CHECK_INTERVAL_MS: 20000,
     ORDER_TRIGGER_CHANCE: 0.32,
@@ -573,11 +580,61 @@
   // challengeType mirrors daily challenge types for progress tracking.
   const SEASONAL_EVENTS = [
     {id:'newyear',   icon:'🎆', name:'New Year Noodles',   month:1,  startDay:1,  endDay:7,   skinId:'newyear',   challengeType:'taps', challengeTarget:200, rewardMiso:1, blurb:'Ring in the year with a thousand bowls.'},
-    {id:'valentine', icon:'💝', name:'Hearty Broth',       month:2,  startDay:10, endDay:16,  skinId:'valentine',challengeType:'earn', challengeTarget:0, rewardMiso:1, blurb:'Serve love by the ladle.'}, // target scaled at runtime
+    {id:'valentine', icon:'💝', name:'Hearty Broth',       month:2,  startDay:10, endDay:16,  skinId:'valentine',challengeType:'earn', challengeTarget:0, rewardMiso:1, blurb:'Serve love by the ladle.'},
     {id:'spring',    icon:'🌸', name:'Sakura Season',      month:3,  startDay:20, endDay:31,  skinId:'sakura_s', challengeType:'buy',  challengeTarget:15, rewardMiso:1, blurb:'Petals in the steam.'},
     {id:'summer',    icon:'☀️', name:'Summer Festival',    month:7,  startDay:1,  endDay:21,  skinId:'summer',   challengeType:'taps', challengeTarget:300, rewardMiso:1, blurb:'Festival stalls and fireworks.'},
     {id:'halloween', icon:'🎃', name:'Spooky Ramen',       month:10, startDay:24, endDay:31,  skinId:'halloween',challengeType:'earn', challengeTarget:0, rewardMiso:1, blurb:'A little fear, a lot of umami.'},
     {id:'holiday',   icon:'🎄', name:'Winter Feast',       month:12, startDay:15, endDay:31,  skinId:'holiday',  challengeType:'buy',  challengeTarget:20, rewardMiso:2, blurb:'The empire\'s warmest week.'},
+  ];
+
+  // GDD Part 8 — Weekly Food Festivals (rotate by ISO week number)
+  const WEEKLY_FESTIVALS = [
+    {id:'spicy',    icon:'🌶️', name:'Spicy Bowl Festival',   blurb:'Heat seekers welcome.',        tokenBonus:1.2},
+    {id:'classic',  icon:'🍜', name:'Classic Ramen Week',    blurb:'Back to tradition.',           tokenBonus:1.0},
+    {id:'seafood',  icon:'🦐', name:'Seafood Splash',        blurb:'Ocean in every bowl.',         tokenBonus:1.1},
+    {id:'veggie',   icon:'🥬', name:'Garden Ramen Week',     blurb:'Green and clean.',             tokenBonus:1.0},
+    {id:'fusion',   icon:'🌍', name:'World Fusion Fest',     blurb:'Borders? What borders?',       tokenBonus:1.3},
+    {id:'midnight', icon:'🌙', name:'Midnight Noodle Run',   blurb:'After-hours empire.',          tokenBonus:1.15},
+    {id:'premium',  icon:'💎', name:'Premium Tasting Week',  blurb:'Only the finest.',             tokenBonus:1.4},
+  ];
+
+  // Event Pass tiers — claim sequentially during an active seasonal or weekly event
+  const EVENT_PASS_TIERS = [
+    {id:'p1',  icon:'💴', label:'Cash Drop',       cost:0,  reward:{cashSec:30}},
+    {id:'p2',  icon:'🎫', label:'Event Tokens',    cost:5,  reward:{tokens:8}},
+    {id:'p3',  icon:'💎', label:'Diamond Pinch',   cost:12, reward:{diamonds:2}},
+    {id:'p4',  icon:'🔬', label:'Research Pack',   cost:20, reward:{research:3}},
+    {id:'p5',  icon:'⚡', label:'Booster Voucher', cost:30, reward:{booster:true}},
+    {id:'p6',  icon:'🎫', label:'Token Bundle',    cost:40, reward:{tokens:15}},
+    {id:'p7',  icon:'💎', label:'Gem Cache',       cost:55, reward:{diamonds:5}},
+    {id:'p8',  icon:'👑', label:'Grand Prize',     cost:75, reward:{tokens:25, diamonds:3, cashSec:120}},
+  ];
+
+  // Event Shop — spend event tokens
+  const EVENT_SHOP = [
+    {id:'tok_cash',   icon:'💴', name:'Cash Crate',        cost:10, kind:'cashSec', amount:90},
+    {id:'tok_gem',    icon:'💎', name:'Diamond Shard',     cost:25, kind:'diamonds', amount:3},
+    {id:'tok_rp',     icon:'🔬', name:'Lab Notes',         cost:15, kind:'research', amount:4},
+    {id:'tok_ing',    icon:'🧅', name:'Ingredient Box',    cost:12, kind:'ingredient', amount:5},
+    {id:'tok_boost',  icon:'⚡', name:'Rush Hour Voucher', cost:30, kind:'booster', amount:1},
+    {id:'tok_loy',    icon:'❤️', name:'Fan Club Pack',     cost:18, kind:'loyalty', amount:10},
+    {id:'tok_fame',   icon:'📣', name:'PR Campaign',       cost:20, kind:'fame', amount:15},
+  ];
+
+  // World Food Championship AI rivals
+  const CHAMPIONSHIP_RIVALS = [
+    {id:'tokyo_tiger',  icon:'🐯', name:'Tokyo Tiger Ramen',   skill:0.85},
+    {id:'rome_fox',     icon:'🦊', name:'Rome Fox Trattoria',  skill:0.95},
+    {id:'osaka_owl',    icon:'🦉', name:'Osaka Owl Stand',     skill:0.75},
+    {id:'seoul_dragon', icon:'🐲', name:'Seoul Dragon Bowl',   skill:1.05},
+    {id:'sf_phoenix',   icon:'🔥', name:'SF Phoenix Noodles',  skill:1.15},
+  ];
+
+  // Community challenge templates (global simulated goals)
+  const COMMUNITY_GOALS = [
+    {id:'bowls_1b',   icon:'🍜', name:'Serve 1B Bowls',      unit:'bowls',    target:1e9,  rewardTokens:20, rewardDiamonds:3},
+    {id:'deliver_10m',icon:'🛵', name:'10M Deliveries',      unit:'delivery', target:1e7,  rewardTokens:15, rewardDiamonds:2},
+    {id:'fest_cash',  icon:'💴', name:'Festival Earnings',   unit:'cash',     target:1e12, rewardTokens:25, rewardDiamonds:4},
   ];
 
   const ACHIEVEMENTS = [
@@ -639,6 +696,9 @@
     {id:'fame_500',    icon:'🎬', name:'Household Name',   desc:'Reach 500 fame',                    reward:0.05, cond: s => (s.fame||0) >= 500},
     {id:'empire_10',   icon:'🏯', name:'Franchise Boss',   desc:'Reach Empire Level 10',             reward:0.03, cond: s => empireLevel(s) >= 10},
     {id:'empire_25',   icon:'🌐', name:'Global Operator',  desc:'Reach Empire Level 25',             reward:0.05, cond: s => empireLevel(s) >= 25},
+    {id:'event_tokens',icon:'🎫', name:'Token Collector',  desc:'Earn 50 event tokens',              reward:0.03, cond: s => (s.eventTokensEarned||0) >= 50},
+    {id:'champ_win',   icon:'🏆', name:'Champion',         desc:'Win a World Food Championship',     reward:0.04, cond: s => (s.championshipWins||0) >= 1},
+    {id:'pass_full',   icon:'📜', name:'Pass Complete',    desc:'Finish an Event Pass',              reward:0.04, cond: s => (s.eventPassCompletes||0) >= 1},
 
   ];
 
@@ -737,6 +797,16 @@
     wheelExtraSpins: 0,       // paid extras remaining today
     // GDD Part 7 — Progression
     fame: 0,                  // 0–1000 popularity
+    // GDD Part 8 — Events
+    eventTokens: 0,
+    eventTokensEarned: 0,
+    eventPassClaimed: {},
+    eventPassWeekId: null,
+    eventPassCompletes: 0,
+    championshipWins: 0,
+    championshipRace: null,
+    championshipCooldownUntil: 0,
+    communityClaimed: {},
     // Story / seasonal / staff (v1.7)
     storyClaimed: {},     // questId -> true once reward claimed
     seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
@@ -786,6 +856,12 @@
     state.totalEarned += amount;
     state.weeklyEarned = (state.weeklyEarned || 0) + amount;
     if(typeof tickMichelinChallenge === 'function') tickMichelinChallenge(amount);
+    if(typeof addChampionshipScore === 'function') addChampionshipScore(amount);
+    if(typeof contributeCommunity === 'function' && amount > 0){
+      // Feed community cash goal
+      contributeCommunity('fest_cash', amount);
+      contributeCommunity('bowls_1b', Math.max(1, Math.floor(amount / Math.max(totalRatePerSec(), 1))));
+    }
   }
 
   function freshBusiness(){ return {level:0, manager:false, managerLevel:0, managerType:null, speed:0, capacity:0, quality:0}; }
@@ -1055,6 +1131,15 @@
       wheelLastFreeDate: null,
       wheelExtraSpins: 0,
       fame: CONFIG.FAME_START || 0,
+      eventTokens: 0,
+      eventTokensEarned: 0,
+      eventPassClaimed: {},
+      eventPassWeekId: null,
+      eventPassCompletes: 0,
+      championshipWins: 0,
+      championshipRace: null,
+      championshipCooldownUntil: 0,
+      communityClaimed: {},
       storyClaimed: {},
       seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
       guildId: null,
@@ -1177,6 +1262,15 @@
     if(state.wheelLastFreeDate === undefined) state.wheelLastFreeDate = null;
     if(state.wheelExtraSpins === undefined) state.wheelExtraSpins = 0;
     if(state.fame === undefined) state.fame = CONFIG.FAME_START || 0;
+    if(state.eventTokens === undefined) state.eventTokens = 0;
+    if(state.eventTokensEarned === undefined) state.eventTokensEarned = 0;
+    if(!state.eventPassClaimed) state.eventPassClaimed = {};
+    if(state.eventPassWeekId === undefined) state.eventPassWeekId = null;
+    if(state.eventPassCompletes === undefined) state.eventPassCompletes = 0;
+    if(state.championshipWins === undefined) state.championshipWins = 0;
+    if(state.championshipRace === undefined) state.championshipRace = null;
+    if(state.championshipCooldownUntil === undefined) state.championshipCooldownUntil = 0;
+    if(!state.communityClaimed) state.communityClaimed = {};
     if(state.tapFxEnabled === undefined) state.tapFxEnabled = true;
     if(state.musicEnabled === undefined) state.musicEnabled = true;
     if(state.sfxEnabled === undefined) state.sfxEnabled = true;
@@ -2355,6 +2449,8 @@
     if(def.special === 'celebrity') fameGain += CONFIG.FAME_PER_CELEB || 12;
     if(tipped) fameGain += 0.5;
     adjustFame(fameGain);
+    // Event tokens (GDD Part 8)
+    earnEventTokens(CONFIG.EVENT_TOKEN_PER_ORDER || 0.15);
 
     spawnFloatingGain(gain);
     fireTapFeedback(false);
@@ -3496,10 +3592,312 @@
     addCountryCash(state.activeCountry, cash);
     addEarned(cash);
     earnDiamonds(2);
+    earnEventTokens(CONFIG.EVENT_TOKEN_SEASONAL_CLAIM || 12);
     save();
     renderAchievements();
     renderStats();
     checkCollectionNotif();
+    if(typeof renderEvents === 'function') renderEvents();
+  }
+
+  // ---------- GDD Part 8: Event Tokens, Weekly Festival, Pass, Shop, Championship ----------
+  function earnEventTokens(n){
+    if(n <= 0) return;
+    const fest = getWeeklyFestival();
+    const mult = fest ? (fest.tokenBonus || 1) : 1;
+    const gained = Math.max(0, Math.round(n * mult * 10) / 10);
+    state.eventTokens = (state.eventTokens || 0) + gained;
+    state.eventTokensEarned = (state.eventTokensEarned || 0) + gained;
+  }
+  function getWeeklyFestival(){
+    // ISO week number → rotate festivals
+    const now = new Date();
+    const onejan = new Date(now.getFullYear(), 0, 1);
+    const week = Math.ceil((((now - onejan) / 86400000) + onejan.getDay() + 1) / 7);
+    return WEEKLY_FESTIVALS[week % WEEKLY_FESTIVALS.length];
+  }
+  function isoWeekId(){
+    const now = new Date();
+    const onejan = new Date(now.getFullYear(), 0, 1);
+    const week = Math.ceil((((now - onejan) / 86400000) + onejan.getDay() + 1) / 7);
+    return now.getFullYear() + '-W' + week;
+  }
+  function ensureEventPassWeek(){
+    const wid = isoWeekId();
+    if(state.eventPassWeekId !== wid){
+      state.eventPassWeekId = wid;
+      state.eventPassClaimed = {};
+    }
+  }
+  function eventPassProgressTokens(){
+    // Tokens earned this "pass window" approximated by total tokens earned (simple)
+    // Better: track passPoints — use eventTokensEarned mod for display; claim uses cumulative spent tiers
+    return state.eventTokensEarned || 0;
+  }
+  function claimEventPassTier(tierId){
+    ensureEventPassWeek();
+    const tier = EVENT_PASS_TIERS.find(t => t.id === tierId);
+    if(!tier) return;
+    if(state.eventPassClaimed[tierId]) return;
+    // Must claim previous tiers first
+    const idx = EVENT_PASS_TIERS.findIndex(t => t.id === tierId);
+    for(let i = 0; i < idx; i++){
+      if(!state.eventPassClaimed[EVENT_PASS_TIERS[i].id]){ playErrorSfx(); return; }
+    }
+    if((state.eventTokensEarned || 0) < tier.cost){ playErrorSfx(); return; }
+    state.eventPassClaimed[tierId] = true;
+    grantEventReward(tier.reward);
+    if(idx === EVENT_PASS_TIERS.length - 1) state.eventPassCompletes = (state.eventPassCompletes || 0) + 1;
+    playBuySfx();
+    save();
+    renderEvents();
+    renderStats();
+    checkAchievements();
+  }
+  function grantEventReward(reward){
+    if(!reward) return;
+    const rate = Math.max(totalRatePerSec(), 1);
+    if(reward.cashSec){
+      const g = rate * reward.cashSec;
+      addCountryCash(state.activeCountry, g);
+      addEarned(g);
+      spawnFloatingGain(g);
+    }
+    if(reward.tokens) earnEventTokens(reward.tokens);
+    if(reward.diamonds) earnDiamonds(reward.diamonds);
+    if(reward.research) state.researchPoints = (state.researchPoints || 0) + reward.research;
+    if(reward.loyalty) state.loyaltyPoints = (state.loyaltyPoints || 0) + reward.loyalty;
+    if(reward.fame) adjustFame(reward.fame);
+    if(reward.booster){
+      if(!state.activePowerups) state.activePowerups = {};
+      state.activePowerups.rush_hour = Math.max(state.activePowerups.rush_hour || 0, Date.now() + 8 * 60 * 1000);
+    }
+    if(reward.ingredient){
+      const pool = ['noodles','broth','egg','nori','spice','mushroom','basil','seafood'];
+      for(let i = 0; i < reward.ingredient; i++){
+        if(typeof addIngredient === 'function') addIngredient(pool[Math.floor(Math.random()*pool.length)], 1);
+      }
+    }
+  }
+  function buyEventShopItem(id){
+    const item = EVENT_SHOP.find(x => x.id === id);
+    if(!item) return;
+    if((state.eventTokens || 0) < item.cost){ playErrorSfx(); return; }
+    state.eventTokens -= item.cost;
+    const reward = {};
+    reward[item.kind === 'cashSec' ? 'cashSec' : item.kind] = item.amount;
+    if(item.kind === 'booster') reward.booster = true;
+    grantEventReward(reward);
+    playBuySfx();
+    save();
+    renderEvents();
+    renderStats();
+  }
+
+  // Championship
+  function startChampionship(){
+    if(state.championshipRace) return;
+    if(Date.now() < (state.championshipCooldownUntil || 0)){ playErrorSfx(); return; }
+    const duration = CONFIG.CHAMPIONSHIP_DURATION_MS || 90000;
+    const playerRate = Math.max(totalRatePerSec(), 1);
+    const rivals = CHAMPIONSHIP_RIVALS.map(r => ({
+      id: r.id, icon: r.icon, name: r.name,
+      score: 0,
+      rate: playerRate * r.skill * (0.9 + Math.random() * 0.2)
+    }));
+    state.championshipRace = {
+      endsAt: Date.now() + duration,
+      playerScore: 0,
+      rivals,
+      startedAt: Date.now()
+    };
+    playBuySfx();
+    save();
+    renderEvents();
+  }
+  function tickChampionship(dtSec){
+    const race = state.championshipRace;
+    if(!race) return;
+    // Player score accrues from actual earnings tracked separately via addChampionshipScore
+    race.rivals.forEach(r => { r.score += r.rate * dtSec; });
+    if(Date.now() >= race.endsAt){
+      finishChampionship();
+    }
+  }
+  function addChampionshipScore(amount){
+    if(!state.championshipRace) return;
+    state.championshipRace.playerScore = (state.championshipRace.playerScore || 0) + amount;
+  }
+  function finishChampionship(){
+    const race = state.championshipRace;
+    if(!race) return;
+    const scores = [{id:'you', name:'You', score: race.playerScore || 0},
+      ...race.rivals.map(r => ({id:r.id, name:r.name, score:r.score}))];
+    scores.sort((a,b) => b.score - a.score);
+    const place = scores.findIndex(s => s.id === 'you') + 1;
+    state.championshipRace = null;
+    state.championshipCooldownUntil = Date.now() + (CONFIG.CHAMPIONSHIP_COOLDOWN_MS || 1800000);
+    if(place === 1){
+      state.championshipWins = (state.championshipWins || 0) + 1;
+      earnEventTokens(20);
+      earnDiamonds(5);
+      adjustFame(20);
+    } else if(place === 2){
+      earnEventTokens(12);
+      earnDiamonds(2);
+    } else if(place === 3){
+      earnEventTokens(8);
+      earnDiamonds(1);
+    } else {
+      earnEventTokens(4);
+    }
+    state._lastChampPlace = place;
+    save();
+    renderEvents();
+    renderStats();
+    checkAchievements();
+  }
+
+  // Community goals — simulated global progress based on local contribution + time
+  function communityProgress(goal){
+    // Pseudo-global: scale with week time + local contribution stored
+    const weekFrac = (Date.now() % (7 * 86400000)) / (7 * 86400000);
+    const local = (state.communityLocal && state.communityLocal[goal.id]) || 0;
+    // Simulate other players filling most of the bar over the week
+    const simulated = goal.target * Math.min(0.95, weekFrac * 0.85 + local / goal.target);
+    return Math.min(goal.target, simulated + local);
+  }
+  function contributeCommunity(goalId, amount){
+    if(!state.communityLocal) state.communityLocal = {};
+    state.communityLocal[goalId] = (state.communityLocal[goalId] || 0) + amount;
+  }
+  function claimCommunity(goalId){
+    const goal = COMMUNITY_GOALS.find(g => g.id === goalId);
+    if(!goal) return;
+    const key = goalId + '_' + isoWeekId();
+    if(state.communityClaimed[key]) return;
+    if(communityProgress(goal) < goal.target){ playErrorSfx(); return; }
+    state.communityClaimed[key] = true;
+    earnEventTokens(goal.rewardTokens || 10);
+    earnDiamonds(goal.rewardDiamonds || 1);
+    playBuySfx();
+    save();
+    renderEvents();
+    renderStats();
+  }
+
+  function renderEvents(){
+    const panel = document.getElementById('eventsPanel');
+    if(!panel || !panel.classList.contains('active')) return;
+    ensureEventPassWeek();
+    const fest = getWeeklyFestival();
+    const seasonal = ensureSeasonalState();
+    let html = '';
+
+    // Tokens header
+    html += `<div class="chal-section-label">Event Currency</div>`;
+    html += `<div class="rep-panel-card">
+      <div class="rep-panel-top">
+        <span class="rep-panel-score">🎫 ${Math.floor(state.eventTokens||0)}</span>
+        <span class="rep-panel-mult">Lifetime ${Math.floor(state.eventTokensEarned||0)}</span>
+      </div>
+      <p class="rep-hint">Earn tokens from orders, seasonal claims, championships & the event pass. Spend them in the Event Shop.</p>
+    </div>`;
+
+    // Weekly festival
+    html += `<div class="chal-section-label" style="margin-top:14px;">Weekly Festival</div>`;
+    html += `<div class="rep-panel-card">
+      <div class="rep-panel-top"><span class="rep-panel-score">${fest.icon} ${fest.name}</span><span class="rep-panel-mult">×${fest.tokenBonus} tokens</span></div>
+      <p class="rep-hint">${fest.blurb} Token gains are boosted this week.</p>
+    </div>`;
+
+    // Seasonal (reuse)
+    if(seasonal){
+      html += renderSeasonalSection();
+    } else {
+      html += `<div class="chal-section-label" style="margin-top:14px;">Seasonal Event</div>
+        <div class="rep-panel-card"><p class="rep-hint">No calendar event right now. Weekly festival and championship still run.</p></div>`;
+    }
+
+    // Event Pass
+    html += `<div class="chal-section-label" style="margin-top:14px;">Event Pass</div>`;
+    html += `<div class="rep-panel-card">`;
+    EVENT_PASS_TIERS.forEach((t, i) => {
+      const claimed = !!state.eventPassClaimed[t.id];
+      const prevOk = i === 0 || !!state.eventPassClaimed[EVENT_PASS_TIERS[i-1].id];
+      const ready = prevOk && (state.eventTokensEarned || 0) >= t.cost && !claimed;
+      const rewardBits = [];
+      if(t.reward.cashSec) rewardBits.push('cash');
+      if(t.reward.tokens) rewardBits.push(t.reward.tokens + '🎫');
+      if(t.reward.diamonds) rewardBits.push(t.reward.diamonds + '💎');
+      if(t.reward.research) rewardBits.push(t.reward.research + '🔬');
+      if(t.reward.booster) rewardBits.push('booster');
+      html += `<div class="ach-card${claimed?' claimed':''}" style="margin-bottom:6px;">
+        <div class="ach-icon${claimed?' done':''}">${t.icon}</div>
+        <div class="ach-info">
+          <div class="ach-name">${t.label}</div>
+          <div class="ach-desc">Need ${t.cost} lifetime tokens · ${rewardBits.join(', ')}</div>
+        </div>
+        <button class="claim-btn" data-action="claim-pass" data-id="${t.id}" ${ready?'':'disabled'}>${claimed?'✓':'Claim'}</button>
+      </div>`;
+    });
+    html += `</div>`;
+
+    // Championship
+    html += `<div class="chal-section-label" style="margin-top:14px;">World Food Championship</div>`;
+    const race = state.championshipRace;
+    const cdLeft = Math.max(0, (state.championshipCooldownUntil || 0) - Date.now());
+    if(race){
+      const left = Math.max(0, Math.ceil((race.endsAt - Date.now()) / 1000));
+      const board = [{name:'You', icon:'🍜', score:race.playerScore||0},
+        ...race.rivals.map(r => ({name:r.name, icon:r.icon, score:r.score}))];
+      board.sort((a,b) => b.score - a.score);
+      html += `<div class="rep-panel-card"><div class="rep-panel-top"><span>Racing…</span><span class="rep-panel-mult">${left}s left</span></div>`;
+      board.forEach((b,i) => {
+        html += `<div style="display:flex; justify-content:space-between; font-size:12px; margin:4px 0;">
+          <span>${i+1}. ${b.icon} ${b.name}</span><strong>${fmt(b.score)}</strong></div>`;
+      });
+      html += `<p class="rep-hint">Earn cash during the race to climb the board. 1st place wins big tokens & gems.</p></div>`;
+    } else {
+      const canStart = cdLeft <= 0;
+      html += `<div class="rep-panel-card">
+        <p class="rep-hint">90-second race vs AI restaurants. Your cash earned during the race is your score. Wins: ${state.championshipWins||0}</p>
+        <button class="modal-btn" data-action="start-champ" ${canStart?'':'disabled'}>${canStart?'Start Championship':('Cooldown '+Math.ceil(cdLeft/60000)+'m')}</button>
+        ${state._lastChampPlace ? `<p class="rep-hint">Last place: #${state._lastChampPlace}</p>` : ''}
+      </div>`;
+    }
+
+    // Community
+    html += `<div class="chal-section-label" style="margin-top:14px;">Community Challenges</div>`;
+    COMMUNITY_GOALS.forEach(g => {
+      const prog = communityProgress(g);
+      const pct = Math.min(100, Math.round((prog / g.target) * 100));
+      const key = g.id + '_' + isoWeekId();
+      const claimed = !!state.communityClaimed[key];
+      const ready = prog >= g.target && !claimed;
+      html += `<div class="rep-panel-card" style="margin-bottom:8px;">
+        <div class="rep-panel-top"><span>${g.icon} ${g.name}</span><span class="rep-panel-mult">${pct}%</span></div>
+        <div class="chal-progress"><div class="chal-progress-fill" style="width:${pct}%"></div></div>
+        <p class="rep-hint">${fmt(prog)} / ${fmt(g.target)} · Reward ${g.rewardTokens}🎫 + ${g.rewardDiamonds}💎</p>
+        <button class="claim-btn" data-action="claim-community" data-id="${g.id}" ${ready?'':'disabled'}>${claimed?'✓ Claimed':(ready?'Claim':'In Progress')}</button>
+      </div>`;
+    });
+
+    // Event Shop
+    html += `<div class="chal-section-label" style="margin-top:14px;">Event Shop</div>`;
+    EVENT_SHOP.forEach(item => {
+      const can = (state.eventTokens || 0) >= item.cost;
+      html += `<div class="ach-card" style="margin-bottom:6px;">
+        <div class="ach-icon">${item.icon}</div>
+        <div class="ach-info">
+          <div class="ach-name">${item.name}</div>
+          <div class="ach-desc">🎫 ${item.cost}</div>
+        </div>
+        <button class="claim-btn" data-action="buy-event" data-id="${item.id}" ${can?'':'disabled'}>Buy</button>
+      </div>`;
+    });
+
+    panel.innerHTML = html;
   }
   function renderSeasonalSection(){
     const ev = ensureSeasonalState();
@@ -3729,6 +4127,20 @@
     economyPanelEl.addEventListener('click', e => {
       const puBtn = e.target.closest('[data-action="buy-powerup"]');
       if(puBtn) buyPowerup(puBtn.dataset.id);
+    });
+  }
+  // Events panel
+  const eventsPanelEl = document.getElementById('eventsPanel');
+  if(eventsPanelEl){
+    eventsPanelEl.addEventListener('click', e => {
+      const btn = e.target.closest('[data-action]');
+      if(!btn) return;
+      const act = btn.dataset.action;
+      if(act === 'claim-pass') claimEventPassTier(btn.dataset.id);
+      else if(act === 'buy-event') buyEventShopItem(btn.dataset.id);
+      else if(act === 'start-champ') startChampionship();
+      else if(act === 'claim-community') claimCommunity(btn.dataset.id);
+      else if(act === 'claim-seasonal') claimSeasonal();
     });
   }
 
@@ -5780,6 +6192,7 @@
     if(panelId === 'kitchenStaffPanel') renderKitchenStaff();
     if(panelId === 'kitchenFacilityPanel') renderKitchenFacility();
     if(panelId === 'economyPanel') renderEconomy();
+    if(panelId === 'eventsPanel') renderEvents();
   }
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => activatePanel(btn.dataset.panel));
@@ -5953,6 +6366,7 @@
     maybeTriggerOrder();
     tickOrder();
     tickRecipe();
+    if(typeof tickChampionship === 'function') tickChampionship(dt);
     if(now - lastStatsRender >= CONFIG.STATS_RENDER_INTERVAL_MS){
       renderStats();
       lastStatsRender = now;

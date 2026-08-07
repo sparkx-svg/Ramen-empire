@@ -1256,6 +1256,7 @@
     if(panelId === 'kitchenStaffPanel') renderKitchenStaff();
     if(panelId === 'kitchenFacilityPanel') renderKitchenFacility();
     if(panelId === 'economyPanel') renderEconomy();
+    if(panelId === 'eventsPanel') renderEvents();
   }
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => activatePanel(btn.dataset.panel));
@@ -1429,6 +1430,7 @@
     maybeTriggerOrder();
     tickOrder();
     tickRecipe();
+    if(typeof tickChampionship === 'function') tickChampionship(dt);
     if(now - lastStatsRender >= CONFIG.STATS_RENDER_INTERVAL_MS){
       renderStats();
       lastStatsRender = now;
