@@ -515,19 +515,27 @@
       cost:{noodles:1, salsa:2, spice:1, egg:1}, boost:{income:0.40}, unlock:{seasonal:'halloween'}},
     {id:'feast_ramen',  icon:'🎄', name:'Christmas Seafood Ramen', desc:'+50% income & +10 rep', rarity:'seasonal',
       cost:{noodles:2, seafood:2, cheese:1}, boost:{income:0.50, rep:10}, unlock:{seasonal:'holiday'}},
+    // GDD Part 8 — additional limited-time recipes
+    {id:'pumpkin_ramen', icon:'🎃', name:'Pumpkin Spice Ramen', desc:'+38% income & +12% tap', rarity:'seasonal',
+      cost:{noodles:2, spice:2, broth:1}, boost:{income:0.38, tap:0.12}, unlock:{seasonal:'halloween'}},
+    {id:'snow_crab',     icon:'🦀', name:'Snow Crab Ramen', desc:'+42% income for 90s', rarity:'seasonal',
+      cost:{noodles:2, seafood:2, nori:1}, boost:{income:0.42}, unlock:{seasonal:'holiday'}},
+    {id:'fire_dragon',   icon:'🐉', name:'Fire Dragon Ramen', desc:'+48% income & +10% tap', rarity:'seasonal',
+      cost:{noodles:2, salsa:2, spice:2}, boost:{income:0.48, tap:0.10}, unlock:{seasonal:'summer'}},
+    {id:'valentine_love',icon:'💝', name:'Love Potion Ramen', desc:'+33% income & +5 rep', rarity:'seasonal',
+      cost:{noodles:1, broth:1, egg:1, basil:1}, boost:{income:0.33, rep:5}, unlock:{seasonal:'valentine'}},
   ];
-  // GDD Part 5 — Customer types. Each has budget (reward mult), base patience (ms),
-  // weight (spawn frequency), favorite order flavor, and optional special flags.
+  // GDD Part 5 — Customer types with budgets, patience, favorites
   const CUSTOMER_TYPES = [
-    {id:'student',    icon:'🎒', name:'Student',        label:'Budget ramen',        flavor:'Cheap & filling, please!',     budget:0.7,  patience:14000, weight:22, tipChance:0.05},
-    {id:'office',     icon:'💼', name:'Office Worker',  label:'Lunch special',       flavor:'Quick — back to the desk!',   budget:1.1,  patience:12000, weight:20, tipChance:0.12},
-    {id:'family',     icon:'👨‍👩‍👧', name:'Family',         label:'Family order',        flavor:'Something for everyone.',     budget:1.4,  patience:22000, weight:14, tipChance:0.15},
-    {id:'tourist',    icon:'🧳', name:'Tourist',        label:'Local specialty',     flavor:'What\'s the regional classic?', budget:1.6,  patience:20000, weight:12, tipChance:0.20, tourist:true},
-    {id:'elderly',    icon:'👴', name:'Elderly',        label:'Mild classic',        flavor:'Not too spicy, dear.',        budget:0.9,  patience:28000, weight:10, tipChance:0.18},
-    {id:'foodie',     icon:'😋', name:'Food Lover',     label:'Signature bowl',      flavor:'Surprise me with your best!', budget:1.8,  patience:16000, weight:10, tipChance:0.25},
-    {id:'vip',        icon:'💎', name:'VIP Guest',      label:'VIP tasting',         flavor:'I expect excellence.',        budget:3.2,  patience:15000, weight:0,  tipChance:0.55, special:'vip'},
-    {id:'celebrity',  icon:'🌟', name:'Celebrity',      label:'Celebrity visit!',    flavor:'The cameras are rolling…',   budget:5.5,  patience:18000, weight:0,  tipChance:0.80, special:'celebrity'},
-    {id:'critic',     icon:'📰', name:'Food Critic',    label:'Critic\'s order',     flavor:'Every detail will be noted.', budget:2.4,  patience:16000, weight:0,  tipChance:0.40, special:'critic'},
+    {id:'student',    icon:'🎒', name:'Student',        label:'Budget ramen',        flavor:'Cheap & filling, please!',     budget:0.7,  patience:14000, weight:22, tipChance:0.05, favorite:'classic'},
+    {id:'office',     icon:'💼', name:'Office Worker',  label:'Lunch special',       flavor:'Quick — back to the desk!',   budget:1.1,  patience:12000, weight:20, tipChance:0.12, favorite:'quick'},
+    {id:'family',     icon:'👨‍👩‍👧', name:'Family',         label:'Family order',        flavor:'Something for everyone.',     budget:1.4,  patience:22000, weight:14, tipChance:0.15, favorite:'large'},
+    {id:'tourist',    icon:'🧳', name:'Tourist',        label:'Local specialty',     flavor:'What\'s the regional classic?', budget:1.6,  patience:20000, weight:12, tipChance:0.20, tourist:true, favorite:'classic'},
+    {id:'elderly',    icon:'👴', name:'Elderly',        label:'Mild classic',        flavor:'Not too spicy, dear.',        budget:0.9,  patience:28000, weight:10, tipChance:0.18, favorite:'classic'},
+    {id:'foodie',     icon:'😋', name:'Food Lover',     label:'Signature bowl',      flavor:'Surprise me with your best!', budget:1.8,  patience:16000, weight:10, tipChance:0.25, favorite:'signature'},
+    {id:'vip',        icon:'💎', name:'VIP Guest',      label:'VIP tasting',         flavor:'I expect excellence.',        budget:3.2,  patience:15000, weight:0,  tipChance:0.55, special:'vip', favorite:'signature'},
+    {id:'celebrity',  icon:'🌟', name:'Celebrity',      label:'Celebrity visit!',    flavor:'The cameras are rolling…',   budget:5.5,  patience:18000, weight:0,  tipChance:0.80, special:'celebrity', favorite:'signature'},
+    {id:'critic',     icon:'📰', name:'Food Critic',    label:'Critic\'s order',     flavor:'Every detail will be noted.', budget:2.4,  patience:16000, weight:0,  tipChance:0.40, special:'critic', favorite:'signature'},
   ];
 
   // Legacy alias — order flavors still used for display variety on normal types
@@ -717,6 +725,9 @@
     {id:'visits_10',   icon:'🏡', name:'Social Butterfly', desc:'Visit friends 10 times',            reward:0.03, cond: s => (s.visitsMade||0) >= 10},
     {id:'join_guild',  icon:'🏯', name:'Alliance Member',  desc:'Join or create a guild',            reward:0.03, cond: s => !!(s.guildId)},
     {id:'friendship_50',icon:'🤝', name:'True Friends',    desc:'Earn 50 friendship points',         reward:0.03, cond: s => (s.friendshipPoints||0) >= 50},
+    {id:'theme_unlock', icon:'🎨', name:'Interior Designer', desc:'Unlock a restaurant theme',       reward:0.02, cond: s => Object.keys(s.unlockedThemes||{}).length >= 2},
+    {id:'decor_3',      icon:'🪴', name:'Atmosphere Pro',  desc:'Own 3 decorations',                reward:0.02, cond: s => Object.keys(s.decorations||{}).length >= 3},
+    {id:'furniture_all',icon:'🪑', name:'Fully Furnished', desc:'Buy every furniture type',         reward:0.03, cond: s => FURNITURE.every(f => (s.furniture&&s.furniture[f.id]))},
 
   ];
 
@@ -768,6 +779,88 @@
     {id:'halloween', name:'Spooky Bowl',    icon:'🎃', theme:'cosmic',    seasonal:true, desc:'A little eerie, very delicious.'},
     {id:'holiday',   name:'Winter Feast',   icon:'🎄', theme:'golden',    seasonal:true, desc:'The empire\'s holiday special.'},
   ];
+
+  // GDD Part 10 — Customization catalogs
+  const RESTAURANT_THEMES = [
+    {id:'traditional', icon:'🏯', name:'Traditional Japanese', desc:'Shoji screens & wood.',     cost:0,  currency:'free',      atmosphere:0},
+    {id:'modern',      icon:'🏙️', name:'Modern Urban',         desc:'Clean lines, city lights.', cost:0,  currency:'milestone', milestoneReq:2, atmosphere:1},
+    {id:'luxury',      icon:'✨', name:'Luxury Dining',        desc:'Gold trim & velvet.',       cost:40, currency:'diamonds',  atmosphere:3},
+    {id:'anime',       icon:'🎀', name:'Anime Cafe',           desc:'Cute, colorful, kawaii.',   cost:25, currency:'diamonds',  atmosphere:2},
+    {id:'cyberpunk',   icon:'🤖', name:'Cyberpunk',            desc:'Neon noodles, night rain.', cost:50, currency:'diamonds',  atmosphere:3},
+    {id:'beach',       icon:'🏖️', name:'Beach Restaurant',     desc:'Sand, surf & salt air.',    cost:3,  currency:'prestige',  atmosphere:2},
+  ];
+  const DECORATIONS = [
+    {id:'plant',      icon:'🪴', name:'Potted Plants',   cost:500,   atmosphere:1},
+    {id:'painting',   icon:'🖼️', name:'Wall Paintings',  cost:2000,  atmosphere:1},
+    {id:'lantern',    icon:'🏮', name:'Paper Lanterns',  cost:5000,  atmosphere:2},
+    {id:'aquarium',   icon:'🐠', name:'Aquarium',        cost:25000, atmosphere:2},
+    {id:'statue',     icon:'🗿', name:'Ramen Statue',    cost:1e5,   atmosphere:3},
+    {id:'neon',       icon:'💜', name:'Neon Signs',      cost:5e5,   atmosphere:3},
+    {id:'golden_deco',icon:'🏆', name:'Golden Display',  cost:80,    currency:'diamonds', atmosphere:4, premium:true},
+  ];
+  const FURNITURE = [
+    {id:'tables',    icon:'🪑', name:'Wooden Tables',   cost:800,   patience:0.03},
+    {id:'chairs',    icon:'💺', name:'Comfy Chairs',    cost:1500,  patience:0.04},
+    {id:'sofas',     icon:'🛋️', name:'Lounge Sofas',    cost:8000,  patience:0.05},
+    {id:'vip_booth', icon:'💎', name:'VIP Booths',      cost:50000, patience:0.08},
+    {id:'shelves',   icon:'📚', name:'Display Shelves', cost:3000,  patience:0.02},
+  ];
+  const CHEF_OUTFITS = [
+    {id:'traditional', icon:'👨‍🍳', name:'Traditional Chef', cost:0,  currency:'free',     luck:0},
+    {id:'master',      icon:'🎖️', name:'Master Chef',      cost:20, currency:'diamonds', luck:0.02},
+    {id:'festival',    icon:'🎊', name:'Festival Outfit',  cost:15, currency:'diamonds', luck:0.03},
+    {id:'winter',      icon:'🧣', name:'Winter Outfit',    cost:15, currency:'diamonds', luck:0.02},
+    {id:'celebrity',   icon:'🌟', name:'Celebrity Chef',   cost:45, currency:'diamonds', luck:0.05},
+  ];
+  const MUSIC_THEMES = [
+    {id:'traditional', icon:'🎶', name:'Traditional Japanese'},
+    {id:'lofi',        icon:'🎧', name:'Lo-fi Beats'},
+    {id:'jazz',        icon:'🎷', name:'Late-Night Jazz'},
+    {id:'pop',         icon:'🎵', name:'Upbeat Pop'},
+    {id:'festival',    icon:'🥁', name:'Festival Drums'},
+    {id:'piano',       icon:'🎹', name:'Relaxing Piano'},
+  ];
+  const LIGHTING_STYLES = [
+    {id:'warm',     icon:'🕯️', name:'Warm Glow'},
+    {id:'neon',     icon:'💜', name:'Neon Lights'},
+    {id:'lantern',  icon:'🏮', name:'Lantern Light'},
+    {id:'festival', icon:'✨', name:'Festival Lights'},
+    {id:'luxury',   icon:'💎', name:'Chandeliers'},
+  ];
+
+  // GDD Part 10 — Exterior & kitchen skins
+  const EXTERIOR_OPTIONS = [
+    {id:'classic_shop', icon:'🏪', name:'Classic Storefront', cost:0, currency:'free'},
+    {id:'lantern_street', icon:'🏮', name:'Lantern Street', cost:15000},
+    {id:'neon_strip', icon:'💜', name:'Neon Strip Mall', cost:30, currency:'diamonds'},
+    {id:'beach_front', icon:'🏖️', name:'Beach Front', cost:4, currency:'prestige'},
+    {id:'garden_gate', icon:'🌸', name:'Garden Entrance', cost:25000},
+  ];
+  const KITCHEN_SKINS = [
+    {id:'basic', icon:'🔥', name:'Basic Stove', cost:0, currency:'free'},
+    {id:'copper', icon:'🥉', name:'Copper Range', cost:12000},
+    {id:'steel', icon:'⚙️', name:'Steel Pro Kitchen', cost:80000},
+    {id:'gold_kitchen', icon:'✨', name:'Golden Kitchen', cost:60, currency:'diamonds', premium:true},
+  ];
+  // GDD Part 9 — Profile titles / badges
+  const PROFILE_TITLES = [
+    {id:'rookie', icon:'🛒', name:'Street Rookie', req:{empire:1}},
+    {id:'chef', icon:'👨‍🍳', name:'Rising Chef', req:{orders:50}},
+    {id:'host', icon:'🤝', name:'Friendly Host', req:{friendship:25}},
+    {id:'tycoon', icon:'🏯', name:'Franchise Tycoon', req:{empire:15}},
+    {id:'star', icon:'⭐', name:'Michelin Star', req:{michelin:1}},
+    {id:'legend', icon:'👑', name:'Ramen Legend', req:{empire:40}},
+    {id:'champion', icon:'🏆', name:'Food Champion', req:{champWins:1}},
+    {id:'socialite', icon:'🎉', name:'Socialite', req:{gifts:10}},
+  ];
+  // GDD Part 7 — Fame sponsorships
+  const SPONSORSHIPS = [
+    {id:'local_radio', icon:'📻', name:'Local Radio Spot', fameReq:50, incomeBonus:0.03, cost:0},
+    {id:'food_blog', icon:'📱', name:'Food Blog Feature', fameReq:150, incomeBonus:0.05, cost:0},
+    {id:'tv_segment', icon:'📺', name:'TV Morning Show', fameReq:300, incomeBonus:0.08, cost:0},
+    {id:'global_brand', icon:'🌐', name:'Global Brand Deal', fameReq:600, incomeBonus:0.12, cost:0},
+  ];
+
   // Flattens every business-state object across all UNLOCKED countries, so
   // achievement conditions (and anything else that wants "any shop anywhere")
   // don't need to know about the country structure.
@@ -775,5 +868,98 @@
     const out = [];
     COUNTRIES.forEach(c => { if(s.unlockedCountries.includes(c.id)) out.push(...Object.values(s.countries[c.id])); });
     return out;
+  }
+
+  // GDD completeness — interior / exterior / kitchen detail slots
+  const INTERIOR_SLOTS = [
+    {id:'walls', icon:'🧱', name:'Walls', options:[
+      {id:'plain', name:'Plain Plaster', cost:0}, {id:'wood', name:'Cedar Panel', cost:3000},
+      {id:'tile', name:'Ceramic Tile', cost:8000}, {id:'gold', name:'Gold Leaf', cost:40, currency:'diamonds'}]},
+    {id:'floors', icon:'🟫', name:'Floors', options:[
+      {id:'wood', name:'Wood Plank', cost:0}, {id:'tatami', name:'Tatami', cost:5000},
+      {id:'marble', name:'Marble', cost:20000}, {id:'neon', name:'Neon Glass', cost:35, currency:'diamonds'}]},
+    {id:'ceilings', icon:'⬜', name:'Ceilings', options:[
+      {id:'simple', name:'Simple', cost:0}, {id:'beams', name:'Exposed Beams', cost:4000},
+      {id:'skylight', name:'Skylight', cost:15000}]},
+    {id:'windows', icon:'🪟', name:'Windows', options:[
+      {id:'standard', name:'Standard', cost:0}, {id:'shoji', name:'Shoji Screens', cost:6000},
+      {id:'panorama', name:'Panorama', cost:25000}]},
+    {id:'counters', icon:'🪵', name:'Counters', options:[
+      {id:'basic', name:'Basic Wood', cost:0}, {id:'stone', name:'Stone Top', cost:10000},
+      {id:'premium', name:'Premium Marble', cost:50, currency:'diamonds'}]},
+    {id:'waiting', icon:'🚪', name:'Waiting Area', options:[
+      {id:'bench', name:'Simple Bench', cost:0}, {id:'lounge', name:'Lounge Seats', cost:12000},
+      {id:'vip_wait', name:'VIP Lounge', cost:60000}]},
+  ];
+  const EXTERIOR_SLOTS = [
+    {id:'building', icon:'🏠', name:'Building', options:[
+      {id:'shop', name:'Corner Shop', cost:0}, {id:'machiya', name:'Machiya', cost:20000},
+      {id:'tower', name:'Glass Tower', cost:45, currency:'diamonds'}]},
+    {id:'signboard', icon:'🪧', name:'Signboard', options:[
+      {id:'wood', name:'Wood Sign', cost:0}, {id:'neon_sign', name:'Neon Sign', cost:15000},
+      {id:'gold_sign', name:'Gold Sign', cost:30, currency:'diamonds'}]},
+    {id:'entrance', icon:'🚪', name:'Entrance', options:[
+      {id:'door', name:'Simple Door', cost:0}, {id:'noren', name:'Noren Curtain', cost:5000},
+      {id:'arch', name:'Grand Arch', cost:40000}]},
+    {id:'garden', icon:'🌳', name:'Garden', options:[
+      {id:'none', name:'None', cost:0}, {id:'bonsai', name:'Bonsai Court', cost:18000},
+      {id:'koi', name:'Koi Pond', cost:80000}]},
+    {id:'parking', icon:'🅿️', name:'Parking', options:[
+      {id:'none', name:'Street Only', cost:0}, {id:'lot', name:'Small Lot', cost:25000},
+      {id:'valet', name:'Valet', cost:1e5}]},
+    {id:'outdoor', icon:'🪑', name:'Outdoor Seating', options:[
+      {id:'none', name:'None', cost:0}, {id:'patio', name:'Patio', cost:22000},
+      {id:'rooftop', name:'Rooftop Deck', cost:1.2e5}]},
+  ];
+  const KITCHEN_DETAIL_SKINS = [
+    {id:'stove', icon:'🔥', name:'Stove', options:[
+      {id:'basic', name:'Gas Stove', cost:0}, {id:'induction', name:'Induction', cost:15000},
+      {id:'wagyu', name:'Wagyu Grill', cost:40, currency:'diamonds'}]},
+    {id:'kcounter', icon:'🪵', name:'Kitchen Counter', options:[
+      {id:'wood', name:'Wood', cost:0}, {id:'steel', name:'Steel', cost:12000}]},
+    {id:'stations', icon:'⚙️', name:'Stations Look', options:[
+      {id:'classic', name:'Classic', cost:0}, {id:'pro', name:'Pro Line', cost:30000}]},
+    {id:'shelves', icon:'📦', name:'Storage Shelves', options:[
+      {id:'wood', name:'Wood Shelves', cost:0}, {id:'chrome', name:'Chrome', cost:10000}]},
+    {id:'kfloor', icon:'🟫', name:'Kitchen Floor', options:[
+      {id:'tile', name:'Tile', cost:0}, {id:'epoxy', name:'Epoxy', cost:20000}]},
+  ];
+  const PROFILE_FRAMES = [
+    {id:'none', icon:'⬜', name:'None', cost:0, currency:'free'},
+    {id:'bronze', icon:'🟫', name:'Bronze Frame', cost:15, currency:'diamonds'},
+    {id:'silver', icon:'⬜', name:'Silver Frame', cost:30, currency:'diamonds'},
+    {id:'gold', icon:'🟨', name:'Gold Frame', cost:50, currency:'diamonds'},
+    {id:'rainbow', icon:'🌈', name:'Rainbow Frame', cost:80, currency:'diamonds', premium:true},
+  ];
+  const NAMEPLATES = [
+    {id:'plain', icon:'🏷️', name:'Plain Plate', cost:0, currency:'free'},
+    {id:'wood', icon:'🪵', name:'Cedar Plate', cost:5000},
+    {id:'jade', icon:'💚', name:'Jade Plate', cost:25, currency:'diamonds'},
+    {id:'imperial', icon:'👑', name:'Imperial Plate', cost:60, currency:'diamonds', premium:true},
+  ];
+  const EVENT_DECORATIONS = [
+    {id:'sakura_tree', icon:'🌸', name:'Sakura Tree', seasonal:'spring', atmosphere:3},
+    {id:'beach_umbrella', icon:'⛱️', name:'Beach Umbrella', seasonal:'summer', atmosphere:3},
+    {id:'harvest_wreath', icon:'🍂', name:'Harvest Wreath', seasonal:'autumn', atmosphere:3},
+    {id:'snowman', icon:'⛄', name:'Snowman', seasonal:'holiday', atmosphere:3},
+    {id:'pumpkin_stack', icon:'🎃', name:'Pumpkin Stack', seasonal:'halloween', atmosphere:3},
+    {id:'heart_arch', icon:'💝', name:'Heart Arch', seasonal:'valentine', atmosphere:3},
+    {id:'firework_stand', icon:'🎆', name:'Firework Stand', seasonal:'newyear', atmosphere:4},
+  ];
+  const CHEF_FRAGMENTS_NEED = 10;
+  const LOYALTY_EVENTS = [
+    {id:'loyal_50', pts:50, reward:{cashSec:60, tokens:5}, name:'Loyal Fifty'},
+    {id:'loyal_100', pts:100, reward:{cashSec:120, diamonds:2}, name:'Century Club'},
+    {id:'loyal_250', pts:250, reward:{cashSec:300, tokens:15, research:3}, name:'Devoted Guests'},
+  ];
+  const EQUIPMENT_SHOP = [
+    {id:'eq_station', icon:'🔥', name:'Cooking Station Kit', desc:'Cash toward stations', cost:5000, kind:'cash_pack', cashSec:45},
+    {id:'eq_queue', icon:'🧾', name:'Queue Rope Set', desc:'Cash pack for queue', cost:8000, kind:'cash_pack', cashSec:60},
+    {id:'eq_delivery', icon:'🛵', name:'Scooter Pack', desc:'Delivery cash pack', cost:12000, kind:'cash_pack', cashSec:80},
+    {id:'eq_clean', icon:'🧹', name:'Cleaning Kit', desc:'Cleaning cash pack', cost:6000, kind:'cash_pack', cashSec:50},
+  ];
+  // Autumn harvest if missing from seasonal list
+  if(typeof SEASONAL_EVENTS !== 'undefined' && !SEASONAL_EVENTS.find(e => e.id === 'autumn')){
+    SEASONAL_EVENTS.push({id:'autumn', icon:'🍂', name:'Autumn Harvest', month:9, startDay:15, endDay:30, skinId:'summer', challengeType:'buy', challengeTarget:18, rewardMiso:1, blurb:'Harvest flavors in every bowl.'});
   }
 

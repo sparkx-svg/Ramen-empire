@@ -76,6 +76,35 @@
     visitsMade: 0,
     visitLog: {},
     lastGiftType: 'cash',
+    // GDD Part 10 — Customization
+    restaurantTheme: 'traditional',
+    unlockedThemes: { traditional: true },
+    decorations: {},
+    furniture: {},
+    chefOutfit: 'traditional',
+    unlockedOutfits: { traditional: true },
+    musicTheme: 'traditional',
+    lighting: 'warm',
+    exterior: 'classic_shop',
+    unlockedExteriors: { classic_shop: true },
+    kitchenSkin: 'basic',
+    unlockedKitchenSkins: { basic: true },
+    profileTitle: 'rookie',
+    activeSponsorships: {},
+    reviewSum: 0,
+    reviewCount: 0,
+    repeatCustomers: 0,
+    interior: { walls:'plain', floors:'wood', ceilings:'simple', windows:'standard', counters:'basic', waiting:'bench' },
+    exteriorSlots: { building:'shop', signboard:'wood', entrance:'door', garden:'none', parking:'none', outdoor:'none' },
+    kitchenDetail: { stove:'basic', kcounter:'wood', stations:'classic', shelves:'wood', kfloor:'tile' },
+    profileFrame: 'none',
+    nameplate: 'plain',
+    eventDecorOwned: {},
+    chefFragments: {},
+    loyaltyEventsClaimed: {},
+    friendshipDailyClaimed: null,
+    socialFeed: [],
+    eventScore: 0,
     // Story / seasonal / staff (v1.7)
     storyClaimed: {},     // questId -> true once reward claimed
     seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
@@ -214,6 +243,7 @@
     {id:'ing',      icon:'🧅', label:'Rare ingredients',weight:10, kind:'ingredient',amount:3},
     {id:'boost',    icon:'⚡', label:'Free booster',    weight:8,  kind:'booster',   amount:1},
     {id:'loyalty',  icon:'❤️', label:'Loyalty points',  weight:8,  kind:'loyalty',   amount:5},
+    {id:'fragment', icon:'🧩', label:'Chef fragment',   weight:5,  kind:'fragment',  amount:1},
   ];
   function powerupActive(id){
     const ends = state.activePowerups && state.activePowerups[id];
@@ -415,6 +445,23 @@
       visitsMade: 0,
       visitLog: {},
       lastGiftType: 'cash',
+      restaurantTheme: 'traditional',
+      unlockedThemes: { traditional: true },
+      decorations: {},
+      furniture: {},
+      chefOutfit: 'traditional',
+      unlockedOutfits: { traditional: true },
+      musicTheme: 'traditional',
+      lighting: 'warm',
+      exterior: 'classic_shop',
+      unlockedExteriors: { classic_shop: true },
+      kitchenSkin: 'basic',
+      unlockedKitchenSkins: { basic: true },
+      profileTitle: 'rookie',
+      activeSponsorships: {},
+      reviewSum: 0,
+      reviewCount: 0,
+      repeatCustomers: 0,
       storyClaimed: {},
       seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
       guildId: null,
@@ -552,6 +599,34 @@
     if(state.visitsMade === undefined) state.visitsMade = 0;
     if(!state.visitLog) state.visitLog = {};
     if(!state.lastGiftType) state.lastGiftType = 'cash';
+    if(!state.restaurantTheme) state.restaurantTheme = 'traditional';
+    if(!state.unlockedThemes) state.unlockedThemes = { traditional: true };
+    if(!state.decorations) state.decorations = {};
+    if(!state.furniture) state.furniture = {};
+    if(!state.chefOutfit) state.chefOutfit = 'traditional';
+    if(!state.unlockedOutfits) state.unlockedOutfits = { traditional: true };
+    if(!state.musicTheme) state.musicTheme = 'traditional';
+    if(!state.lighting) state.lighting = 'warm';
+    if(!state.exterior) state.exterior = 'classic_shop';
+    if(!state.unlockedExteriors) state.unlockedExteriors = { classic_shop: true };
+    if(!state.kitchenSkin) state.kitchenSkin = 'basic';
+    if(!state.unlockedKitchenSkins) state.unlockedKitchenSkins = { basic: true };
+    if(!state.profileTitle) state.profileTitle = 'rookie';
+    if(!state.activeSponsorships) state.activeSponsorships = {};
+    if(state.reviewSum === undefined) state.reviewSum = 0;
+    if(state.reviewCount === undefined) state.reviewCount = 0;
+    if(state.repeatCustomers === undefined) state.repeatCustomers = 0;
+    if(!state.interior) state.interior = { walls:'plain', floors:'wood', ceilings:'simple', windows:'standard', counters:'basic', waiting:'bench' };
+    if(!state.exteriorSlots) state.exteriorSlots = { building:'shop', signboard:'wood', entrance:'door', garden:'none', parking:'none', outdoor:'none' };
+    if(!state.kitchenDetail) state.kitchenDetail = { stove:'basic', kcounter:'wood', stations:'classic', shelves:'wood', kfloor:'tile' };
+    if(!state.profileFrame) state.profileFrame = 'none';
+    if(!state.nameplate) state.nameplate = 'plain';
+    if(!state.eventDecorOwned) state.eventDecorOwned = {};
+    if(!state.chefFragments) state.chefFragments = {};
+    if(!state.loyaltyEventsClaimed) state.loyaltyEventsClaimed = {};
+    if(state.friendshipDailyClaimed === undefined) state.friendshipDailyClaimed = null;
+    if(!state.socialFeed) state.socialFeed = [];
+    if(state.eventScore === undefined) state.eventScore = 0;
     if(state.tapFxEnabled === undefined) state.tapFxEnabled = true;
     if(state.musicEnabled === undefined) state.musicEnabled = true;
     if(state.sfxEnabled === undefined) state.sfxEnabled = true;

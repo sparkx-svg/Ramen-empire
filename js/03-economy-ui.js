@@ -204,7 +204,8 @@
       * staffEquipBonus()
       * menuPriceMult()
       * fameMultiplier()
-      * empireLevelMultiplier();
+      * empireLevelMultiplier()
+      * sponsorshipIncomeBonus();
   }
   function staffIncomeBonus(){
     let mult = 1;
@@ -538,7 +539,7 @@
     if(activeEvent.type) return;
     if(Date.now() < nextEventCheck) return;
     nextEventCheck = Date.now() + CONFIG.EVENT_CHECK_INTERVAL_MS;
-    if(Math.random() < CONFIG.EVENT_TRIGGER_CHANCE + metaBonus('luck') + powerupLuckBonus()){
+    if(Math.random() < CONFIG.EVENT_TRIGGER_CHANCE + metaBonus('luck') + powerupLuckBonus() + outfitLuckBonus()){
       const roll = Math.random();
       if(roll < CONFIG.LUCKY_EVENT_SHARE) startLuckyEvent();
       else if(roll < CONFIG.LUCKY_EVENT_SHARE + (1 - CONFIG.LUCKY_EVENT_SHARE) * CONFIG.CRITIC_EVENT_SHARE) startCriticEvent();
@@ -645,16 +646,286 @@
   let lastReviewToast = 0;
 
   function patienceMultiplier(){
-    // Staff service roles, queue upgrades, and cleanliness extend patience.
+    // Staff service roles, queue upgrades, cleanliness, and furniture extend patience.
     let mult = 1;
     mult += sumLevels(state.queue) * (CONFIG.PATIENCE_QUEUE_BONUS || 0.08);
     const serviceStaff = ['waiter','cashier','cleaner','host'].filter(id => state.staff && state.staff[id]);
     mult += serviceStaff.length * (CONFIG.PATIENCE_STAFF_BONUS || 0.04);
     const clean = Math.max(0, Math.min(100, state.cleanliness || 0)) / 100;
     mult += clean * (CONFIG.PATIENCE_CLEAN_BONUS || 0.15);
-    // Express lane slightly reduces wait pressure (more time feel) via queue id
     if(state.queue && state.queue.express) mult += 0.05 * state.queue.express;
+    // Furniture (GDD Part 10)
+    FURNITURE.forEach(f => {
+      if(state.furniture && state.furniture[f.id]) mult += f.patience || 0;
+    });
     return Math.min(CONFIG.PATIENCE_MAX_MULT || 2.2, mult);
+  }
+  function atmosphereBonus(){
+    let pts = 0;
+    const theme = RESTAURANT_THEMES.find(t => t.id === state.restaurantTheme);
+    if(theme) pts += theme.atmosphere || 0;
+    DECORATIONS.forEach(d => {
+      if(state.decorations && state.decorations[d.id]) pts += d.atmosphere || 0;
+    });
+    if(typeof EVENT_DECORATIONS !== 'undefined'){
+      EVENT_DECORATIONS.forEach(d => {
+        if(state.eventDecorOwned && state.eventDecorOwned[d.id]) pts += d.atmosphere || 0;
+      });
+    }
+    const int = state.interior || {};
+    Object.values(int).forEach(v => {
+      if(v && !['plain','wood','simple','standard','basic','bench'].includes(v)) pts += 1;
+    });
+    const ext = state.exteriorSlots || {};
+    Object.values(ext).forEach(v => {
+      if(v && !['none','shop','wood','door'].includes(v)) pts += 1;
+    });
+    return pts;
+  }
+  function buyInteriorOption(slotId, optId){
+    const slot = INTERIOR_SLOTS.find(s => s.id === slotId);
+    if(!slot) return;
+    const opt = slot.options.find(o => o.id === optId);
+    if(!opt) return;
+    if((state.interior && state.interior[slotId]) === optId) return;
+    if(opt.currency === 'diamonds'){
+      if((state.diamonds||0) < (opt.cost||0)){ playErrorSfx(); return; }
+      state.diamonds -= opt.cost;
+    } else if((opt.cost||0) > 0){
+      if(getCountryCash(state.activeCountry) < opt.cost){ playErrorSfx(); return; }
+      if(!spendCountryCash(state.activeCountry, opt.cost)) return;
+    }
+    if(!state.interior) state.interior = {};
+    state.interior[slotId] = optId;
+    playBuySfx(); save(); renderCollection(); renderStats();
+  }
+  function buyExteriorOption(slotId, optId){
+    const slot = EXTERIOR_SLOTS.find(s => s.id === slotId);
+    if(!slot) return;
+    const opt = slot.options.find(o => o.id === optId);
+    if(!opt) return;
+    if((state.exteriorSlots && state.exteriorSlots[slotId]) === optId) return;
+    if(opt.currency === 'diamonds'){
+      if((state.diamonds||0) < (opt.cost||0)){ playErrorSfx(); return; }
+      state.diamonds -= opt.cost;
+    } else if((opt.cost||0) > 0){
+      if(getCountryCash(state.activeCountry) < opt.cost){ playErrorSfx(); return; }
+      if(!spendCountryCash(state.activeCountry, opt.cost)) return;
+    }
+    if(!state.exteriorSlots) state.exteriorSlots = {};
+    state.exteriorSlots[slotId] = optId;
+    playBuySfx(); save(); renderCollection(); renderStats();
+  }
+  function buyKitchenDetail(slotId, optId){
+    const slot = KITCHEN_DETAIL_SKINS.find(s => s.id === slotId);
+    if(!slot) return;
+    const opt = slot.options.find(o => o.id === optId);
+    if(!opt) return;
+    if((state.kitchenDetail && state.kitchenDetail[slotId]) === optId) return;
+    if(opt.currency === 'diamonds'){
+      if((state.diamonds||0) < (opt.cost||0)){ playErrorSfx(); return; }
+      state.diamonds -= opt.cost;
+    } else if((opt.cost||0) > 0){
+      if(getCountryCash(state.activeCountry) < opt.cost){ playErrorSfx(); return; }
+      if(!spendCountryCash(state.activeCountry, opt.cost)) return;
+    }
+    if(!state.kitchenDetail) state.kitchenDetail = {};
+    state.kitchenDetail[slotId] = optId;
+    playBuySfx(); save(); renderCollection(); renderStats();
+  }
+  function buyProfileFrame(id){
+    const f = PROFILE_FRAMES.find(x => x.id === id);
+    if(!f || state.profileFrame === id) return;
+    if(f.currency === 'diamonds' && f.cost > 0){
+      if((state.diamonds||0) < f.cost){ playErrorSfx(); return; }
+      state.diamonds -= f.cost;
+    }
+    state.profileFrame = id;
+    playBuySfx(); save(); renderCollection(); renderStats();
+  }
+  function buyNameplate(id){
+    const n = NAMEPLATES.find(x => x.id === id);
+    if(!n || state.nameplate === id) return;
+    if(n.currency === 'diamonds'){
+      if((state.diamonds||0) < n.cost){ playErrorSfx(); return; }
+      state.diamonds -= n.cost;
+    } else if(n.cost > 0){
+      if(getCountryCash(state.activeCountry) < n.cost){ playErrorSfx(); return; }
+      if(!spendCountryCash(state.activeCountry, n.cost)) return;
+    }
+    state.nameplate = id;
+    playBuySfx(); save(); renderCollection(); renderStats();
+  }
+  function addChefFragment(chefId, n){
+    if(!state.chefFragments) state.chefFragments = {};
+    state.chefFragments[chefId] = (state.chefFragments[chefId] || 0) + (n || 1);
+    const need = typeof CHEF_FRAGMENTS_NEED !== 'undefined' ? CHEF_FRAGMENTS_NEED : 10;
+    if(state.chefFragments[chefId] >= need){
+      if(!state.chefsOwned) state.chefsOwned = {};
+      if(!state.chefsOwned[chefId]){
+        state.chefsOwned[chefId] = true;
+        pushSocialFeed('Chef unlocked via fragments!');
+      }
+    }
+  }
+  function pushSocialFeed(msg){
+    if(!state.socialFeed) state.socialFeed = [];
+    state.socialFeed.unshift({ t: Date.now(), msg: String(msg) });
+    if(state.socialFeed.length > 30) state.socialFeed.length = 30;
+  }
+  function claimLoyaltyEvent(id){
+    const ev = LOYALTY_EVENTS.find(e => e.id === id);
+    if(!ev) return;
+    if((state.loyaltyPoints||0) < ev.pts){ playErrorSfx(); return; }
+    if(state.loyaltyEventsClaimed && state.loyaltyEventsClaimed[id]) return;
+    if(!state.loyaltyEventsClaimed) state.loyaltyEventsClaimed = {};
+    state.loyaltyEventsClaimed[id] = true;
+    if(typeof grantEventReward === 'function') grantEventReward(ev.reward);
+    pushSocialFeed('Loyalty: ' + ev.name);
+    playBuySfx(); save();
+    if(typeof renderKitchenOverview === 'function') renderKitchenOverview();
+    renderStats();
+  }
+  function claimFriendshipDaily(){
+    const today = todayKey();
+    if(state.friendshipDailyClaimed === today){ playErrorSfx(); return; }
+    if((state.friendshipPoints||0) < 10){ playErrorSfx(); return; }
+    state.friendshipDailyClaimed = today;
+    const rate = Math.max(totalRatePerSec(), 1);
+    const gain = rate * 40;
+    addCountryCash(state.activeCountry, gain);
+    addEarned(gain);
+    if(typeof earnEventTokens === 'function') earnEventTokens(3);
+    playBuySfx();
+    pushSocialFeed('Friendship daily bonus claimed');
+    save(); renderStats();
+  }
+  function claimEventDecoration(id){
+    const d = EVENT_DECORATIONS.find(x => x.id === id);
+    if(!d || (state.eventDecorOwned && state.eventDecorOwned[id])) return;
+    const ev = typeof ensureSeasonalState === 'function' ? ensureSeasonalState() : null;
+    const match = ev && (ev.id === d.seasonal);
+    if(!match){
+      if((state.eventTokens||0) < 20){ playErrorSfx(); return; }
+      state.eventTokens -= 20;
+    }
+    if(!state.eventDecorOwned) state.eventDecorOwned = {};
+    state.eventDecorOwned[id] = true;
+    playBuySfx(); save();
+    if(typeof renderEvents === 'function') renderEvents();
+    if(typeof renderCollection === 'function') renderCollection();
+  }
+  function buyEquipmentShopItem(id){
+    const item = EQUIPMENT_SHOP.find(x => x.id === id);
+    if(!item) return;
+    if(getCountryCash(state.activeCountry) < item.cost){ playErrorSfx(); return; }
+    if(!spendCountryCash(state.activeCountry, item.cost)) return;
+    const rate = Math.max(totalRatePerSec(), 1);
+    const g = rate * (item.cashSec || 30);
+    addCountryCash(state.activeCountry, g);
+    addEarned(g);
+    playBuySfx(); save();
+    if(typeof renderEconomy === 'function') renderEconomy();
+    renderStats();
+  }
+  function atmosphereTrafficMult(){
+    // Soft traffic bonus from atmosphere (cap ~+25%)
+    return 1 + Math.min(0.25, atmosphereBonus() * 0.015);
+  }
+  function outfitLuckBonus(){
+    const o = CHEF_OUTFITS.find(x => x.id === state.chefOutfit);
+    return o ? (o.luck || 0) : 0;
+  }
+  function satisfactionDrivers(){
+    let q = 0, n = 0;
+    allBusinessStates().forEach(b => { if((b.level||0)>0){ q += b.quality||0; n++; } });
+    const food = n ? Math.min(100, (q / (n * 15)) * 100) : 40;
+    const speed = Math.min(100, (sumLevels(state.queue) * 12 + sumLevels(state.stations) * 4));
+    const clean = state.cleanliness || 50;
+    const atmosphere = Math.min(100, atmosphereBonus() * 8 + (state.reputation||50) * 0.3);
+    const staff = Math.min(100, Object.keys(state.staff||{}).length * 18 + sumLevels(state.layout) * 3);
+    return { food, speed, clean, atmosphere, staff };
+  }
+  function averageReviewScore(){
+    if(!(state.reviewCount > 0)) return 0;
+    return Math.round((state.reviewSum / state.reviewCount) * 10) / 10;
+  }
+  function sponsorshipIncomeBonus(){
+    let m = 1;
+    SPONSORSHIPS.forEach(sp => {
+      if(state.activeSponsorships && state.activeSponsorships[sp.id]) m += sp.incomeBonus || 0;
+    });
+    return m;
+  }
+  function claimSponsorship(id){
+    const sp = SPONSORSHIPS.find(x => x.id === id);
+    if(!sp) return;
+    if((state.fame || 0) < sp.fameReq){ playErrorSfx(); return; }
+    if(state.activeSponsorships && state.activeSponsorships[id]) return;
+    if(!state.activeSponsorships) state.activeSponsorships = {};
+    state.activeSponsorships[id] = true;
+    playBuySfx();
+    save(); renderStats();
+    if(typeof renderKitchenOverview === 'function') renderKitchenOverview();
+  }
+  function canUnlockTitle(id){
+    const t = PROFILE_TITLES.find(x => x.id === id);
+    if(!t) return false;
+    const r = t.req || {};
+    if(r.empire && empireLevel() < r.empire) return false;
+    if(r.orders && (state.ordersFulfilled||0) < r.orders) return false;
+    if(r.friendship && (state.friendshipPoints||0) < r.friendship) return false;
+    if(r.michelin && (state.michelinStars||0) < r.michelin) return false;
+    if(r.champWins && (state.championshipWins||0) < r.champWins) return false;
+    if(r.gifts && (state.giftsSent||0) < r.gifts) return false;
+    return true;
+  }
+  function equipProfileTitle(id){
+    if(!canUnlockTitle(id)){ playErrorSfx(); return; }
+    state.profileTitle = id;
+    save();
+    if(typeof renderCollection === 'function') renderCollection();
+  }
+  function buyExterior(id){
+    const x = EXTERIOR_OPTIONS.find(e => e.id === id);
+    if(!x || (state.unlockedExteriors && state.unlockedExteriors[id])) return;
+    if(x.currency === 'diamonds'){
+      if((state.diamonds||0) < x.cost){ playErrorSfx(); return; }
+      state.diamonds -= x.cost;
+    } else if(x.currency === 'prestige'){
+      if((state.prestigePoints||0) < x.cost){ playErrorSfx(); return; }
+      state.prestigePoints -= x.cost;
+    } else if(x.currency !== 'free'){
+      if(getCountryCash(state.activeCountry) < x.cost){ playErrorSfx(); return; }
+      if(!spendCountryCash(state.activeCountry, x.cost)) return;
+    }
+    if(!state.unlockedExteriors) state.unlockedExteriors = {};
+    state.unlockedExteriors[id] = true;
+    state.exterior = id;
+    playBuySfx(); save(); renderCollection(); renderStats();
+  }
+  function equipExterior(id){
+    if(!(state.unlockedExteriors && state.unlockedExteriors[id])) return;
+    state.exterior = id; save(); renderCollection();
+  }
+  function buyKitchenSkin(id){
+    const k = KITCHEN_SKINS.find(e => e.id === id);
+    if(!k || (state.unlockedKitchenSkins && state.unlockedKitchenSkins[id])) return;
+    if(k.currency === 'diamonds'){
+      if((state.diamonds||0) < k.cost){ playErrorSfx(); return; }
+      state.diamonds -= k.cost;
+    } else if(k.currency !== 'free'){
+      if(getCountryCash(state.activeCountry) < k.cost){ playErrorSfx(); return; }
+      if(!spendCountryCash(state.activeCountry, k.cost)) return;
+    }
+    if(!state.unlockedKitchenSkins) state.unlockedKitchenSkins = {};
+    state.unlockedKitchenSkins[id] = true;
+    state.kitchenSkin = id;
+    playBuySfx(); save(); renderCollection(); renderStats();
+  }
+  function equipKitchenSkin(id){
+    if(!(state.unlockedKitchenSkins && state.unlockedKitchenSkins[id])) return;
+    state.kitchenSkin = id; save(); renderCollection();
   }
 
   function loyaltyRewardMult(){
@@ -692,7 +963,8 @@
       return CUSTOMER_TYPES.find(c => c.id === 'celebrity');
     }
     const fameVip = (state.fame || 0) * (CONFIG.FAME_VIP_BONUS || 0.0004);
-    if(rep >= 55 && Math.random() < (CONFIG.VIP_SPAWN_CHANCE || 0.06) * (1 + vipArea * 0.15) + fameVip){
+    const michelinVip = (state.michelinStars || 0) * 0.03;
+    if(rep >= 55 && Math.random() < (CONFIG.VIP_SPAWN_CHANCE || 0.06) * (1 + vipArea * 0.15) + fameVip + michelinVip){
       return CUSTOMER_TYPES.find(c => c.id === 'vip');
     }
     // High fame also slightly boosts celebrity chance
@@ -704,8 +976,11 @@
       return CUSTOMER_TYPES.find(c => c.id === 'critic');
     }
 
-    // Weighted normal pool — tourists scale with reputation / unlocked countries
+    // GDD Part 5 behavior AI: queue, rating, prices, menu variety, promotions
     const unlocked = (state.unlockedCountries || []).length;
+    const price = menuPriceMult();
+    const hasActiveRecipe = !!(state.activeRecipe && state.activeRecipe.endsAt > Date.now());
+    const recipeCount = Object.keys(state.recipeMastery || {}).length;
     const pool = CUSTOMER_TYPES.filter(c => !c.special);
     let total = 0;
     const weights = pool.map(c => {
@@ -713,11 +988,15 @@
       if(c.tourist){
         w *= 1 + Math.max(0, (rep - 50) / 50) * (CONFIG.TOURIST_REP_BONUS || 0.12) * 8;
         w *= 1 + Math.max(0, unlocked - 1) * 0.25;
+        w *= 1 + Math.min(0.5, rating / 200);
       }
-      // Foodies prefer high rating
-      if(c.id === 'foodie') w *= 0.6 + (rating / 100) * 0.9;
-      // Students more common early
-      if(c.id === 'student') w *= Math.max(0.4, 1.4 - unlocked * 0.2);
+      if(c.id === 'foodie') w *= 0.6 + (rating / 100) * 0.9 + (hasActiveRecipe ? 0.3 : 0);
+      if(c.id === 'student') w *= Math.max(0.4, 1.4 - unlocked * 0.2) * (price <= 0.9 ? 1.3 : 0.8);
+      if(c.id === 'office') w *= price <= 1.2 ? 1.1 : 0.85;
+      if(c.id === 'family') w *= 0.9 + Math.min(0.4, recipeCount * 0.05);
+      if(c.id === 'elderly') w *= price <= 1.0 ? 1.15 : 0.7;
+      // Active order already up = longer "queue" → slightly fewer new arrivals
+      if(activeOrder) w *= 0.7;
       total += w;
       return w;
     });
@@ -739,7 +1018,8 @@
     const sat = (state.satisfaction || CONFIG.SATISFACTION_START) / 100;
     const traffic = (typeof powerupTrafficMult === 'function' ? powerupTrafficMult() : 1)
       * menuPriceTrafficMult()
-      * michelinTrafficBonus();
+      * michelinTrafficBonus()
+      * atmosphereTrafficMult();
     const chance = (CONFIG.ORDER_TRIGGER_CHANCE || 0.28) * (0.75 + sat * 0.5) * traffic;
     if(Math.random() >= Math.min(0.85, chance)) return;
 
@@ -791,6 +1071,12 @@
     if(stars >= 4){
       state.reviewsPositive = (state.reviewsPositive || 0) + 1;
       adjustFame(CONFIG.FAME_PER_REVIEW || 1.5);
+    }
+    state.reviewSum = (state.reviewSum || 0) + stars;
+    state.reviewCount = (state.reviewCount || 0) + 1;
+    // Loyalty → chance of "repeat customer" flag
+    if(success && (state.loyaltyPoints || 0) >= 10 && Math.random() < 0.15){
+      state.repeatCustomers = (state.repeatCustomers || 0) + 1;
     }
     const lines = {
       5: ['Best ramen in town!', 'Will definitely come back!', 'Absolute perfection.', 'Tell your friends!'],
@@ -995,7 +1281,13 @@
     } else if(prize.kind === 'loyalty'){
       state.loyaltyPoints = (state.loyaltyPoints || 0) + prize.amount;
       msg = `+${prize.amount} ❤️ Loyalty`;
+    } else if(prize.kind === 'fragment'){
+      const chefs = (typeof LEGENDARY_CHEFS !== 'undefined' ? LEGENDARY_CHEFS : []).map(c => c.id);
+      const id = chefs.length ? chefs[Math.floor(Math.random()*chefs.length)] : 'nonna';
+      addChefFragment(id, prize.amount || 1);
+      msg = `🧩 Chef fragment (${id})`;
     }
+    state.eventScore = (state.eventScore || 0) + 1;
     return msg;
   }
   function spinLuckyWheel(paid){
@@ -1088,10 +1380,23 @@
       <p class="rep-hint">Lifetime daily spin. Extra spins cost diamonds. Prizes: cash, gems, research, ingredients, boosters, loyalty. Spins: ${state.wheelSpins||0}</p>
     </div>`;
 
+    // Equipment shop (Part 6.7)
+    html += `<div class="chal-section-label" style="margin-top:16px;">Equipment Shop</div>`;
+    EQUIPMENT_SHOP.forEach(item => {
+      const can = getCountryCash(state.activeCountry) >= item.cost;
+      html += `<div class="ach-card" style="margin-bottom:6px;">
+        <div class="ach-icon">${item.icon}</div>
+        <div class="ach-info"><div class="ach-name">${item.name}</div>
+        <div class="ach-desc">${item.desc}</div>
+        <div class="ach-reward">${fmt(item.cost)}</div></div>
+        <button class="claim-btn" data-action="buy-equip" data-id="${item.id}" ${can?'':'disabled'}>Buy</button>
+      </div>`;
+    });
+
     // Boosters (mirror of prestige panel, quick access)
-    html += `<div class="chal-section-label" style="margin-top:16px;">Boosters</div>`;
+    html += `<div class="chal-section-label" style="margin-top:16px;">Premium Boosters</div>`;
     html += `<div id="economyPowerupsList"></div>`;
-    html += `<p class="rep-hint" style="margin-top:6px;">Traffic boost +${Math.round((trafficBoost-1)*100)}% customer orders while active.</p>`;
+    html += `<p class="rep-hint" style="margin-top:6px;">Traffic boost +${Math.round((trafficBoost-1)*100)}% customer orders while active. Chef fragments: ${Object.entries(state.chefFragments||{}).map(([k,v])=>k+':'+v).join(', ')||'none'}</p>`;
 
     panel.innerHTML = html;
 
@@ -1399,6 +1704,8 @@
     const reviewsTot = state.reviewsTotal || 0;
     const vipN = state.vipServed || 0;
     const celebN = state.celebritiesServed || 0;
+    const drivers = satisfactionDrivers();
+    const avgRev = averageReviewScore();
     html += `<div class="chal-section-label" style="margin-top:16px;">Customers</div>`;
     html += `<div class="rep-panel-card">
       <div class="rep-panel-top">
@@ -1406,14 +1713,44 @@
         <span class="rep-panel-mult">Satisfaction</span>
       </div>
       <div class="rep-track big"><div class="rep-fill" style="width:${Math.max(0,Math.min(100,sat))}%; background:linear-gradient(90deg,#5ecf8a,#c9e265);"></div></div>
+      <div style="font-size:10.5px; opacity:0.8; margin-top:8px; line-height:1.5;">
+        Food ${Math.round(drivers.food)} · Speed ${Math.round(drivers.speed)} · Clean ${Math.round(drivers.clean)} · Atmosphere ${Math.round(drivers.atmosphere)} · Staff ${Math.round(drivers.staff)}
+      </div>
       <div style="display:flex; flex-wrap:wrap; gap:8px 14px; margin-top:10px; font-size:11.5px;">
-        <span>❤️ Loyalty <b>${loyalty}</b> (Tier ${loyaltyTier}${loyaltyBonusPct ? ` · +${loyaltyBonusPct}% orders` : ''})</span>
-        <span>⭐ Reviews <b>${reviewsPos}</b>/${reviewsTot}</span>
+        <span>❤️ Loyalty <b>${loyalty}</b> (Tier ${loyaltyTier}${loyaltyBonusPct ? ` · +${loyaltyBonusPct}%` : ''})</span>
+        <span>⭐ Avg review <b>${avgRev || '—'}</b> (${reviewsPos}/${reviewsTot})</span>
+        <span>🔁 Repeats <b>${state.repeatCustomers||0}</b></span>
         <span>💎 VIP <b>${vipN}</b></span>
         <span>🌟 Celebs <b>${celebN}</b></span>
       </div>
-      <p class="rep-hint">Serve quickly to raise satisfaction. VIPs, tourists & celebrities pay more. Queue upgrades & staff extend patience. Loyalty tiers boost order rewards.</p>
+      <p class="rep-hint">Satisfaction follows food quality, service speed, cleanliness, atmosphere & staff. Loyalty tiers boost order rewards. VIPs & celebs pay more.</p>
     </div>`;
+
+    // Loyalty special events (Part 5.9)
+    html += `<div class="chal-section-label" style="margin-top:16px;">Loyalty Events</div>`;
+    LOYALTY_EVENTS.forEach(ev => {
+      const claimed = !!(state.loyaltyEventsClaimed && state.loyaltyEventsClaimed[ev.id]);
+      const ready = (state.loyaltyPoints||0) >= ev.pts && !claimed;
+      html += `<div class="ach-card${claimed?' claimed':''}" style="margin-bottom:6px;">
+        <div class="ach-icon${claimed?' done':''}">❤️</div>
+        <div class="ach-info"><div class="ach-name">${ev.name}</div>
+        <div class="ach-desc">Need ${ev.pts} loyalty points</div></div>
+        <button class="claim-btn" data-action="claim-loyalty-ev" data-id="${ev.id}" ${ready?'':'disabled'}>${claimed?'✓':'Claim'}</button>
+      </div>`;
+    });
+
+    // Sponsorships (GDD Part 7)
+    html += `<div class="chal-section-label" style="margin-top:16px;">Sponsorships · Fame ${Math.floor(state.fame||0)}</div>`;
+    SPONSORSHIPS.forEach(sp => {
+      const active = !!(state.activeSponsorships && state.activeSponsorships[sp.id]);
+      const can = (state.fame||0) >= sp.fameReq && !active;
+      html += `<div class="ach-card${active?' claimed':''}" style="margin-bottom:6px;">
+        <div class="ach-icon${active?' done':''}">${sp.icon}</div>
+        <div class="ach-info"><div class="ach-name">${sp.name}</div>
+        <div class="ach-desc">Need ${sp.fameReq} fame · +${Math.round(sp.incomeBonus*100)}% income</div></div>
+        <button class="claim-btn${active?' done':''}" data-action="claim-sponsor" data-id="${sp.id}" ${can?'':'disabled'}>${active?'Active':'Claim'}</button>
+      </div>`;
+    });
 
     // ---- Michelin Challenge (GDD) ----
     html += `<div class="chal-section-label" style="margin-top:16px;">Michelin Stars · ${'⭐'.repeat(state.michelinStars||0)}${'☆'.repeat(Math.max(0, CONFIG.MICHELIN_MAX_STARS - (state.michelinStars||0)))}</div>`;
@@ -2305,6 +2642,19 @@
       </div>`;
     });
 
+    // Event exclusive decorations
+    html += `<div class="chal-section-label" style="margin-top:14px;">Event Decorations</div>`;
+    EVENT_DECORATIONS.forEach(d => {
+      const owned = !!(state.eventDecorOwned && state.eventDecorOwned[d.id]);
+      html += `<div class="ach-card${owned?' claimed':''}" style="margin-bottom:6px;">
+        <div class="ach-icon${owned?' done':''}">${d.icon}</div>
+        <div class="ach-info"><div class="ach-name">${d.name}</div>
+        <div class="ach-desc">Season: ${d.seasonal} · Atm +${d.atmosphere}</div></div>
+        <button class="claim-btn" data-action="claim-edeco" data-id="${d.id}" ${owned?'disabled':''}>${owned?'Owned':'Get · 🎫20'}</button>
+      </div>`;
+    });
+    html += `<p class="rep-hint">Event score (leaderboard): <b>${Math.floor(state.eventScore||0)}</b></p>`;
+
     // Event Shop
     html += `<div class="chal-section-label" style="margin-top:14px;">Event Shop</div>`;
     EVENT_SHOP.forEach(item => {
@@ -2549,6 +2899,8 @@
     economyPanelEl.addEventListener('click', e => {
       const puBtn = e.target.closest('[data-action="buy-powerup"]');
       if(puBtn) buyPowerup(puBtn.dataset.id);
+      const eqBtn = e.target.closest('[data-action="buy-equip"]');
+      if(eqBtn) buyEquipmentShopItem(eqBtn.dataset.id);
     });
   }
   // Events panel
@@ -2562,6 +2914,7 @@
       else if(act === 'buy-event') buyEventShopItem(btn.dataset.id);
       else if(act === 'start-champ') startChampionship();
       else if(act === 'claim-community') claimCommunity(btn.dataset.id);
+      else if(act === 'claim-edeco') claimEventDecoration(btn.dataset.id);
       else if(act === 'claim-seasonal') claimSeasonal();
     });
   }
@@ -2590,30 +2943,318 @@
     applyCosmeticTheme();
     renderCollection();
   }
+  function isThemeUnlocked(t){
+    if(t.currency === 'free') return true;
+    if(state.unlockedThemes && state.unlockedThemes[t.id]) return true;
+    if(t.currency === 'milestone' && state.milestoneIdx >= (t.milestoneReq || 0)) return true;
+    return false;
+  }
+  function unlockTheme(id){
+    const t = RESTAURANT_THEMES.find(x => x.id === id);
+    if(!t || isThemeUnlocked(t)) return;
+    if(t.currency === 'diamonds'){
+      if((state.diamonds || 0) < t.cost){ playErrorSfx(); return; }
+      state.diamonds -= t.cost;
+    } else if(t.currency === 'prestige'){
+      if((state.prestigePoints || 0) < t.cost){ playErrorSfx(); return; }
+      state.prestigePoints -= t.cost;
+    } else if(t.currency === 'milestone'){
+      if(state.milestoneIdx < (t.milestoneReq || 0)){ playErrorSfx(); return; }
+    }
+    if(!state.unlockedThemes) state.unlockedThemes = {};
+    state.unlockedThemes[t.id] = true;
+    playBuySfx();
+    save(); renderCollection(); renderStats(); checkAchievements();
+  }
+  function equipTheme(id){
+    if(!isThemeUnlocked(RESTAURANT_THEMES.find(t => t.id === id) || {})) return;
+    state.restaurantTheme = id;
+    applyRestaurantTheme();
+    save(); renderCollection();
+  }
+  function buyDecoration(id){
+    const d = DECORATIONS.find(x => x.id === id);
+    if(!d || (state.decorations && state.decorations[id])) return;
+    if(d.currency === 'diamonds'){
+      if((state.diamonds || 0) < d.cost){ playErrorSfx(); return; }
+      state.diamonds -= d.cost;
+    } else {
+      if(getCountryCash(state.activeCountry) < d.cost){ playErrorSfx(); return; }
+      if(!spendCountryCash(state.activeCountry, d.cost)) return;
+    }
+    if(!state.decorations) state.decorations = {};
+    state.decorations[id] = true;
+    playBuySfx();
+    save(); renderCollection(); renderStats(); checkAchievements();
+  }
+  function buyFurniture(id){
+    const f = FURNITURE.find(x => x.id === id);
+    if(!f || (state.furniture && state.furniture[id])) return;
+    if(getCountryCash(state.activeCountry) < f.cost){ playErrorSfx(); return; }
+    if(!spendCountryCash(state.activeCountry, f.cost)) return;
+    if(!state.furniture) state.furniture = {};
+    state.furniture[id] = true;
+    playBuySfx();
+    save(); renderCollection(); renderStats(); checkAchievements();
+  }
+  function unlockOutfit(id){
+    const o = CHEF_OUTFITS.find(x => x.id === id);
+    if(!o || (state.unlockedOutfits && state.unlockedOutfits[id])) return;
+    if(o.currency === 'diamonds'){
+      if((state.diamonds || 0) < o.cost){ playErrorSfx(); return; }
+      state.diamonds -= o.cost;
+    }
+    if(!state.unlockedOutfits) state.unlockedOutfits = {};
+    state.unlockedOutfits[id] = true;
+    playBuySfx();
+    save(); renderCollection(); renderStats();
+  }
+  function equipOutfit(id){
+    if(!(state.unlockedOutfits && state.unlockedOutfits[id])) return;
+    state.chefOutfit = id;
+    save(); renderCollection();
+  }
+  function setMusicTheme(id){
+    state.musicTheme = id;
+    save(); renderCollection();
+  }
+  function setLighting(id){
+    state.lighting = id;
+    applyRestaurantTheme();
+    save(); renderCollection();
+  }
+  function applyRestaurantTheme(){
+    const app = document.getElementById('app');
+    if(!app) return;
+    app.className = app.className.split(' ').filter(c => !c.startsWith('rst-') && !c.startsWith('light-')).join(' ').trim();
+    if(state.restaurantTheme && state.restaurantTheme !== 'traditional'){
+      app.classList.add('rst-' + state.restaurantTheme);
+    }
+    if(state.lighting && state.lighting !== 'warm'){
+      app.classList.add('light-' + state.lighting);
+    }
+  }
+
   function renderCollection(){
     const panel = document.getElementById('collectionPanel');
+    if(!panel) return;
+    let html = '';
     const unlockedCount = COSMETICS.filter(isCosmeticUnlocked).length;
-    panel.innerHTML = `<div class="chal-section-label">Bowl Skins — ${unlockedCount}/${COSMETICS.length} collected</div>`;
+    html += `<div class="chal-section-label">Bowl Skins — ${unlockedCount}/${COSMETICS.length}</div>`;
     COSMETICS.forEach(c => {
       const unlocked = isCosmeticUnlocked(c);
       const equipped = state.equippedSkin === c.id;
-      const card = document.createElement('div');
-      card.className = 'ach-card' + (!unlocked ? ' claimed' : '');
-      const desc = unlocked ? c.desc : `Unlocks at ${fmt(MILESTONES[c.milestoneReq])} total earned`;
-      card.innerHTML = `
-        <div class="ach-icon${unlocked ? ' done' : ''}" aria-hidden="true">${unlocked ? c.icon : '🔒'}</div>
-        <div class="ach-info">
-          <div class="ach-name">${c.name}</div>
-          <div class="ach-desc">${desc}</div>
-        </div>
-        <button class="claim-btn${equipped ? ' done' : ''}" data-action="equip" data-id="${c.id}" aria-label="${c.name}: ${equipped ? 'currently equipped' : (unlocked ? 'equip' : 'locked')}" ${!unlocked || equipped ? 'disabled' : ''}>${equipped ? '✓ Equipped' : (unlocked ? 'Equip' : 'Locked')}</button>
-      `;
-      panel.appendChild(card);
+      const desc = unlocked ? c.desc : (c.seasonal ? 'Seasonal event reward' : `Unlocks at ${fmt(MILESTONES[c.milestoneReq])} total earned`);
+      html += `<div class="ach-card${!unlocked ? ' claimed' : ''}">
+        <div class="ach-icon${unlocked ? ' done' : ''}">${unlocked ? c.icon : '🔒'}</div>
+        <div class="ach-info"><div class="ach-name">${c.name}</div><div class="ach-desc">${desc}</div></div>
+        <button class="claim-btn${equipped ? ' done' : ''}" data-action="equip" data-id="${c.id}" ${!unlocked || equipped ? 'disabled' : ''}>${equipped ? '✓' : (unlocked ? 'Equip' : 'Locked')}</button>
+      </div>`;
     });
+
+    // Themes
+    html += `<div class="chal-section-label" style="margin-top:16px;">Restaurant Themes</div>`;
+    RESTAURANT_THEMES.forEach(t => {
+      const unlocked = isThemeUnlocked(t);
+      const equipped = state.restaurantTheme === t.id;
+      let costLabel = 'Free';
+      if(t.currency === 'diamonds') costLabel = '💎 ' + t.cost;
+      else if(t.currency === 'prestige') costLabel = '⭐ ' + t.cost;
+      else if(t.currency === 'milestone') costLabel = 'Milestone ' + (t.milestoneReq + 1);
+      html += `<div class="ach-card${!unlocked ? ' claimed' : ''}">
+        <div class="ach-icon${unlocked ? ' done' : ''}">${t.icon}</div>
+        <div class="ach-info"><div class="ach-name">${t.name}</div><div class="ach-desc">${t.desc} · Atm +${t.atmosphere}</div>
+        <div class="ach-reward">${unlocked ? 'Owned' : costLabel}</div></div>
+        ${equipped ? '<button class="claim-btn done" disabled>✓</button>' :
+          unlocked ? `<button class="claim-btn" data-action="equip-theme" data-id="${t.id}">Equip</button>` :
+          `<button class="claim-btn" data-action="unlock-theme" data-id="${t.id}">Unlock</button>`}
+      </div>`;
+    });
+
+    // Decorations
+    html += `<div class="chal-section-label" style="margin-top:16px;">Decorations · Atmosphere ${atmosphereBonus()}</div>`;
+    DECORATIONS.forEach(d => {
+      const owned = !!(state.decorations && state.decorations[d.id]);
+      const costLabel = d.currency === 'diamonds' ? '💎 ' + d.cost : fmt(d.cost);
+      html += `<div class="ach-card${owned ? ' claimed' : ''}">
+        <div class="ach-icon${owned ? ' done' : ''}">${d.icon}</div>
+        <div class="ach-info"><div class="ach-name">${d.name}</div><div class="ach-desc">Atmosphere +${d.atmosphere}</div>
+        <div class="ach-reward">${owned ? 'Owned' : costLabel}</div></div>
+        <button class="claim-btn${owned ? ' done' : ''}" data-action="buy-deco" data-id="${d.id}" ${owned ? 'disabled' : ''}>${owned ? '✓' : 'Buy'}</button>
+      </div>`;
+    });
+
+    // Furniture
+    html += `<div class="chal-section-label" style="margin-top:16px;">Furniture · Patience</div>`;
+    FURNITURE.forEach(f => {
+      const owned = !!(state.furniture && state.furniture[f.id]);
+      html += `<div class="ach-card${owned ? ' claimed' : ''}">
+        <div class="ach-icon${owned ? ' done' : ''}">${f.icon}</div>
+        <div class="ach-info"><div class="ach-name">${f.name}</div><div class="ach-desc">+${Math.round((f.patience||0)*100)}% patience</div>
+        <div class="ach-reward">${owned ? 'Owned' : fmt(f.cost)}</div></div>
+        <button class="claim-btn${owned ? ' done' : ''}" data-action="buy-furn" data-id="${f.id}" ${owned ? 'disabled' : ''}>${owned ? '✓' : 'Buy'}</button>
+      </div>`;
+    });
+
+    // Outfits
+    html += `<div class="chal-section-label" style="margin-top:16px;">Chef Outfits</div>`;
+    CHEF_OUTFITS.forEach(o => {
+      const unlocked = !!(state.unlockedOutfits && state.unlockedOutfits[o.id]) || o.currency === 'free';
+      const equipped = state.chefOutfit === o.id;
+      html += `<div class="ach-card${!unlocked ? ' claimed' : ''}">
+        <div class="ach-icon${unlocked ? ' done' : ''}">${o.icon}</div>
+        <div class="ach-info"><div class="ach-name">${o.name}</div><div class="ach-desc">${o.luck ? '+' + Math.round(o.luck*100) + '% event luck' : 'Cosmetic'}</div>
+        <div class="ach-reward">${unlocked ? 'Owned' : ('💎 ' + o.cost)}</div></div>
+        ${equipped ? '<button class="claim-btn done" disabled>✓</button>' :
+          unlocked ? `<button class="claim-btn" data-action="equip-outfit" data-id="${o.id}">Equip</button>` :
+          `<button class="claim-btn" data-action="unlock-outfit" data-id="${o.id}">Unlock</button>`}
+      </div>`;
+    });
+
+    // Music
+    html += `<div class="chal-section-label" style="margin-top:16px;">Music Theme</div>`;
+    html += `<div class="rep-panel-card" style="display:flex; flex-wrap:wrap; gap:6px;">`;
+    MUSIC_THEMES.forEach(m => {
+      const on = state.musicTheme === m.id;
+      html += `<button class="claim-btn${on?' done':''}" data-action="set-music" data-id="${m.id}" style="width:auto; padding:8px 10px;">${m.icon} ${m.name}</button>`;
+    });
+    html += `</div>`;
+
+    // Lighting
+    html += `<div class="chal-section-label" style="margin-top:16px;">Lighting</div>`;
+    html += `<div class="rep-panel-card" style="display:flex; flex-wrap:wrap; gap:6px;">`;
+    LIGHTING_STYLES.forEach(l => {
+      const on = state.lighting === l.id;
+      html += `<button class="claim-btn${on?' done':''}" data-action="set-light" data-id="${l.id}" style="width:auto; padding:8px 10px;">${l.icon} ${l.name}</button>`;
+    });
+    html += `</div>`;
+
+    // Exterior
+    html += `<div class="chal-section-label" style="margin-top:16px;">Exterior</div>`;
+    EXTERIOR_OPTIONS.forEach(x => {
+      const owned = !!(state.unlockedExteriors && state.unlockedExteriors[x.id]) || x.currency === 'free';
+      const eq = state.exterior === x.id;
+      let cost = 'Free';
+      if(x.currency === 'diamonds') cost = '💎 ' + x.cost;
+      else if(x.currency === 'prestige') cost = '⭐ ' + x.cost;
+      else if(x.cost) cost = fmt(x.cost);
+      html += `<div class="ach-card${owned?' claimed':''}">
+        <div class="ach-icon${owned?' done':''}">${x.icon}</div>
+        <div class="ach-info"><div class="ach-name">${x.name}</div><div class="ach-reward">${owned?'Owned':cost}</div></div>
+        ${eq ? '<button class="claim-btn done" disabled>✓</button>' :
+          owned ? `<button class="claim-btn" data-action="equip-ext" data-id="${x.id}">Equip</button>` :
+          `<button class="claim-btn" data-action="buy-ext" data-id="${x.id}">Buy</button>`}
+      </div>`;
+    });
+
+    // Kitchen skins
+    html += `<div class="chal-section-label" style="margin-top:16px;">Kitchen Skins</div>`;
+    KITCHEN_SKINS.forEach(k => {
+      const owned = !!(state.unlockedKitchenSkins && state.unlockedKitchenSkins[k.id]) || k.currency === 'free';
+      const eq = state.kitchenSkin === k.id;
+      let cost = 'Free';
+      if(k.currency === 'diamonds') cost = '💎 ' + k.cost;
+      else if(k.cost) cost = fmt(k.cost);
+      html += `<div class="ach-card${owned?' claimed':''}">
+        <div class="ach-icon${owned?' done':''}">${k.icon}</div>
+        <div class="ach-info"><div class="ach-name">${k.name}</div><div class="ach-reward">${owned?'Owned':cost}</div></div>
+        ${eq ? '<button class="claim-btn done" disabled>✓</button>' :
+          owned ? `<button class="claim-btn" data-action="equip-kit" data-id="${k.id}">Equip</button>` :
+          `<button class="claim-btn" data-action="buy-kit" data-id="${k.id}">Buy</button>`}
+      </div>`;
+    });
+
+    // Interior slots
+    html += `<div class="chal-section-label" style="margin-top:16px;">Interior</div>`;
+    INTERIOR_SLOTS.forEach(slot => {
+      html += `<div class="rep-panel-card" style="margin-bottom:8px;"><div style="font-weight:700; margin-bottom:6px;">${slot.icon} ${slot.name}</div>`;
+      slot.options.forEach(opt => {
+        const on = (state.interior && state.interior[slot.id]) === opt.id;
+        const cost = opt.currency === 'diamonds' ? ('💎'+opt.cost) : (opt.cost ? fmt(opt.cost) : 'Free');
+        html += `<button class="claim-btn${on?' done':''}" data-action="buy-int" data-slot="${slot.id}" data-id="${opt.id}" style="width:auto; padding:6px 8px; margin:2px;" ${on?'disabled':''}>${opt.name} · ${on?'✓':cost}</button>`;
+      });
+      html += `</div>`;
+    });
+
+    // Exterior slots
+    html += `<div class="chal-section-label" style="margin-top:16px;">Exterior Detail</div>`;
+    EXTERIOR_SLOTS.forEach(slot => {
+      html += `<div class="rep-panel-card" style="margin-bottom:8px;"><div style="font-weight:700; margin-bottom:6px;">${slot.icon} ${slot.name}</div>`;
+      slot.options.forEach(opt => {
+        const on = (state.exteriorSlots && state.exteriorSlots[slot.id]) === opt.id;
+        const cost = opt.currency === 'diamonds' ? ('💎'+opt.cost) : (opt.cost ? fmt(opt.cost) : 'Free');
+        html += `<button class="claim-btn${on?' done':''}" data-action="buy-extslot" data-slot="${slot.id}" data-id="${opt.id}" style="width:auto; padding:6px 8px; margin:2px;" ${on?'disabled':''}>${opt.name} · ${on?'✓':cost}</button>`;
+      });
+      html += `</div>`;
+    });
+
+    // Kitchen detail
+    html += `<div class="chal-section-label" style="margin-top:16px;">Kitchen Details</div>`;
+    KITCHEN_DETAIL_SKINS.forEach(slot => {
+      html += `<div class="rep-panel-card" style="margin-bottom:8px;"><div style="font-weight:700; margin-bottom:6px;">${slot.icon} ${slot.name}</div>`;
+      slot.options.forEach(opt => {
+        const on = (state.kitchenDetail && state.kitchenDetail[slot.id]) === opt.id;
+        const cost = opt.currency === 'diamonds' ? ('💎'+opt.cost) : (opt.cost ? fmt(opt.cost) : 'Free');
+        html += `<button class="claim-btn${on?' done':''}" data-action="buy-kdet" data-slot="${slot.id}" data-id="${opt.id}" style="width:auto; padding:6px 8px; margin:2px;" ${on?'disabled':''}>${opt.name} · ${on?'✓':cost}</button>`;
+      });
+      html += `</div>`;
+    });
+
+    // Frames & nameplates
+    html += `<div class="chal-section-label" style="margin-top:16px;">Profile Frames</div>`;
+    PROFILE_FRAMES.forEach(f => {
+      const on = state.profileFrame === f.id;
+      const cost = f.cost ? ('💎'+f.cost) : 'Free';
+      html += `<button class="claim-btn${on?' done':''}" data-action="buy-frame" data-id="${f.id}" style="width:auto; padding:8px 10px; margin:2px;" ${on?'disabled':''}>${f.icon} ${f.name} · ${on?'✓':cost}</button>`;
+    });
+    html += `<div class="chal-section-label" style="margin-top:16px;">Nameplates</div>`;
+    NAMEPLATES.forEach(n => {
+      const on = state.nameplate === n.id;
+      const cost = n.currency === 'diamonds' ? ('💎'+n.cost) : (n.cost ? fmt(n.cost) : 'Free');
+      html += `<button class="claim-btn${on?' done':''}" data-action="buy-plate" data-id="${n.id}" style="width:auto; padding:8px 10px; margin:2px;" ${on?'disabled':''}>${n.icon} ${n.name} · ${on?'✓':cost}</button>`;
+    });
+
+    // Profile titles
+    html += `<div class="chal-section-label" style="margin-top:16px;">Profile Titles</div>`;
+    PROFILE_TITLES.forEach(t => {
+      const unlocked = canUnlockTitle(t.id);
+      const eq = state.profileTitle === t.id;
+      html += `<div class="ach-card${!unlocked?' claimed':''}">
+        <div class="ach-icon${unlocked?' done':''}">${t.icon}</div>
+        <div class="ach-info"><div class="ach-name">${t.name}</div>
+        <div class="ach-desc">${unlocked ? 'Unlocked' : 'Keep progressing to unlock'}</div></div>
+        ${eq ? '<button class="claim-btn done" disabled>✓</button>' :
+          unlocked ? `<button class="claim-btn" data-action="equip-title" data-id="${t.id}">Equip</button>` :
+          `<button class="claim-btn" disabled>Locked</button>`}
+      </div>`;
+    });
+
+    panel.innerHTML = html;
+    applyRestaurantTheme();
   }
   document.getElementById('collectionPanel').addEventListener('click', e => {
-    const btn = e.target.closest('[data-action="equip"]');
-    if(btn) equipSkin(btn.dataset.id);
+    const btn = e.target.closest('[data-action]');
+    if(!btn) return;
+    const act = btn.dataset.action;
+    if(act === 'equip') equipSkin(btn.dataset.id);
+    else if(act === 'unlock-theme') unlockTheme(btn.dataset.id);
+    else if(act === 'equip-theme') equipTheme(btn.dataset.id);
+    else if(act === 'buy-deco') buyDecoration(btn.dataset.id);
+    else if(act === 'buy-furn') buyFurniture(btn.dataset.id);
+    else if(act === 'unlock-outfit') unlockOutfit(btn.dataset.id);
+    else if(act === 'equip-outfit') equipOutfit(btn.dataset.id);
+    else if(act === 'set-music') setMusicTheme(btn.dataset.id);
+    else if(act === 'set-light') setLighting(btn.dataset.id);
+    else if(act === 'buy-ext') buyExterior(btn.dataset.id);
+    else if(act === 'equip-ext') equipExterior(btn.dataset.id);
+    else if(act === 'buy-kit') buyKitchenSkin(btn.dataset.id);
+    else if(act === 'equip-kit') equipKitchenSkin(btn.dataset.id);
+    else if(act === 'equip-title') equipProfileTitle(btn.dataset.id);
+    else if(act === 'buy-int') buyInteriorOption(btn.dataset.slot, btn.dataset.id);
+    else if(act === 'buy-extslot') buyExteriorOption(btn.dataset.slot, btn.dataset.id);
+    else if(act === 'buy-kdet') buyKitchenDetail(btn.dataset.slot, btn.dataset.id);
+    else if(act === 'buy-frame') buyProfileFrame(btn.dataset.id);
+    else if(act === 'buy-plate') buyNameplate(btn.dataset.id);
   });
   // Small nav-dot nudge when a skin has newly unlocked but isn't equipped yet
   // — checked on the same cadence as achievements/milestones.

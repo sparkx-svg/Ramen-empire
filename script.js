@@ -511,19 +511,27 @@
       cost:{noodles:1, salsa:2, spice:1, egg:1}, boost:{income:0.40}, unlock:{seasonal:'halloween'}},
     {id:'feast_ramen',  icon:'🎄', name:'Christmas Seafood Ramen', desc:'+50% income & +10 rep', rarity:'seasonal',
       cost:{noodles:2, seafood:2, cheese:1}, boost:{income:0.50, rep:10}, unlock:{seasonal:'holiday'}},
+    // GDD Part 8 — additional limited-time recipes
+    {id:'pumpkin_ramen', icon:'🎃', name:'Pumpkin Spice Ramen', desc:'+38% income & +12% tap', rarity:'seasonal',
+      cost:{noodles:2, spice:2, broth:1}, boost:{income:0.38, tap:0.12}, unlock:{seasonal:'halloween'}},
+    {id:'snow_crab',     icon:'🦀', name:'Snow Crab Ramen', desc:'+42% income for 90s', rarity:'seasonal',
+      cost:{noodles:2, seafood:2, nori:1}, boost:{income:0.42}, unlock:{seasonal:'holiday'}},
+    {id:'fire_dragon',   icon:'🐉', name:'Fire Dragon Ramen', desc:'+48% income & +10% tap', rarity:'seasonal',
+      cost:{noodles:2, salsa:2, spice:2}, boost:{income:0.48, tap:0.10}, unlock:{seasonal:'summer'}},
+    {id:'valentine_love',icon:'💝', name:'Love Potion Ramen', desc:'+33% income & +5 rep', rarity:'seasonal',
+      cost:{noodles:1, broth:1, egg:1, basil:1}, boost:{income:0.33, rep:5}, unlock:{seasonal:'valentine'}},
   ];
-  // GDD Part 5 — Customer types. Each has budget (reward mult), base patience (ms),
-  // weight (spawn frequency), favorite order flavor, and optional special flags.
+  // GDD Part 5 — Customer types with budgets, patience, favorites
   const CUSTOMER_TYPES = [
-    {id:'student',    icon:'🎒', name:'Student',        label:'Budget ramen',        flavor:'Cheap & filling, please!',     budget:0.7,  patience:14000, weight:22, tipChance:0.05},
-    {id:'office',     icon:'💼', name:'Office Worker',  label:'Lunch special',       flavor:'Quick — back to the desk!',   budget:1.1,  patience:12000, weight:20, tipChance:0.12},
-    {id:'family',     icon:'👨‍👩‍👧', name:'Family',         label:'Family order',        flavor:'Something for everyone.',     budget:1.4,  patience:22000, weight:14, tipChance:0.15},
-    {id:'tourist',    icon:'🧳', name:'Tourist',        label:'Local specialty',     flavor:'What\'s the regional classic?', budget:1.6,  patience:20000, weight:12, tipChance:0.20, tourist:true},
-    {id:'elderly',    icon:'👴', name:'Elderly',        label:'Mild classic',        flavor:'Not too spicy, dear.',        budget:0.9,  patience:28000, weight:10, tipChance:0.18},
-    {id:'foodie',     icon:'😋', name:'Food Lover',     label:'Signature bowl',      flavor:'Surprise me with your best!', budget:1.8,  patience:16000, weight:10, tipChance:0.25},
-    {id:'vip',        icon:'💎', name:'VIP Guest',      label:'VIP tasting',         flavor:'I expect excellence.',        budget:3.2,  patience:15000, weight:0,  tipChance:0.55, special:'vip'},
-    {id:'celebrity',  icon:'🌟', name:'Celebrity',      label:'Celebrity visit!',    flavor:'The cameras are rolling…',   budget:5.5,  patience:18000, weight:0,  tipChance:0.80, special:'celebrity'},
-    {id:'critic',     icon:'📰', name:'Food Critic',    label:'Critic\'s order',     flavor:'Every detail will be noted.', budget:2.4,  patience:16000, weight:0,  tipChance:0.40, special:'critic'},
+    {id:'student',    icon:'🎒', name:'Student',        label:'Budget ramen',        flavor:'Cheap & filling, please!',     budget:0.7,  patience:14000, weight:22, tipChance:0.05, favorite:'classic'},
+    {id:'office',     icon:'💼', name:'Office Worker',  label:'Lunch special',       flavor:'Quick — back to the desk!',   budget:1.1,  patience:12000, weight:20, tipChance:0.12, favorite:'quick'},
+    {id:'family',     icon:'👨‍👩‍👧', name:'Family',         label:'Family order',        flavor:'Something for everyone.',     budget:1.4,  patience:22000, weight:14, tipChance:0.15, favorite:'large'},
+    {id:'tourist',    icon:'🧳', name:'Tourist',        label:'Local specialty',     flavor:'What\'s the regional classic?', budget:1.6,  patience:20000, weight:12, tipChance:0.20, tourist:true, favorite:'classic'},
+    {id:'elderly',    icon:'👴', name:'Elderly',        label:'Mild classic',        flavor:'Not too spicy, dear.',        budget:0.9,  patience:28000, weight:10, tipChance:0.18, favorite:'classic'},
+    {id:'foodie',     icon:'😋', name:'Food Lover',     label:'Signature bowl',      flavor:'Surprise me with your best!', budget:1.8,  patience:16000, weight:10, tipChance:0.25, favorite:'signature'},
+    {id:'vip',        icon:'💎', name:'VIP Guest',      label:'VIP tasting',         flavor:'I expect excellence.',        budget:3.2,  patience:15000, weight:0,  tipChance:0.55, special:'vip', favorite:'signature'},
+    {id:'celebrity',  icon:'🌟', name:'Celebrity',      label:'Celebrity visit!',    flavor:'The cameras are rolling…',   budget:5.5,  patience:18000, weight:0,  tipChance:0.80, special:'celebrity', favorite:'signature'},
+    {id:'critic',     icon:'📰', name:'Food Critic',    label:'Critic\'s order',     flavor:'Every detail will be noted.', budget:2.4,  patience:16000, weight:0,  tipChance:0.40, special:'critic', favorite:'signature'},
   ];
 
   // Legacy alias — order flavors still used for display variety on normal types
@@ -713,6 +721,9 @@
     {id:'visits_10',   icon:'🏡', name:'Social Butterfly', desc:'Visit friends 10 times',            reward:0.03, cond: s => (s.visitsMade||0) >= 10},
     {id:'join_guild',  icon:'🏯', name:'Alliance Member',  desc:'Join or create a guild',            reward:0.03, cond: s => !!(s.guildId)},
     {id:'friendship_50',icon:'🤝', name:'True Friends',    desc:'Earn 50 friendship points',         reward:0.03, cond: s => (s.friendshipPoints||0) >= 50},
+    {id:'theme_unlock', icon:'🎨', name:'Interior Designer', desc:'Unlock a restaurant theme',       reward:0.02, cond: s => Object.keys(s.unlockedThemes||{}).length >= 2},
+    {id:'decor_3',      icon:'🪴', name:'Atmosphere Pro',  desc:'Own 3 decorations',                reward:0.02, cond: s => Object.keys(s.decorations||{}).length >= 3},
+    {id:'furniture_all',icon:'🪑', name:'Fully Furnished', desc:'Buy every furniture type',         reward:0.03, cond: s => FURNITURE.every(f => (s.furniture&&s.furniture[f.id]))},
 
   ];
 
@@ -764,6 +775,88 @@
     {id:'halloween', name:'Spooky Bowl',    icon:'🎃', theme:'cosmic',    seasonal:true, desc:'A little eerie, very delicious.'},
     {id:'holiday',   name:'Winter Feast',   icon:'🎄', theme:'golden',    seasonal:true, desc:'The empire\'s holiday special.'},
   ];
+
+  // GDD Part 10 — Customization catalogs
+  const RESTAURANT_THEMES = [
+    {id:'traditional', icon:'🏯', name:'Traditional Japanese', desc:'Shoji screens & wood.',     cost:0,  currency:'free',      atmosphere:0},
+    {id:'modern',      icon:'🏙️', name:'Modern Urban',         desc:'Clean lines, city lights.', cost:0,  currency:'milestone', milestoneReq:2, atmosphere:1},
+    {id:'luxury',      icon:'✨', name:'Luxury Dining',        desc:'Gold trim & velvet.',       cost:40, currency:'diamonds',  atmosphere:3},
+    {id:'anime',       icon:'🎀', name:'Anime Cafe',           desc:'Cute, colorful, kawaii.',   cost:25, currency:'diamonds',  atmosphere:2},
+    {id:'cyberpunk',   icon:'🤖', name:'Cyberpunk',            desc:'Neon noodles, night rain.', cost:50, currency:'diamonds',  atmosphere:3},
+    {id:'beach',       icon:'🏖️', name:'Beach Restaurant',     desc:'Sand, surf & salt air.',    cost:3,  currency:'prestige',  atmosphere:2},
+  ];
+  const DECORATIONS = [
+    {id:'plant',      icon:'🪴', name:'Potted Plants',   cost:500,   atmosphere:1},
+    {id:'painting',   icon:'🖼️', name:'Wall Paintings',  cost:2000,  atmosphere:1},
+    {id:'lantern',    icon:'🏮', name:'Paper Lanterns',  cost:5000,  atmosphere:2},
+    {id:'aquarium',   icon:'🐠', name:'Aquarium',        cost:25000, atmosphere:2},
+    {id:'statue',     icon:'🗿', name:'Ramen Statue',    cost:1e5,   atmosphere:3},
+    {id:'neon',       icon:'💜', name:'Neon Signs',      cost:5e5,   atmosphere:3},
+    {id:'golden_deco',icon:'🏆', name:'Golden Display',  cost:80,    currency:'diamonds', atmosphere:4, premium:true},
+  ];
+  const FURNITURE = [
+    {id:'tables',    icon:'🪑', name:'Wooden Tables',   cost:800,   patience:0.03},
+    {id:'chairs',    icon:'💺', name:'Comfy Chairs',    cost:1500,  patience:0.04},
+    {id:'sofas',     icon:'🛋️', name:'Lounge Sofas',    cost:8000,  patience:0.05},
+    {id:'vip_booth', icon:'💎', name:'VIP Booths',      cost:50000, patience:0.08},
+    {id:'shelves',   icon:'📚', name:'Display Shelves', cost:3000,  patience:0.02},
+  ];
+  const CHEF_OUTFITS = [
+    {id:'traditional', icon:'👨‍🍳', name:'Traditional Chef', cost:0,  currency:'free',     luck:0},
+    {id:'master',      icon:'🎖️', name:'Master Chef',      cost:20, currency:'diamonds', luck:0.02},
+    {id:'festival',    icon:'🎊', name:'Festival Outfit',  cost:15, currency:'diamonds', luck:0.03},
+    {id:'winter',      icon:'🧣', name:'Winter Outfit',    cost:15, currency:'diamonds', luck:0.02},
+    {id:'celebrity',   icon:'🌟', name:'Celebrity Chef',   cost:45, currency:'diamonds', luck:0.05},
+  ];
+  const MUSIC_THEMES = [
+    {id:'traditional', icon:'🎶', name:'Traditional Japanese'},
+    {id:'lofi',        icon:'🎧', name:'Lo-fi Beats'},
+    {id:'jazz',        icon:'🎷', name:'Late-Night Jazz'},
+    {id:'pop',         icon:'🎵', name:'Upbeat Pop'},
+    {id:'festival',    icon:'🥁', name:'Festival Drums'},
+    {id:'piano',       icon:'🎹', name:'Relaxing Piano'},
+  ];
+  const LIGHTING_STYLES = [
+    {id:'warm',     icon:'🕯️', name:'Warm Glow'},
+    {id:'neon',     icon:'💜', name:'Neon Lights'},
+    {id:'lantern',  icon:'🏮', name:'Lantern Light'},
+    {id:'festival', icon:'✨', name:'Festival Lights'},
+    {id:'luxury',   icon:'💎', name:'Chandeliers'},
+  ];
+
+  // GDD Part 10 — Exterior & kitchen skins
+  const EXTERIOR_OPTIONS = [
+    {id:'classic_shop', icon:'🏪', name:'Classic Storefront', cost:0, currency:'free'},
+    {id:'lantern_street', icon:'🏮', name:'Lantern Street', cost:15000},
+    {id:'neon_strip', icon:'💜', name:'Neon Strip Mall', cost:30, currency:'diamonds'},
+    {id:'beach_front', icon:'🏖️', name:'Beach Front', cost:4, currency:'prestige'},
+    {id:'garden_gate', icon:'🌸', name:'Garden Entrance', cost:25000},
+  ];
+  const KITCHEN_SKINS = [
+    {id:'basic', icon:'🔥', name:'Basic Stove', cost:0, currency:'free'},
+    {id:'copper', icon:'🥉', name:'Copper Range', cost:12000},
+    {id:'steel', icon:'⚙️', name:'Steel Pro Kitchen', cost:80000},
+    {id:'gold_kitchen', icon:'✨', name:'Golden Kitchen', cost:60, currency:'diamonds', premium:true},
+  ];
+  // GDD Part 9 — Profile titles / badges
+  const PROFILE_TITLES = [
+    {id:'rookie', icon:'🛒', name:'Street Rookie', req:{empire:1}},
+    {id:'chef', icon:'👨‍🍳', name:'Rising Chef', req:{orders:50}},
+    {id:'host', icon:'🤝', name:'Friendly Host', req:{friendship:25}},
+    {id:'tycoon', icon:'🏯', name:'Franchise Tycoon', req:{empire:15}},
+    {id:'star', icon:'⭐', name:'Michelin Star', req:{michelin:1}},
+    {id:'legend', icon:'👑', name:'Ramen Legend', req:{empire:40}},
+    {id:'champion', icon:'🏆', name:'Food Champion', req:{champWins:1}},
+    {id:'socialite', icon:'🎉', name:'Socialite', req:{gifts:10}},
+  ];
+  // GDD Part 7 — Fame sponsorships
+  const SPONSORSHIPS = [
+    {id:'local_radio', icon:'📻', name:'Local Radio Spot', fameReq:50, incomeBonus:0.03, cost:0},
+    {id:'food_blog', icon:'📱', name:'Food Blog Feature', fameReq:150, incomeBonus:0.05, cost:0},
+    {id:'tv_segment', icon:'📺', name:'TV Morning Show', fameReq:300, incomeBonus:0.08, cost:0},
+    {id:'global_brand', icon:'🌐', name:'Global Brand Deal', fameReq:600, incomeBonus:0.12, cost:0},
+  ];
+
   // Flattens every business-state object across all UNLOCKED countries, so
   // achievement conditions (and anything else that wants "any shop anywhere")
   // don't need to know about the country structure.
@@ -771,6 +864,99 @@
     const out = [];
     COUNTRIES.forEach(c => { if(s.unlockedCountries.includes(c.id)) out.push(...Object.values(s.countries[c.id])); });
     return out;
+  }
+
+  // GDD completeness — interior / exterior / kitchen detail slots
+  const INTERIOR_SLOTS = [
+    {id:'walls', icon:'🧱', name:'Walls', options:[
+      {id:'plain', name:'Plain Plaster', cost:0}, {id:'wood', name:'Cedar Panel', cost:3000},
+      {id:'tile', name:'Ceramic Tile', cost:8000}, {id:'gold', name:'Gold Leaf', cost:40, currency:'diamonds'}]},
+    {id:'floors', icon:'🟫', name:'Floors', options:[
+      {id:'wood', name:'Wood Plank', cost:0}, {id:'tatami', name:'Tatami', cost:5000},
+      {id:'marble', name:'Marble', cost:20000}, {id:'neon', name:'Neon Glass', cost:35, currency:'diamonds'}]},
+    {id:'ceilings', icon:'⬜', name:'Ceilings', options:[
+      {id:'simple', name:'Simple', cost:0}, {id:'beams', name:'Exposed Beams', cost:4000},
+      {id:'skylight', name:'Skylight', cost:15000}]},
+    {id:'windows', icon:'🪟', name:'Windows', options:[
+      {id:'standard', name:'Standard', cost:0}, {id:'shoji', name:'Shoji Screens', cost:6000},
+      {id:'panorama', name:'Panorama', cost:25000}]},
+    {id:'counters', icon:'🪵', name:'Counters', options:[
+      {id:'basic', name:'Basic Wood', cost:0}, {id:'stone', name:'Stone Top', cost:10000},
+      {id:'premium', name:'Premium Marble', cost:50, currency:'diamonds'}]},
+    {id:'waiting', icon:'🚪', name:'Waiting Area', options:[
+      {id:'bench', name:'Simple Bench', cost:0}, {id:'lounge', name:'Lounge Seats', cost:12000},
+      {id:'vip_wait', name:'VIP Lounge', cost:60000}]},
+  ];
+  const EXTERIOR_SLOTS = [
+    {id:'building', icon:'🏠', name:'Building', options:[
+      {id:'shop', name:'Corner Shop', cost:0}, {id:'machiya', name:'Machiya', cost:20000},
+      {id:'tower', name:'Glass Tower', cost:45, currency:'diamonds'}]},
+    {id:'signboard', icon:'🪧', name:'Signboard', options:[
+      {id:'wood', name:'Wood Sign', cost:0}, {id:'neon_sign', name:'Neon Sign', cost:15000},
+      {id:'gold_sign', name:'Gold Sign', cost:30, currency:'diamonds'}]},
+    {id:'entrance', icon:'🚪', name:'Entrance', options:[
+      {id:'door', name:'Simple Door', cost:0}, {id:'noren', name:'Noren Curtain', cost:5000},
+      {id:'arch', name:'Grand Arch', cost:40000}]},
+    {id:'garden', icon:'🌳', name:'Garden', options:[
+      {id:'none', name:'None', cost:0}, {id:'bonsai', name:'Bonsai Court', cost:18000},
+      {id:'koi', name:'Koi Pond', cost:80000}]},
+    {id:'parking', icon:'🅿️', name:'Parking', options:[
+      {id:'none', name:'Street Only', cost:0}, {id:'lot', name:'Small Lot', cost:25000},
+      {id:'valet', name:'Valet', cost:1e5}]},
+    {id:'outdoor', icon:'🪑', name:'Outdoor Seating', options:[
+      {id:'none', name:'None', cost:0}, {id:'patio', name:'Patio', cost:22000},
+      {id:'rooftop', name:'Rooftop Deck', cost:1.2e5}]},
+  ];
+  const KITCHEN_DETAIL_SKINS = [
+    {id:'stove', icon:'🔥', name:'Stove', options:[
+      {id:'basic', name:'Gas Stove', cost:0}, {id:'induction', name:'Induction', cost:15000},
+      {id:'wagyu', name:'Wagyu Grill', cost:40, currency:'diamonds'}]},
+    {id:'kcounter', icon:'🪵', name:'Kitchen Counter', options:[
+      {id:'wood', name:'Wood', cost:0}, {id:'steel', name:'Steel', cost:12000}]},
+    {id:'stations', icon:'⚙️', name:'Stations Look', options:[
+      {id:'classic', name:'Classic', cost:0}, {id:'pro', name:'Pro Line', cost:30000}]},
+    {id:'shelves', icon:'📦', name:'Storage Shelves', options:[
+      {id:'wood', name:'Wood Shelves', cost:0}, {id:'chrome', name:'Chrome', cost:10000}]},
+    {id:'kfloor', icon:'🟫', name:'Kitchen Floor', options:[
+      {id:'tile', name:'Tile', cost:0}, {id:'epoxy', name:'Epoxy', cost:20000}]},
+  ];
+  const PROFILE_FRAMES = [
+    {id:'none', icon:'⬜', name:'None', cost:0, currency:'free'},
+    {id:'bronze', icon:'🟫', name:'Bronze Frame', cost:15, currency:'diamonds'},
+    {id:'silver', icon:'⬜', name:'Silver Frame', cost:30, currency:'diamonds'},
+    {id:'gold', icon:'🟨', name:'Gold Frame', cost:50, currency:'diamonds'},
+    {id:'rainbow', icon:'🌈', name:'Rainbow Frame', cost:80, currency:'diamonds', premium:true},
+  ];
+  const NAMEPLATES = [
+    {id:'plain', icon:'🏷️', name:'Plain Plate', cost:0, currency:'free'},
+    {id:'wood', icon:'🪵', name:'Cedar Plate', cost:5000},
+    {id:'jade', icon:'💚', name:'Jade Plate', cost:25, currency:'diamonds'},
+    {id:'imperial', icon:'👑', name:'Imperial Plate', cost:60, currency:'diamonds', premium:true},
+  ];
+  const EVENT_DECORATIONS = [
+    {id:'sakura_tree', icon:'🌸', name:'Sakura Tree', seasonal:'spring', atmosphere:3},
+    {id:'beach_umbrella', icon:'⛱️', name:'Beach Umbrella', seasonal:'summer', atmosphere:3},
+    {id:'harvest_wreath', icon:'🍂', name:'Harvest Wreath', seasonal:'autumn', atmosphere:3},
+    {id:'snowman', icon:'⛄', name:'Snowman', seasonal:'holiday', atmosphere:3},
+    {id:'pumpkin_stack', icon:'🎃', name:'Pumpkin Stack', seasonal:'halloween', atmosphere:3},
+    {id:'heart_arch', icon:'💝', name:'Heart Arch', seasonal:'valentine', atmosphere:3},
+    {id:'firework_stand', icon:'🎆', name:'Firework Stand', seasonal:'newyear', atmosphere:4},
+  ];
+  const CHEF_FRAGMENTS_NEED = 10;
+  const LOYALTY_EVENTS = [
+    {id:'loyal_50', pts:50, reward:{cashSec:60, tokens:5}, name:'Loyal Fifty'},
+    {id:'loyal_100', pts:100, reward:{cashSec:120, diamonds:2}, name:'Century Club'},
+    {id:'loyal_250', pts:250, reward:{cashSec:300, tokens:15, research:3}, name:'Devoted Guests'},
+  ];
+  const EQUIPMENT_SHOP = [
+    {id:'eq_station', icon:'🔥', name:'Cooking Station Kit', desc:'Cash toward stations', cost:5000, kind:'cash_pack', cashSec:45},
+    {id:'eq_queue', icon:'🧾', name:'Queue Rope Set', desc:'Cash pack for queue', cost:8000, kind:'cash_pack', cashSec:60},
+    {id:'eq_delivery', icon:'🛵', name:'Scooter Pack', desc:'Delivery cash pack', cost:12000, kind:'cash_pack', cashSec:80},
+    {id:'eq_clean', icon:'🧹', name:'Cleaning Kit', desc:'Cleaning cash pack', cost:6000, kind:'cash_pack', cashSec:50},
+  ];
+  // Autumn harvest if missing from seasonal list
+  if(typeof SEASONAL_EVENTS !== 'undefined' && !SEASONAL_EVENTS.find(e => e.id === 'autumn')){
+    SEASONAL_EVENTS.push({id:'autumn', icon:'🍂', name:'Autumn Harvest', month:9, startDay:15, endDay:30, skinId:'summer', challengeType:'buy', challengeTarget:18, rewardMiso:1, blurb:'Harvest flavors in every bowl.'});
   }
 
   let state = {
@@ -844,6 +1030,35 @@
     visitsMade: 0,
     visitLog: {},
     lastGiftType: 'cash',
+    // GDD Part 10 — Customization
+    restaurantTheme: 'traditional',
+    unlockedThemes: { traditional: true },
+    decorations: {},
+    furniture: {},
+    chefOutfit: 'traditional',
+    unlockedOutfits: { traditional: true },
+    musicTheme: 'traditional',
+    lighting: 'warm',
+    exterior: 'classic_shop',
+    unlockedExteriors: { classic_shop: true },
+    kitchenSkin: 'basic',
+    unlockedKitchenSkins: { basic: true },
+    profileTitle: 'rookie',
+    activeSponsorships: {},
+    reviewSum: 0,
+    reviewCount: 0,
+    repeatCustomers: 0,
+    interior: { walls:'plain', floors:'wood', ceilings:'simple', windows:'standard', counters:'basic', waiting:'bench' },
+    exteriorSlots: { building:'shop', signboard:'wood', entrance:'door', garden:'none', parking:'none', outdoor:'none' },
+    kitchenDetail: { stove:'basic', kcounter:'wood', stations:'classic', shelves:'wood', kfloor:'tile' },
+    profileFrame: 'none',
+    nameplate: 'plain',
+    eventDecorOwned: {},
+    chefFragments: {},
+    loyaltyEventsClaimed: {},
+    friendshipDailyClaimed: null,
+    socialFeed: [],
+    eventScore: 0,
     // Story / seasonal / staff (v1.7)
     storyClaimed: {},     // questId -> true once reward claimed
     seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
@@ -982,6 +1197,7 @@
     {id:'ing',      icon:'🧅', label:'Rare ingredients',weight:10, kind:'ingredient',amount:3},
     {id:'boost',    icon:'⚡', label:'Free booster',    weight:8,  kind:'booster',   amount:1},
     {id:'loyalty',  icon:'❤️', label:'Loyalty points',  weight:8,  kind:'loyalty',   amount:5},
+    {id:'fragment', icon:'🧩', label:'Chef fragment',   weight:5,  kind:'fragment',  amount:1},
   ];
   function powerupActive(id){
     const ends = state.activePowerups && state.activePowerups[id];
@@ -1183,6 +1399,23 @@
       visitsMade: 0,
       visitLog: {},
       lastGiftType: 'cash',
+      restaurantTheme: 'traditional',
+      unlockedThemes: { traditional: true },
+      decorations: {},
+      furniture: {},
+      chefOutfit: 'traditional',
+      unlockedOutfits: { traditional: true },
+      musicTheme: 'traditional',
+      lighting: 'warm',
+      exterior: 'classic_shop',
+      unlockedExteriors: { classic_shop: true },
+      kitchenSkin: 'basic',
+      unlockedKitchenSkins: { basic: true },
+      profileTitle: 'rookie',
+      activeSponsorships: {},
+      reviewSum: 0,
+      reviewCount: 0,
+      repeatCustomers: 0,
       storyClaimed: {},
       seasonal: { eventId: null, progress: 0, claimed: false, skinUnlocked: {} },
       guildId: null,
@@ -1320,6 +1553,34 @@
     if(state.visitsMade === undefined) state.visitsMade = 0;
     if(!state.visitLog) state.visitLog = {};
     if(!state.lastGiftType) state.lastGiftType = 'cash';
+    if(!state.restaurantTheme) state.restaurantTheme = 'traditional';
+    if(!state.unlockedThemes) state.unlockedThemes = { traditional: true };
+    if(!state.decorations) state.decorations = {};
+    if(!state.furniture) state.furniture = {};
+    if(!state.chefOutfit) state.chefOutfit = 'traditional';
+    if(!state.unlockedOutfits) state.unlockedOutfits = { traditional: true };
+    if(!state.musicTheme) state.musicTheme = 'traditional';
+    if(!state.lighting) state.lighting = 'warm';
+    if(!state.exterior) state.exterior = 'classic_shop';
+    if(!state.unlockedExteriors) state.unlockedExteriors = { classic_shop: true };
+    if(!state.kitchenSkin) state.kitchenSkin = 'basic';
+    if(!state.unlockedKitchenSkins) state.unlockedKitchenSkins = { basic: true };
+    if(!state.profileTitle) state.profileTitle = 'rookie';
+    if(!state.activeSponsorships) state.activeSponsorships = {};
+    if(state.reviewSum === undefined) state.reviewSum = 0;
+    if(state.reviewCount === undefined) state.reviewCount = 0;
+    if(state.repeatCustomers === undefined) state.repeatCustomers = 0;
+    if(!state.interior) state.interior = { walls:'plain', floors:'wood', ceilings:'simple', windows:'standard', counters:'basic', waiting:'bench' };
+    if(!state.exteriorSlots) state.exteriorSlots = { building:'shop', signboard:'wood', entrance:'door', garden:'none', parking:'none', outdoor:'none' };
+    if(!state.kitchenDetail) state.kitchenDetail = { stove:'basic', kcounter:'wood', stations:'classic', shelves:'wood', kfloor:'tile' };
+    if(!state.profileFrame) state.profileFrame = 'none';
+    if(!state.nameplate) state.nameplate = 'plain';
+    if(!state.eventDecorOwned) state.eventDecorOwned = {};
+    if(!state.chefFragments) state.chefFragments = {};
+    if(!state.loyaltyEventsClaimed) state.loyaltyEventsClaimed = {};
+    if(state.friendshipDailyClaimed === undefined) state.friendshipDailyClaimed = null;
+    if(!state.socialFeed) state.socialFeed = [];
+    if(state.eventScore === undefined) state.eventScore = 0;
     if(state.tapFxEnabled === undefined) state.tapFxEnabled = true;
     if(state.musicEnabled === undefined) state.musicEnabled = true;
     if(state.sfxEnabled === undefined) state.sfxEnabled = true;
@@ -1831,7 +2092,8 @@
       * staffEquipBonus()
       * menuPriceMult()
       * fameMultiplier()
-      * empireLevelMultiplier();
+      * empireLevelMultiplier()
+      * sponsorshipIncomeBonus();
   }
   function staffIncomeBonus(){
     let mult = 1;
@@ -2165,7 +2427,7 @@
     if(activeEvent.type) return;
     if(Date.now() < nextEventCheck) return;
     nextEventCheck = Date.now() + CONFIG.EVENT_CHECK_INTERVAL_MS;
-    if(Math.random() < CONFIG.EVENT_TRIGGER_CHANCE + metaBonus('luck') + powerupLuckBonus()){
+    if(Math.random() < CONFIG.EVENT_TRIGGER_CHANCE + metaBonus('luck') + powerupLuckBonus() + outfitLuckBonus()){
       const roll = Math.random();
       if(roll < CONFIG.LUCKY_EVENT_SHARE) startLuckyEvent();
       else if(roll < CONFIG.LUCKY_EVENT_SHARE + (1 - CONFIG.LUCKY_EVENT_SHARE) * CONFIG.CRITIC_EVENT_SHARE) startCriticEvent();
@@ -2272,16 +2534,286 @@
   let lastReviewToast = 0;
 
   function patienceMultiplier(){
-    // Staff service roles, queue upgrades, and cleanliness extend patience.
+    // Staff service roles, queue upgrades, cleanliness, and furniture extend patience.
     let mult = 1;
     mult += sumLevels(state.queue) * (CONFIG.PATIENCE_QUEUE_BONUS || 0.08);
     const serviceStaff = ['waiter','cashier','cleaner','host'].filter(id => state.staff && state.staff[id]);
     mult += serviceStaff.length * (CONFIG.PATIENCE_STAFF_BONUS || 0.04);
     const clean = Math.max(0, Math.min(100, state.cleanliness || 0)) / 100;
     mult += clean * (CONFIG.PATIENCE_CLEAN_BONUS || 0.15);
-    // Express lane slightly reduces wait pressure (more time feel) via queue id
     if(state.queue && state.queue.express) mult += 0.05 * state.queue.express;
+    // Furniture (GDD Part 10)
+    FURNITURE.forEach(f => {
+      if(state.furniture && state.furniture[f.id]) mult += f.patience || 0;
+    });
     return Math.min(CONFIG.PATIENCE_MAX_MULT || 2.2, mult);
+  }
+  function atmosphereBonus(){
+    let pts = 0;
+    const theme = RESTAURANT_THEMES.find(t => t.id === state.restaurantTheme);
+    if(theme) pts += theme.atmosphere || 0;
+    DECORATIONS.forEach(d => {
+      if(state.decorations && state.decorations[d.id]) pts += d.atmosphere || 0;
+    });
+    if(typeof EVENT_DECORATIONS !== 'undefined'){
+      EVENT_DECORATIONS.forEach(d => {
+        if(state.eventDecorOwned && state.eventDecorOwned[d.id]) pts += d.atmosphere || 0;
+      });
+    }
+    const int = state.interior || {};
+    Object.values(int).forEach(v => {
+      if(v && !['plain','wood','simple','standard','basic','bench'].includes(v)) pts += 1;
+    });
+    const ext = state.exteriorSlots || {};
+    Object.values(ext).forEach(v => {
+      if(v && !['none','shop','wood','door'].includes(v)) pts += 1;
+    });
+    return pts;
+  }
+  function buyInteriorOption(slotId, optId){
+    const slot = INTERIOR_SLOTS.find(s => s.id === slotId);
+    if(!slot) return;
+    const opt = slot.options.find(o => o.id === optId);
+    if(!opt) return;
+    if((state.interior && state.interior[slotId]) === optId) return;
+    if(opt.currency === 'diamonds'){
+      if((state.diamonds||0) < (opt.cost||0)){ playErrorSfx(); return; }
+      state.diamonds -= opt.cost;
+    } else if((opt.cost||0) > 0){
+      if(getCountryCash(state.activeCountry) < opt.cost){ playErrorSfx(); return; }
+      if(!spendCountryCash(state.activeCountry, opt.cost)) return;
+    }
+    if(!state.interior) state.interior = {};
+    state.interior[slotId] = optId;
+    playBuySfx(); save(); renderCollection(); renderStats();
+  }
+  function buyExteriorOption(slotId, optId){
+    const slot = EXTERIOR_SLOTS.find(s => s.id === slotId);
+    if(!slot) return;
+    const opt = slot.options.find(o => o.id === optId);
+    if(!opt) return;
+    if((state.exteriorSlots && state.exteriorSlots[slotId]) === optId) return;
+    if(opt.currency === 'diamonds'){
+      if((state.diamonds||0) < (opt.cost||0)){ playErrorSfx(); return; }
+      state.diamonds -= opt.cost;
+    } else if((opt.cost||0) > 0){
+      if(getCountryCash(state.activeCountry) < opt.cost){ playErrorSfx(); return; }
+      if(!spendCountryCash(state.activeCountry, opt.cost)) return;
+    }
+    if(!state.exteriorSlots) state.exteriorSlots = {};
+    state.exteriorSlots[slotId] = optId;
+    playBuySfx(); save(); renderCollection(); renderStats();
+  }
+  function buyKitchenDetail(slotId, optId){
+    const slot = KITCHEN_DETAIL_SKINS.find(s => s.id === slotId);
+    if(!slot) return;
+    const opt = slot.options.find(o => o.id === optId);
+    if(!opt) return;
+    if((state.kitchenDetail && state.kitchenDetail[slotId]) === optId) return;
+    if(opt.currency === 'diamonds'){
+      if((state.diamonds||0) < (opt.cost||0)){ playErrorSfx(); return; }
+      state.diamonds -= opt.cost;
+    } else if((opt.cost||0) > 0){
+      if(getCountryCash(state.activeCountry) < opt.cost){ playErrorSfx(); return; }
+      if(!spendCountryCash(state.activeCountry, opt.cost)) return;
+    }
+    if(!state.kitchenDetail) state.kitchenDetail = {};
+    state.kitchenDetail[slotId] = optId;
+    playBuySfx(); save(); renderCollection(); renderStats();
+  }
+  function buyProfileFrame(id){
+    const f = PROFILE_FRAMES.find(x => x.id === id);
+    if(!f || state.profileFrame === id) return;
+    if(f.currency === 'diamonds' && f.cost > 0){
+      if((state.diamonds||0) < f.cost){ playErrorSfx(); return; }
+      state.diamonds -= f.cost;
+    }
+    state.profileFrame = id;
+    playBuySfx(); save(); renderCollection(); renderStats();
+  }
+  function buyNameplate(id){
+    const n = NAMEPLATES.find(x => x.id === id);
+    if(!n || state.nameplate === id) return;
+    if(n.currency === 'diamonds'){
+      if((state.diamonds||0) < n.cost){ playErrorSfx(); return; }
+      state.diamonds -= n.cost;
+    } else if(n.cost > 0){
+      if(getCountryCash(state.activeCountry) < n.cost){ playErrorSfx(); return; }
+      if(!spendCountryCash(state.activeCountry, n.cost)) return;
+    }
+    state.nameplate = id;
+    playBuySfx(); save(); renderCollection(); renderStats();
+  }
+  function addChefFragment(chefId, n){
+    if(!state.chefFragments) state.chefFragments = {};
+    state.chefFragments[chefId] = (state.chefFragments[chefId] || 0) + (n || 1);
+    const need = typeof CHEF_FRAGMENTS_NEED !== 'undefined' ? CHEF_FRAGMENTS_NEED : 10;
+    if(state.chefFragments[chefId] >= need){
+      if(!state.chefsOwned) state.chefsOwned = {};
+      if(!state.chefsOwned[chefId]){
+        state.chefsOwned[chefId] = true;
+        pushSocialFeed('Chef unlocked via fragments!');
+      }
+    }
+  }
+  function pushSocialFeed(msg){
+    if(!state.socialFeed) state.socialFeed = [];
+    state.socialFeed.unshift({ t: Date.now(), msg: String(msg) });
+    if(state.socialFeed.length > 30) state.socialFeed.length = 30;
+  }
+  function claimLoyaltyEvent(id){
+    const ev = LOYALTY_EVENTS.find(e => e.id === id);
+    if(!ev) return;
+    if((state.loyaltyPoints||0) < ev.pts){ playErrorSfx(); return; }
+    if(state.loyaltyEventsClaimed && state.loyaltyEventsClaimed[id]) return;
+    if(!state.loyaltyEventsClaimed) state.loyaltyEventsClaimed = {};
+    state.loyaltyEventsClaimed[id] = true;
+    if(typeof grantEventReward === 'function') grantEventReward(ev.reward);
+    pushSocialFeed('Loyalty: ' + ev.name);
+    playBuySfx(); save();
+    if(typeof renderKitchenOverview === 'function') renderKitchenOverview();
+    renderStats();
+  }
+  function claimFriendshipDaily(){
+    const today = todayKey();
+    if(state.friendshipDailyClaimed === today){ playErrorSfx(); return; }
+    if((state.friendshipPoints||0) < 10){ playErrorSfx(); return; }
+    state.friendshipDailyClaimed = today;
+    const rate = Math.max(totalRatePerSec(), 1);
+    const gain = rate * 40;
+    addCountryCash(state.activeCountry, gain);
+    addEarned(gain);
+    if(typeof earnEventTokens === 'function') earnEventTokens(3);
+    playBuySfx();
+    pushSocialFeed('Friendship daily bonus claimed');
+    save(); renderStats();
+  }
+  function claimEventDecoration(id){
+    const d = EVENT_DECORATIONS.find(x => x.id === id);
+    if(!d || (state.eventDecorOwned && state.eventDecorOwned[id])) return;
+    const ev = typeof ensureSeasonalState === 'function' ? ensureSeasonalState() : null;
+    const match = ev && (ev.id === d.seasonal);
+    if(!match){
+      if((state.eventTokens||0) < 20){ playErrorSfx(); return; }
+      state.eventTokens -= 20;
+    }
+    if(!state.eventDecorOwned) state.eventDecorOwned = {};
+    state.eventDecorOwned[id] = true;
+    playBuySfx(); save();
+    if(typeof renderEvents === 'function') renderEvents();
+    if(typeof renderCollection === 'function') renderCollection();
+  }
+  function buyEquipmentShopItem(id){
+    const item = EQUIPMENT_SHOP.find(x => x.id === id);
+    if(!item) return;
+    if(getCountryCash(state.activeCountry) < item.cost){ playErrorSfx(); return; }
+    if(!spendCountryCash(state.activeCountry, item.cost)) return;
+    const rate = Math.max(totalRatePerSec(), 1);
+    const g = rate * (item.cashSec || 30);
+    addCountryCash(state.activeCountry, g);
+    addEarned(g);
+    playBuySfx(); save();
+    if(typeof renderEconomy === 'function') renderEconomy();
+    renderStats();
+  }
+  function atmosphereTrafficMult(){
+    // Soft traffic bonus from atmosphere (cap ~+25%)
+    return 1 + Math.min(0.25, atmosphereBonus() * 0.015);
+  }
+  function outfitLuckBonus(){
+    const o = CHEF_OUTFITS.find(x => x.id === state.chefOutfit);
+    return o ? (o.luck || 0) : 0;
+  }
+  function satisfactionDrivers(){
+    let q = 0, n = 0;
+    allBusinessStates().forEach(b => { if((b.level||0)>0){ q += b.quality||0; n++; } });
+    const food = n ? Math.min(100, (q / (n * 15)) * 100) : 40;
+    const speed = Math.min(100, (sumLevels(state.queue) * 12 + sumLevels(state.stations) * 4));
+    const clean = state.cleanliness || 50;
+    const atmosphere = Math.min(100, atmosphereBonus() * 8 + (state.reputation||50) * 0.3);
+    const staff = Math.min(100, Object.keys(state.staff||{}).length * 18 + sumLevels(state.layout) * 3);
+    return { food, speed, clean, atmosphere, staff };
+  }
+  function averageReviewScore(){
+    if(!(state.reviewCount > 0)) return 0;
+    return Math.round((state.reviewSum / state.reviewCount) * 10) / 10;
+  }
+  function sponsorshipIncomeBonus(){
+    let m = 1;
+    SPONSORSHIPS.forEach(sp => {
+      if(state.activeSponsorships && state.activeSponsorships[sp.id]) m += sp.incomeBonus || 0;
+    });
+    return m;
+  }
+  function claimSponsorship(id){
+    const sp = SPONSORSHIPS.find(x => x.id === id);
+    if(!sp) return;
+    if((state.fame || 0) < sp.fameReq){ playErrorSfx(); return; }
+    if(state.activeSponsorships && state.activeSponsorships[id]) return;
+    if(!state.activeSponsorships) state.activeSponsorships = {};
+    state.activeSponsorships[id] = true;
+    playBuySfx();
+    save(); renderStats();
+    if(typeof renderKitchenOverview === 'function') renderKitchenOverview();
+  }
+  function canUnlockTitle(id){
+    const t = PROFILE_TITLES.find(x => x.id === id);
+    if(!t) return false;
+    const r = t.req || {};
+    if(r.empire && empireLevel() < r.empire) return false;
+    if(r.orders && (state.ordersFulfilled||0) < r.orders) return false;
+    if(r.friendship && (state.friendshipPoints||0) < r.friendship) return false;
+    if(r.michelin && (state.michelinStars||0) < r.michelin) return false;
+    if(r.champWins && (state.championshipWins||0) < r.champWins) return false;
+    if(r.gifts && (state.giftsSent||0) < r.gifts) return false;
+    return true;
+  }
+  function equipProfileTitle(id){
+    if(!canUnlockTitle(id)){ playErrorSfx(); return; }
+    state.profileTitle = id;
+    save();
+    if(typeof renderCollection === 'function') renderCollection();
+  }
+  function buyExterior(id){
+    const x = EXTERIOR_OPTIONS.find(e => e.id === id);
+    if(!x || (state.unlockedExteriors && state.unlockedExteriors[id])) return;
+    if(x.currency === 'diamonds'){
+      if((state.diamonds||0) < x.cost){ playErrorSfx(); return; }
+      state.diamonds -= x.cost;
+    } else if(x.currency === 'prestige'){
+      if((state.prestigePoints||0) < x.cost){ playErrorSfx(); return; }
+      state.prestigePoints -= x.cost;
+    } else if(x.currency !== 'free'){
+      if(getCountryCash(state.activeCountry) < x.cost){ playErrorSfx(); return; }
+      if(!spendCountryCash(state.activeCountry, x.cost)) return;
+    }
+    if(!state.unlockedExteriors) state.unlockedExteriors = {};
+    state.unlockedExteriors[id] = true;
+    state.exterior = id;
+    playBuySfx(); save(); renderCollection(); renderStats();
+  }
+  function equipExterior(id){
+    if(!(state.unlockedExteriors && state.unlockedExteriors[id])) return;
+    state.exterior = id; save(); renderCollection();
+  }
+  function buyKitchenSkin(id){
+    const k = KITCHEN_SKINS.find(e => e.id === id);
+    if(!k || (state.unlockedKitchenSkins && state.unlockedKitchenSkins[id])) return;
+    if(k.currency === 'diamonds'){
+      if((state.diamonds||0) < k.cost){ playErrorSfx(); return; }
+      state.diamonds -= k.cost;
+    } else if(k.currency !== 'free'){
+      if(getCountryCash(state.activeCountry) < k.cost){ playErrorSfx(); return; }
+      if(!spendCountryCash(state.activeCountry, k.cost)) return;
+    }
+    if(!state.unlockedKitchenSkins) state.unlockedKitchenSkins = {};
+    state.unlockedKitchenSkins[id] = true;
+    state.kitchenSkin = id;
+    playBuySfx(); save(); renderCollection(); renderStats();
+  }
+  function equipKitchenSkin(id){
+    if(!(state.unlockedKitchenSkins && state.unlockedKitchenSkins[id])) return;
+    state.kitchenSkin = id; save(); renderCollection();
   }
 
   function loyaltyRewardMult(){
@@ -2319,7 +2851,8 @@
       return CUSTOMER_TYPES.find(c => c.id === 'celebrity');
     }
     const fameVip = (state.fame || 0) * (CONFIG.FAME_VIP_BONUS || 0.0004);
-    if(rep >= 55 && Math.random() < (CONFIG.VIP_SPAWN_CHANCE || 0.06) * (1 + vipArea * 0.15) + fameVip){
+    const michelinVip = (state.michelinStars || 0) * 0.03;
+    if(rep >= 55 && Math.random() < (CONFIG.VIP_SPAWN_CHANCE || 0.06) * (1 + vipArea * 0.15) + fameVip + michelinVip){
       return CUSTOMER_TYPES.find(c => c.id === 'vip');
     }
     // High fame also slightly boosts celebrity chance
@@ -2331,8 +2864,11 @@
       return CUSTOMER_TYPES.find(c => c.id === 'critic');
     }
 
-    // Weighted normal pool — tourists scale with reputation / unlocked countries
+    // GDD Part 5 behavior AI: queue, rating, prices, menu variety, promotions
     const unlocked = (state.unlockedCountries || []).length;
+    const price = menuPriceMult();
+    const hasActiveRecipe = !!(state.activeRecipe && state.activeRecipe.endsAt > Date.now());
+    const recipeCount = Object.keys(state.recipeMastery || {}).length;
     const pool = CUSTOMER_TYPES.filter(c => !c.special);
     let total = 0;
     const weights = pool.map(c => {
@@ -2340,11 +2876,15 @@
       if(c.tourist){
         w *= 1 + Math.max(0, (rep - 50) / 50) * (CONFIG.TOURIST_REP_BONUS || 0.12) * 8;
         w *= 1 + Math.max(0, unlocked - 1) * 0.25;
+        w *= 1 + Math.min(0.5, rating / 200);
       }
-      // Foodies prefer high rating
-      if(c.id === 'foodie') w *= 0.6 + (rating / 100) * 0.9;
-      // Students more common early
-      if(c.id === 'student') w *= Math.max(0.4, 1.4 - unlocked * 0.2);
+      if(c.id === 'foodie') w *= 0.6 + (rating / 100) * 0.9 + (hasActiveRecipe ? 0.3 : 0);
+      if(c.id === 'student') w *= Math.max(0.4, 1.4 - unlocked * 0.2) * (price <= 0.9 ? 1.3 : 0.8);
+      if(c.id === 'office') w *= price <= 1.2 ? 1.1 : 0.85;
+      if(c.id === 'family') w *= 0.9 + Math.min(0.4, recipeCount * 0.05);
+      if(c.id === 'elderly') w *= price <= 1.0 ? 1.15 : 0.7;
+      // Active order already up = longer "queue" → slightly fewer new arrivals
+      if(activeOrder) w *= 0.7;
       total += w;
       return w;
     });
@@ -2366,7 +2906,8 @@
     const sat = (state.satisfaction || CONFIG.SATISFACTION_START) / 100;
     const traffic = (typeof powerupTrafficMult === 'function' ? powerupTrafficMult() : 1)
       * menuPriceTrafficMult()
-      * michelinTrafficBonus();
+      * michelinTrafficBonus()
+      * atmosphereTrafficMult();
     const chance = (CONFIG.ORDER_TRIGGER_CHANCE || 0.28) * (0.75 + sat * 0.5) * traffic;
     if(Math.random() >= Math.min(0.85, chance)) return;
 
@@ -2418,6 +2959,12 @@
     if(stars >= 4){
       state.reviewsPositive = (state.reviewsPositive || 0) + 1;
       adjustFame(CONFIG.FAME_PER_REVIEW || 1.5);
+    }
+    state.reviewSum = (state.reviewSum || 0) + stars;
+    state.reviewCount = (state.reviewCount || 0) + 1;
+    // Loyalty → chance of "repeat customer" flag
+    if(success && (state.loyaltyPoints || 0) >= 10 && Math.random() < 0.15){
+      state.repeatCustomers = (state.repeatCustomers || 0) + 1;
     }
     const lines = {
       5: ['Best ramen in town!', 'Will definitely come back!', 'Absolute perfection.', 'Tell your friends!'],
@@ -2622,7 +3169,13 @@
     } else if(prize.kind === 'loyalty'){
       state.loyaltyPoints = (state.loyaltyPoints || 0) + prize.amount;
       msg = `+${prize.amount} ❤️ Loyalty`;
+    } else if(prize.kind === 'fragment'){
+      const chefs = (typeof LEGENDARY_CHEFS !== 'undefined' ? LEGENDARY_CHEFS : []).map(c => c.id);
+      const id = chefs.length ? chefs[Math.floor(Math.random()*chefs.length)] : 'nonna';
+      addChefFragment(id, prize.amount || 1);
+      msg = `🧩 Chef fragment (${id})`;
     }
+    state.eventScore = (state.eventScore || 0) + 1;
     return msg;
   }
   function spinLuckyWheel(paid){
@@ -2715,10 +3268,23 @@
       <p class="rep-hint">Lifetime daily spin. Extra spins cost diamonds. Prizes: cash, gems, research, ingredients, boosters, loyalty. Spins: ${state.wheelSpins||0}</p>
     </div>`;
 
+    // Equipment shop (Part 6.7)
+    html += `<div class="chal-section-label" style="margin-top:16px;">Equipment Shop</div>`;
+    EQUIPMENT_SHOP.forEach(item => {
+      const can = getCountryCash(state.activeCountry) >= item.cost;
+      html += `<div class="ach-card" style="margin-bottom:6px;">
+        <div class="ach-icon">${item.icon}</div>
+        <div class="ach-info"><div class="ach-name">${item.name}</div>
+        <div class="ach-desc">${item.desc}</div>
+        <div class="ach-reward">${fmt(item.cost)}</div></div>
+        <button class="claim-btn" data-action="buy-equip" data-id="${item.id}" ${can?'':'disabled'}>Buy</button>
+      </div>`;
+    });
+
     // Boosters (mirror of prestige panel, quick access)
-    html += `<div class="chal-section-label" style="margin-top:16px;">Boosters</div>`;
+    html += `<div class="chal-section-label" style="margin-top:16px;">Premium Boosters</div>`;
     html += `<div id="economyPowerupsList"></div>`;
-    html += `<p class="rep-hint" style="margin-top:6px;">Traffic boost +${Math.round((trafficBoost-1)*100)}% customer orders while active.</p>`;
+    html += `<p class="rep-hint" style="margin-top:6px;">Traffic boost +${Math.round((trafficBoost-1)*100)}% customer orders while active. Chef fragments: ${Object.entries(state.chefFragments||{}).map(([k,v])=>k+':'+v).join(', ')||'none'}</p>`;
 
     panel.innerHTML = html;
 
@@ -3026,6 +3592,8 @@
     const reviewsTot = state.reviewsTotal || 0;
     const vipN = state.vipServed || 0;
     const celebN = state.celebritiesServed || 0;
+    const drivers = satisfactionDrivers();
+    const avgRev = averageReviewScore();
     html += `<div class="chal-section-label" style="margin-top:16px;">Customers</div>`;
     html += `<div class="rep-panel-card">
       <div class="rep-panel-top">
@@ -3033,14 +3601,44 @@
         <span class="rep-panel-mult">Satisfaction</span>
       </div>
       <div class="rep-track big"><div class="rep-fill" style="width:${Math.max(0,Math.min(100,sat))}%; background:linear-gradient(90deg,#5ecf8a,#c9e265);"></div></div>
+      <div style="font-size:10.5px; opacity:0.8; margin-top:8px; line-height:1.5;">
+        Food ${Math.round(drivers.food)} · Speed ${Math.round(drivers.speed)} · Clean ${Math.round(drivers.clean)} · Atmosphere ${Math.round(drivers.atmosphere)} · Staff ${Math.round(drivers.staff)}
+      </div>
       <div style="display:flex; flex-wrap:wrap; gap:8px 14px; margin-top:10px; font-size:11.5px;">
-        <span>❤️ Loyalty <b>${loyalty}</b> (Tier ${loyaltyTier}${loyaltyBonusPct ? ` · +${loyaltyBonusPct}% orders` : ''})</span>
-        <span>⭐ Reviews <b>${reviewsPos}</b>/${reviewsTot}</span>
+        <span>❤️ Loyalty <b>${loyalty}</b> (Tier ${loyaltyTier}${loyaltyBonusPct ? ` · +${loyaltyBonusPct}%` : ''})</span>
+        <span>⭐ Avg review <b>${avgRev || '—'}</b> (${reviewsPos}/${reviewsTot})</span>
+        <span>🔁 Repeats <b>${state.repeatCustomers||0}</b></span>
         <span>💎 VIP <b>${vipN}</b></span>
         <span>🌟 Celebs <b>${celebN}</b></span>
       </div>
-      <p class="rep-hint">Serve quickly to raise satisfaction. VIPs, tourists & celebrities pay more. Queue upgrades & staff extend patience. Loyalty tiers boost order rewards.</p>
+      <p class="rep-hint">Satisfaction follows food quality, service speed, cleanliness, atmosphere & staff. Loyalty tiers boost order rewards. VIPs & celebs pay more.</p>
     </div>`;
+
+    // Loyalty special events (Part 5.9)
+    html += `<div class="chal-section-label" style="margin-top:16px;">Loyalty Events</div>`;
+    LOYALTY_EVENTS.forEach(ev => {
+      const claimed = !!(state.loyaltyEventsClaimed && state.loyaltyEventsClaimed[ev.id]);
+      const ready = (state.loyaltyPoints||0) >= ev.pts && !claimed;
+      html += `<div class="ach-card${claimed?' claimed':''}" style="margin-bottom:6px;">
+        <div class="ach-icon${claimed?' done':''}">❤️</div>
+        <div class="ach-info"><div class="ach-name">${ev.name}</div>
+        <div class="ach-desc">Need ${ev.pts} loyalty points</div></div>
+        <button class="claim-btn" data-action="claim-loyalty-ev" data-id="${ev.id}" ${ready?'':'disabled'}>${claimed?'✓':'Claim'}</button>
+      </div>`;
+    });
+
+    // Sponsorships (GDD Part 7)
+    html += `<div class="chal-section-label" style="margin-top:16px;">Sponsorships · Fame ${Math.floor(state.fame||0)}</div>`;
+    SPONSORSHIPS.forEach(sp => {
+      const active = !!(state.activeSponsorships && state.activeSponsorships[sp.id]);
+      const can = (state.fame||0) >= sp.fameReq && !active;
+      html += `<div class="ach-card${active?' claimed':''}" style="margin-bottom:6px;">
+        <div class="ach-icon${active?' done':''}">${sp.icon}</div>
+        <div class="ach-info"><div class="ach-name">${sp.name}</div>
+        <div class="ach-desc">Need ${sp.fameReq} fame · +${Math.round(sp.incomeBonus*100)}% income</div></div>
+        <button class="claim-btn${active?' done':''}" data-action="claim-sponsor" data-id="${sp.id}" ${can?'':'disabled'}>${active?'Active':'Claim'}</button>
+      </div>`;
+    });
 
     // ---- Michelin Challenge (GDD) ----
     html += `<div class="chal-section-label" style="margin-top:16px;">Michelin Stars · ${'⭐'.repeat(state.michelinStars||0)}${'☆'.repeat(Math.max(0, CONFIG.MICHELIN_MAX_STARS - (state.michelinStars||0)))}</div>`;
@@ -3932,6 +4530,19 @@
       </div>`;
     });
 
+    // Event exclusive decorations
+    html += `<div class="chal-section-label" style="margin-top:14px;">Event Decorations</div>`;
+    EVENT_DECORATIONS.forEach(d => {
+      const owned = !!(state.eventDecorOwned && state.eventDecorOwned[d.id]);
+      html += `<div class="ach-card${owned?' claimed':''}" style="margin-bottom:6px;">
+        <div class="ach-icon${owned?' done':''}">${d.icon}</div>
+        <div class="ach-info"><div class="ach-name">${d.name}</div>
+        <div class="ach-desc">Season: ${d.seasonal} · Atm +${d.atmosphere}</div></div>
+        <button class="claim-btn" data-action="claim-edeco" data-id="${d.id}" ${owned?'disabled':''}>${owned?'Owned':'Get · 🎫20'}</button>
+      </div>`;
+    });
+    html += `<p class="rep-hint">Event score (leaderboard): <b>${Math.floor(state.eventScore||0)}</b></p>`;
+
     // Event Shop
     html += `<div class="chal-section-label" style="margin-top:14px;">Event Shop</div>`;
     EVENT_SHOP.forEach(item => {
@@ -4176,6 +4787,8 @@
     economyPanelEl.addEventListener('click', e => {
       const puBtn = e.target.closest('[data-action="buy-powerup"]');
       if(puBtn) buyPowerup(puBtn.dataset.id);
+      const eqBtn = e.target.closest('[data-action="buy-equip"]');
+      if(eqBtn) buyEquipmentShopItem(eqBtn.dataset.id);
     });
   }
   // Events panel
@@ -4189,6 +4802,7 @@
       else if(act === 'buy-event') buyEventShopItem(btn.dataset.id);
       else if(act === 'start-champ') startChampionship();
       else if(act === 'claim-community') claimCommunity(btn.dataset.id);
+      else if(act === 'claim-edeco') claimEventDecoration(btn.dataset.id);
       else if(act === 'claim-seasonal') claimSeasonal();
     });
   }
@@ -4217,30 +4831,318 @@
     applyCosmeticTheme();
     renderCollection();
   }
+  function isThemeUnlocked(t){
+    if(t.currency === 'free') return true;
+    if(state.unlockedThemes && state.unlockedThemes[t.id]) return true;
+    if(t.currency === 'milestone' && state.milestoneIdx >= (t.milestoneReq || 0)) return true;
+    return false;
+  }
+  function unlockTheme(id){
+    const t = RESTAURANT_THEMES.find(x => x.id === id);
+    if(!t || isThemeUnlocked(t)) return;
+    if(t.currency === 'diamonds'){
+      if((state.diamonds || 0) < t.cost){ playErrorSfx(); return; }
+      state.diamonds -= t.cost;
+    } else if(t.currency === 'prestige'){
+      if((state.prestigePoints || 0) < t.cost){ playErrorSfx(); return; }
+      state.prestigePoints -= t.cost;
+    } else if(t.currency === 'milestone'){
+      if(state.milestoneIdx < (t.milestoneReq || 0)){ playErrorSfx(); return; }
+    }
+    if(!state.unlockedThemes) state.unlockedThemes = {};
+    state.unlockedThemes[t.id] = true;
+    playBuySfx();
+    save(); renderCollection(); renderStats(); checkAchievements();
+  }
+  function equipTheme(id){
+    if(!isThemeUnlocked(RESTAURANT_THEMES.find(t => t.id === id) || {})) return;
+    state.restaurantTheme = id;
+    applyRestaurantTheme();
+    save(); renderCollection();
+  }
+  function buyDecoration(id){
+    const d = DECORATIONS.find(x => x.id === id);
+    if(!d || (state.decorations && state.decorations[id])) return;
+    if(d.currency === 'diamonds'){
+      if((state.diamonds || 0) < d.cost){ playErrorSfx(); return; }
+      state.diamonds -= d.cost;
+    } else {
+      if(getCountryCash(state.activeCountry) < d.cost){ playErrorSfx(); return; }
+      if(!spendCountryCash(state.activeCountry, d.cost)) return;
+    }
+    if(!state.decorations) state.decorations = {};
+    state.decorations[id] = true;
+    playBuySfx();
+    save(); renderCollection(); renderStats(); checkAchievements();
+  }
+  function buyFurniture(id){
+    const f = FURNITURE.find(x => x.id === id);
+    if(!f || (state.furniture && state.furniture[id])) return;
+    if(getCountryCash(state.activeCountry) < f.cost){ playErrorSfx(); return; }
+    if(!spendCountryCash(state.activeCountry, f.cost)) return;
+    if(!state.furniture) state.furniture = {};
+    state.furniture[id] = true;
+    playBuySfx();
+    save(); renderCollection(); renderStats(); checkAchievements();
+  }
+  function unlockOutfit(id){
+    const o = CHEF_OUTFITS.find(x => x.id === id);
+    if(!o || (state.unlockedOutfits && state.unlockedOutfits[id])) return;
+    if(o.currency === 'diamonds'){
+      if((state.diamonds || 0) < o.cost){ playErrorSfx(); return; }
+      state.diamonds -= o.cost;
+    }
+    if(!state.unlockedOutfits) state.unlockedOutfits = {};
+    state.unlockedOutfits[id] = true;
+    playBuySfx();
+    save(); renderCollection(); renderStats();
+  }
+  function equipOutfit(id){
+    if(!(state.unlockedOutfits && state.unlockedOutfits[id])) return;
+    state.chefOutfit = id;
+    save(); renderCollection();
+  }
+  function setMusicTheme(id){
+    state.musicTheme = id;
+    save(); renderCollection();
+  }
+  function setLighting(id){
+    state.lighting = id;
+    applyRestaurantTheme();
+    save(); renderCollection();
+  }
+  function applyRestaurantTheme(){
+    const app = document.getElementById('app');
+    if(!app) return;
+    app.className = app.className.split(' ').filter(c => !c.startsWith('rst-') && !c.startsWith('light-')).join(' ').trim();
+    if(state.restaurantTheme && state.restaurantTheme !== 'traditional'){
+      app.classList.add('rst-' + state.restaurantTheme);
+    }
+    if(state.lighting && state.lighting !== 'warm'){
+      app.classList.add('light-' + state.lighting);
+    }
+  }
+
   function renderCollection(){
     const panel = document.getElementById('collectionPanel');
+    if(!panel) return;
+    let html = '';
     const unlockedCount = COSMETICS.filter(isCosmeticUnlocked).length;
-    panel.innerHTML = `<div class="chal-section-label">Bowl Skins — ${unlockedCount}/${COSMETICS.length} collected</div>`;
+    html += `<div class="chal-section-label">Bowl Skins — ${unlockedCount}/${COSMETICS.length}</div>`;
     COSMETICS.forEach(c => {
       const unlocked = isCosmeticUnlocked(c);
       const equipped = state.equippedSkin === c.id;
-      const card = document.createElement('div');
-      card.className = 'ach-card' + (!unlocked ? ' claimed' : '');
-      const desc = unlocked ? c.desc : `Unlocks at ${fmt(MILESTONES[c.milestoneReq])} total earned`;
-      card.innerHTML = `
-        <div class="ach-icon${unlocked ? ' done' : ''}" aria-hidden="true">${unlocked ? c.icon : '🔒'}</div>
-        <div class="ach-info">
-          <div class="ach-name">${c.name}</div>
-          <div class="ach-desc">${desc}</div>
-        </div>
-        <button class="claim-btn${equipped ? ' done' : ''}" data-action="equip" data-id="${c.id}" aria-label="${c.name}: ${equipped ? 'currently equipped' : (unlocked ? 'equip' : 'locked')}" ${!unlocked || equipped ? 'disabled' : ''}>${equipped ? '✓ Equipped' : (unlocked ? 'Equip' : 'Locked')}</button>
-      `;
-      panel.appendChild(card);
+      const desc = unlocked ? c.desc : (c.seasonal ? 'Seasonal event reward' : `Unlocks at ${fmt(MILESTONES[c.milestoneReq])} total earned`);
+      html += `<div class="ach-card${!unlocked ? ' claimed' : ''}">
+        <div class="ach-icon${unlocked ? ' done' : ''}">${unlocked ? c.icon : '🔒'}</div>
+        <div class="ach-info"><div class="ach-name">${c.name}</div><div class="ach-desc">${desc}</div></div>
+        <button class="claim-btn${equipped ? ' done' : ''}" data-action="equip" data-id="${c.id}" ${!unlocked || equipped ? 'disabled' : ''}>${equipped ? '✓' : (unlocked ? 'Equip' : 'Locked')}</button>
+      </div>`;
     });
+
+    // Themes
+    html += `<div class="chal-section-label" style="margin-top:16px;">Restaurant Themes</div>`;
+    RESTAURANT_THEMES.forEach(t => {
+      const unlocked = isThemeUnlocked(t);
+      const equipped = state.restaurantTheme === t.id;
+      let costLabel = 'Free';
+      if(t.currency === 'diamonds') costLabel = '💎 ' + t.cost;
+      else if(t.currency === 'prestige') costLabel = '⭐ ' + t.cost;
+      else if(t.currency === 'milestone') costLabel = 'Milestone ' + (t.milestoneReq + 1);
+      html += `<div class="ach-card${!unlocked ? ' claimed' : ''}">
+        <div class="ach-icon${unlocked ? ' done' : ''}">${t.icon}</div>
+        <div class="ach-info"><div class="ach-name">${t.name}</div><div class="ach-desc">${t.desc} · Atm +${t.atmosphere}</div>
+        <div class="ach-reward">${unlocked ? 'Owned' : costLabel}</div></div>
+        ${equipped ? '<button class="claim-btn done" disabled>✓</button>' :
+          unlocked ? `<button class="claim-btn" data-action="equip-theme" data-id="${t.id}">Equip</button>` :
+          `<button class="claim-btn" data-action="unlock-theme" data-id="${t.id}">Unlock</button>`}
+      </div>`;
+    });
+
+    // Decorations
+    html += `<div class="chal-section-label" style="margin-top:16px;">Decorations · Atmosphere ${atmosphereBonus()}</div>`;
+    DECORATIONS.forEach(d => {
+      const owned = !!(state.decorations && state.decorations[d.id]);
+      const costLabel = d.currency === 'diamonds' ? '💎 ' + d.cost : fmt(d.cost);
+      html += `<div class="ach-card${owned ? ' claimed' : ''}">
+        <div class="ach-icon${owned ? ' done' : ''}">${d.icon}</div>
+        <div class="ach-info"><div class="ach-name">${d.name}</div><div class="ach-desc">Atmosphere +${d.atmosphere}</div>
+        <div class="ach-reward">${owned ? 'Owned' : costLabel}</div></div>
+        <button class="claim-btn${owned ? ' done' : ''}" data-action="buy-deco" data-id="${d.id}" ${owned ? 'disabled' : ''}>${owned ? '✓' : 'Buy'}</button>
+      </div>`;
+    });
+
+    // Furniture
+    html += `<div class="chal-section-label" style="margin-top:16px;">Furniture · Patience</div>`;
+    FURNITURE.forEach(f => {
+      const owned = !!(state.furniture && state.furniture[f.id]);
+      html += `<div class="ach-card${owned ? ' claimed' : ''}">
+        <div class="ach-icon${owned ? ' done' : ''}">${f.icon}</div>
+        <div class="ach-info"><div class="ach-name">${f.name}</div><div class="ach-desc">+${Math.round((f.patience||0)*100)}% patience</div>
+        <div class="ach-reward">${owned ? 'Owned' : fmt(f.cost)}</div></div>
+        <button class="claim-btn${owned ? ' done' : ''}" data-action="buy-furn" data-id="${f.id}" ${owned ? 'disabled' : ''}>${owned ? '✓' : 'Buy'}</button>
+      </div>`;
+    });
+
+    // Outfits
+    html += `<div class="chal-section-label" style="margin-top:16px;">Chef Outfits</div>`;
+    CHEF_OUTFITS.forEach(o => {
+      const unlocked = !!(state.unlockedOutfits && state.unlockedOutfits[o.id]) || o.currency === 'free';
+      const equipped = state.chefOutfit === o.id;
+      html += `<div class="ach-card${!unlocked ? ' claimed' : ''}">
+        <div class="ach-icon${unlocked ? ' done' : ''}">${o.icon}</div>
+        <div class="ach-info"><div class="ach-name">${o.name}</div><div class="ach-desc">${o.luck ? '+' + Math.round(o.luck*100) + '% event luck' : 'Cosmetic'}</div>
+        <div class="ach-reward">${unlocked ? 'Owned' : ('💎 ' + o.cost)}</div></div>
+        ${equipped ? '<button class="claim-btn done" disabled>✓</button>' :
+          unlocked ? `<button class="claim-btn" data-action="equip-outfit" data-id="${o.id}">Equip</button>` :
+          `<button class="claim-btn" data-action="unlock-outfit" data-id="${o.id}">Unlock</button>`}
+      </div>`;
+    });
+
+    // Music
+    html += `<div class="chal-section-label" style="margin-top:16px;">Music Theme</div>`;
+    html += `<div class="rep-panel-card" style="display:flex; flex-wrap:wrap; gap:6px;">`;
+    MUSIC_THEMES.forEach(m => {
+      const on = state.musicTheme === m.id;
+      html += `<button class="claim-btn${on?' done':''}" data-action="set-music" data-id="${m.id}" style="width:auto; padding:8px 10px;">${m.icon} ${m.name}</button>`;
+    });
+    html += `</div>`;
+
+    // Lighting
+    html += `<div class="chal-section-label" style="margin-top:16px;">Lighting</div>`;
+    html += `<div class="rep-panel-card" style="display:flex; flex-wrap:wrap; gap:6px;">`;
+    LIGHTING_STYLES.forEach(l => {
+      const on = state.lighting === l.id;
+      html += `<button class="claim-btn${on?' done':''}" data-action="set-light" data-id="${l.id}" style="width:auto; padding:8px 10px;">${l.icon} ${l.name}</button>`;
+    });
+    html += `</div>`;
+
+    // Exterior
+    html += `<div class="chal-section-label" style="margin-top:16px;">Exterior</div>`;
+    EXTERIOR_OPTIONS.forEach(x => {
+      const owned = !!(state.unlockedExteriors && state.unlockedExteriors[x.id]) || x.currency === 'free';
+      const eq = state.exterior === x.id;
+      let cost = 'Free';
+      if(x.currency === 'diamonds') cost = '💎 ' + x.cost;
+      else if(x.currency === 'prestige') cost = '⭐ ' + x.cost;
+      else if(x.cost) cost = fmt(x.cost);
+      html += `<div class="ach-card${owned?' claimed':''}">
+        <div class="ach-icon${owned?' done':''}">${x.icon}</div>
+        <div class="ach-info"><div class="ach-name">${x.name}</div><div class="ach-reward">${owned?'Owned':cost}</div></div>
+        ${eq ? '<button class="claim-btn done" disabled>✓</button>' :
+          owned ? `<button class="claim-btn" data-action="equip-ext" data-id="${x.id}">Equip</button>` :
+          `<button class="claim-btn" data-action="buy-ext" data-id="${x.id}">Buy</button>`}
+      </div>`;
+    });
+
+    // Kitchen skins
+    html += `<div class="chal-section-label" style="margin-top:16px;">Kitchen Skins</div>`;
+    KITCHEN_SKINS.forEach(k => {
+      const owned = !!(state.unlockedKitchenSkins && state.unlockedKitchenSkins[k.id]) || k.currency === 'free';
+      const eq = state.kitchenSkin === k.id;
+      let cost = 'Free';
+      if(k.currency === 'diamonds') cost = '💎 ' + k.cost;
+      else if(k.cost) cost = fmt(k.cost);
+      html += `<div class="ach-card${owned?' claimed':''}">
+        <div class="ach-icon${owned?' done':''}">${k.icon}</div>
+        <div class="ach-info"><div class="ach-name">${k.name}</div><div class="ach-reward">${owned?'Owned':cost}</div></div>
+        ${eq ? '<button class="claim-btn done" disabled>✓</button>' :
+          owned ? `<button class="claim-btn" data-action="equip-kit" data-id="${k.id}">Equip</button>` :
+          `<button class="claim-btn" data-action="buy-kit" data-id="${k.id}">Buy</button>`}
+      </div>`;
+    });
+
+    // Interior slots
+    html += `<div class="chal-section-label" style="margin-top:16px;">Interior</div>`;
+    INTERIOR_SLOTS.forEach(slot => {
+      html += `<div class="rep-panel-card" style="margin-bottom:8px;"><div style="font-weight:700; margin-bottom:6px;">${slot.icon} ${slot.name}</div>`;
+      slot.options.forEach(opt => {
+        const on = (state.interior && state.interior[slot.id]) === opt.id;
+        const cost = opt.currency === 'diamonds' ? ('💎'+opt.cost) : (opt.cost ? fmt(opt.cost) : 'Free');
+        html += `<button class="claim-btn${on?' done':''}" data-action="buy-int" data-slot="${slot.id}" data-id="${opt.id}" style="width:auto; padding:6px 8px; margin:2px;" ${on?'disabled':''}>${opt.name} · ${on?'✓':cost}</button>`;
+      });
+      html += `</div>`;
+    });
+
+    // Exterior slots
+    html += `<div class="chal-section-label" style="margin-top:16px;">Exterior Detail</div>`;
+    EXTERIOR_SLOTS.forEach(slot => {
+      html += `<div class="rep-panel-card" style="margin-bottom:8px;"><div style="font-weight:700; margin-bottom:6px;">${slot.icon} ${slot.name}</div>`;
+      slot.options.forEach(opt => {
+        const on = (state.exteriorSlots && state.exteriorSlots[slot.id]) === opt.id;
+        const cost = opt.currency === 'diamonds' ? ('💎'+opt.cost) : (opt.cost ? fmt(opt.cost) : 'Free');
+        html += `<button class="claim-btn${on?' done':''}" data-action="buy-extslot" data-slot="${slot.id}" data-id="${opt.id}" style="width:auto; padding:6px 8px; margin:2px;" ${on?'disabled':''}>${opt.name} · ${on?'✓':cost}</button>`;
+      });
+      html += `</div>`;
+    });
+
+    // Kitchen detail
+    html += `<div class="chal-section-label" style="margin-top:16px;">Kitchen Details</div>`;
+    KITCHEN_DETAIL_SKINS.forEach(slot => {
+      html += `<div class="rep-panel-card" style="margin-bottom:8px;"><div style="font-weight:700; margin-bottom:6px;">${slot.icon} ${slot.name}</div>`;
+      slot.options.forEach(opt => {
+        const on = (state.kitchenDetail && state.kitchenDetail[slot.id]) === opt.id;
+        const cost = opt.currency === 'diamonds' ? ('💎'+opt.cost) : (opt.cost ? fmt(opt.cost) : 'Free');
+        html += `<button class="claim-btn${on?' done':''}" data-action="buy-kdet" data-slot="${slot.id}" data-id="${opt.id}" style="width:auto; padding:6px 8px; margin:2px;" ${on?'disabled':''}>${opt.name} · ${on?'✓':cost}</button>`;
+      });
+      html += `</div>`;
+    });
+
+    // Frames & nameplates
+    html += `<div class="chal-section-label" style="margin-top:16px;">Profile Frames</div>`;
+    PROFILE_FRAMES.forEach(f => {
+      const on = state.profileFrame === f.id;
+      const cost = f.cost ? ('💎'+f.cost) : 'Free';
+      html += `<button class="claim-btn${on?' done':''}" data-action="buy-frame" data-id="${f.id}" style="width:auto; padding:8px 10px; margin:2px;" ${on?'disabled':''}>${f.icon} ${f.name} · ${on?'✓':cost}</button>`;
+    });
+    html += `<div class="chal-section-label" style="margin-top:16px;">Nameplates</div>`;
+    NAMEPLATES.forEach(n => {
+      const on = state.nameplate === n.id;
+      const cost = n.currency === 'diamonds' ? ('💎'+n.cost) : (n.cost ? fmt(n.cost) : 'Free');
+      html += `<button class="claim-btn${on?' done':''}" data-action="buy-plate" data-id="${n.id}" style="width:auto; padding:8px 10px; margin:2px;" ${on?'disabled':''}>${n.icon} ${n.name} · ${on?'✓':cost}</button>`;
+    });
+
+    // Profile titles
+    html += `<div class="chal-section-label" style="margin-top:16px;">Profile Titles</div>`;
+    PROFILE_TITLES.forEach(t => {
+      const unlocked = canUnlockTitle(t.id);
+      const eq = state.profileTitle === t.id;
+      html += `<div class="ach-card${!unlocked?' claimed':''}">
+        <div class="ach-icon${unlocked?' done':''}">${t.icon}</div>
+        <div class="ach-info"><div class="ach-name">${t.name}</div>
+        <div class="ach-desc">${unlocked ? 'Unlocked' : 'Keep progressing to unlock'}</div></div>
+        ${eq ? '<button class="claim-btn done" disabled>✓</button>' :
+          unlocked ? `<button class="claim-btn" data-action="equip-title" data-id="${t.id}">Equip</button>` :
+          `<button class="claim-btn" disabled>Locked</button>`}
+      </div>`;
+    });
+
+    panel.innerHTML = html;
+    applyRestaurantTheme();
   }
   document.getElementById('collectionPanel').addEventListener('click', e => {
-    const btn = e.target.closest('[data-action="equip"]');
-    if(btn) equipSkin(btn.dataset.id);
+    const btn = e.target.closest('[data-action]');
+    if(!btn) return;
+    const act = btn.dataset.action;
+    if(act === 'equip') equipSkin(btn.dataset.id);
+    else if(act === 'unlock-theme') unlockTheme(btn.dataset.id);
+    else if(act === 'equip-theme') equipTheme(btn.dataset.id);
+    else if(act === 'buy-deco') buyDecoration(btn.dataset.id);
+    else if(act === 'buy-furn') buyFurniture(btn.dataset.id);
+    else if(act === 'unlock-outfit') unlockOutfit(btn.dataset.id);
+    else if(act === 'equip-outfit') equipOutfit(btn.dataset.id);
+    else if(act === 'set-music') setMusicTheme(btn.dataset.id);
+    else if(act === 'set-light') setLighting(btn.dataset.id);
+    else if(act === 'buy-ext') buyExterior(btn.dataset.id);
+    else if(act === 'equip-ext') equipExterior(btn.dataset.id);
+    else if(act === 'buy-kit') buyKitchenSkin(btn.dataset.id);
+    else if(act === 'equip-kit') equipKitchenSkin(btn.dataset.id);
+    else if(act === 'equip-title') equipProfileTitle(btn.dataset.id);
+    else if(act === 'buy-int') buyInteriorOption(btn.dataset.slot, btn.dataset.id);
+    else if(act === 'buy-extslot') buyExteriorOption(btn.dataset.slot, btn.dataset.id);
+    else if(act === 'buy-kdet') buyKitchenDetail(btn.dataset.slot, btn.dataset.id);
+    else if(act === 'buy-frame') buyProfileFrame(btn.dataset.id);
+    else if(act === 'buy-plate') buyNameplate(btn.dataset.id);
   });
   // Small nav-dot nudge when a skin has newly unlocked but isn't equipped yet
   // — checked on the same cadence as achievements/milestones.
@@ -5877,6 +6779,16 @@
         gts.value = state.lastGiftType || 'cash';
         gts.onchange = () => { state.lastGiftType = gts.value; save(); };
       }
+      const fdb = document.getElementById('friendshipDailyBtn');
+      if(fdb){
+        const claimed = state.friendshipDailyClaimed === (typeof todayKey === 'function' ? todayKey() : '');
+        fdb.disabled = claimed || (state.friendshipPoints||0) < 10;
+        fdb.onclick = () => { claimFriendshipDaily(); renderLeaderboard(); };
+      }
+      const feed = document.getElementById('socialFeedBox');
+      if(feed){
+        feed.innerHTML = (state.socialFeed||[]).slice(0,8).map(x => `<div>• ${x.msg}</div>`).join('') || '<div style="opacity:0.5;">Social feed empty</div>';
+      }
     }
     renderGuildPanel();
     renderChampionBanner();
@@ -6397,6 +7309,8 @@
     else if(action === 'equip-chef') equipChef(btn.dataset.id);
     else if(action === 'chef-skill') activateChefSkill();
     else if(action === 'michelin-start') startMichelinChallenge();
+    else if(action === 'claim-sponsor') claimSponsorship(btn.dataset.id);
+    else if(action === 'claim-loyalty-ev') claimLoyaltyEvent(btn.dataset.id);
     else if(action === 'layout') upgradeLayout(btn.dataset.id);
     else if(action === 'queue') upgradeQueue(btn.dataset.id);
     else if(action === 'delivery') upgradeDelivery(btn.dataset.id);
@@ -6570,6 +7484,7 @@
     renderStats();
     renderSeasonalBanner();
     applyCosmeticTheme();
+    if(typeof applyRestaurantTheme === 'function') applyRestaurantTheme();
     checkCollectionNotif();
     requestAnimationFrame(tick);
   }

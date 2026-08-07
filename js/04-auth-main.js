@@ -892,6 +892,16 @@
         gts.value = state.lastGiftType || 'cash';
         gts.onchange = () => { state.lastGiftType = gts.value; save(); };
       }
+      const fdb = document.getElementById('friendshipDailyBtn');
+      if(fdb){
+        const claimed = state.friendshipDailyClaimed === (typeof todayKey === 'function' ? todayKey() : '');
+        fdb.disabled = claimed || (state.friendshipPoints||0) < 10;
+        fdb.onclick = () => { claimFriendshipDaily(); renderLeaderboard(); };
+      }
+      const feed = document.getElementById('socialFeedBox');
+      if(feed){
+        feed.innerHTML = (state.socialFeed||[]).slice(0,8).map(x => `<div>• ${x.msg}</div>`).join('') || '<div style="opacity:0.5;">Social feed empty</div>';
+      }
     }
     renderGuildPanel();
     renderChampionBanner();
@@ -1412,6 +1422,8 @@
     else if(action === 'equip-chef') equipChef(btn.dataset.id);
     else if(action === 'chef-skill') activateChefSkill();
     else if(action === 'michelin-start') startMichelinChallenge();
+    else if(action === 'claim-sponsor') claimSponsorship(btn.dataset.id);
+    else if(action === 'claim-loyalty-ev') claimLoyaltyEvent(btn.dataset.id);
     else if(action === 'layout') upgradeLayout(btn.dataset.id);
     else if(action === 'queue') upgradeQueue(btn.dataset.id);
     else if(action === 'delivery') upgradeDelivery(btn.dataset.id);
@@ -1585,6 +1597,7 @@
     renderStats();
     renderSeasonalBanner();
     applyCosmeticTheme();
+    if(typeof applyRestaurantTheme === 'function') applyRestaurantTheme();
     checkCollectionNotif();
     requestAnimationFrame(tick);
   }
