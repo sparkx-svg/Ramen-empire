@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:script": "node build-script.js",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
